@@ -42,7 +42,7 @@
     </div>
     <form v-else @submit.prevent="submitForm" class="solar-form">
       <div class="brand-logo">
-        <img src="\WhatsApp Image 2024-02-03 at 11.45.20 AM.jpeg" alt="Brand Logo" />
+        <img :src="require('@/assets/logo.png')" alt="Ant Soler" />
       </div>
       <h2 class="form-title">Solar Calculator</h2>
       <div class="form-group">

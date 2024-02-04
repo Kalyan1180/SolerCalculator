@@ -1,6 +1,5 @@
 <template>
   <div id="app">
-    <h1>Solar Calculator App</h1>
     <SolerForm />
     <!-- Add other components or content here -->
   </div>
