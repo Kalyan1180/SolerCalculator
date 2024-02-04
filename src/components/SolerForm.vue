@@ -34,7 +34,7 @@
     <div v-else>
       <p>Battery Details: N/A</p>
     </div>
-    <p>Extimated Cost: Rs {{ calculatePrice() }}</p>
+    <p>Extimated Cost: Rs {{ Math.round(calculatePrice() * 100) / 100 }}</p>
   </div>
   <!-- Back button to go back to the input form -->
   <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
@@ -155,7 +155,7 @@
         <!-- Pump in kW -->
         <div class="input-group">
           <div class="input-group-prepend">
-            <span class="input-group-text">Pump (kW)</span>
+            <span class="input-group-text">Pump (1kW)</span>
           </div>
           <input v-model="appliances.pump" type="number" class="form-control" />
         </div>
@@ -163,7 +163,7 @@
         <!-- AC -->
         <div class="input-group">
           <div class="input-group-prepend">
-            <span class="input-group-text">AC in KW</span>
+            <span class="input-group-text">AC (1Ton)</span>
           </div>
           <input v-model="appliances.ac" type="number" class="form-control" />
         </div>
@@ -280,7 +280,7 @@ export default {
         // Round the result to two decimal places
         return Math.round(totalPowerConsumptionInKWh * 100) / 100;
       }
-      else if (this.commercialElectricityBill == null && this.domesticElectricityBill == null) {
+      else if (this.commercialElectricityBill == null && this.domesticElectricityBill == null && this.monthlyConsumption!=null) {
         return this.monthlyConsumption / 30
       }
       else {
@@ -327,17 +327,17 @@ export default {
     },
     calculatePannel() {
       var unitPerDay = this.calculateUnitPerDay();
-      if (unitPerDay >= 1 && unitPerDay <= 2) {
+      if (unitPerDay >0 && unitPerDay <= 2) {
         return 1;
-      } else if (unitPerDay >= 3 && unitPerDay <= 5) {
+      } else if (unitPerDay >2 && unitPerDay <= 5) {
         return 2;
-      } else if (unitPerDay >= 6 && unitPerDay <= 7) {
+      } else if (unitPerDay > 5 && unitPerDay <= 7) {
         return 3;
-      } else if (unitPerDay >= 8 && unitPerDay <= 12) {
+      } else if (unitPerDay >7 && unitPerDay <= 12) {
         return 4;
-      } else if (unitPerDay >= 13 && unitPerDay <= 18) {
+      } else if (unitPerDay >12 && unitPerDay <= 18) {
         return 6;
-      } else if (unitPerDay >= 19 && unitPerDay <= 24) {
+      } else if (unitPerDay >18 && unitPerDay <= 24) {
         return 8;
       } else {
         return 0;
