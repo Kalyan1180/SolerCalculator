@@ -365,8 +365,12 @@ export default {
         filteredInverters.reduce((minCostInverter, currentInverter) => {
           return currentInverter.cost < minCostInverter.cost ? currentInverter : minCostInverter;
         }) : null;
-
+       if(maxPanels==0){
+         return null;
+       }
+      else{
       return selectedInverter;
+      }
     },
     calculateBatteries() {
       var selectedInverter = this.caculateInvewrter();
