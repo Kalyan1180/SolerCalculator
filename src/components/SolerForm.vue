@@ -15,6 +15,8 @@
               <li><strong>Peak Load:</strong> {{ selectedInverter.peakLoad }} KVA</li>
               <li><strong>Max Panels Supported:</strong> {{ selectedInverter.maxPanels }}</li>
               <li><strong>Battery Supported:</strong> {{ selectedInverter.batterySupported }} Volt</li>
+              <li><strong>Inverter Cost:</strong> Rs: {{ selectedInverter.cost }}</li>
+
               <!-- <li><strong>Inverter Cost:</strong> Rs {{ selectedkInverter.cost }}</li> -->
             </ul>
           </div>
@@ -28,6 +30,8 @@
               <li><strong>Name:</strong> {{ selectedBatteryInfo.selectedBattery.name }}</li>
               <li><strong>Capacity:</strong> {{ selectedBatteryInfo.selectedBattery.capacity }} AH</li>
               <li><strong>Quantity:</strong> {{ selectedBatteryInfo.quantity }}</li>
+              <li><strong>Price:</strong> {{ selectedBatteryInfo.selectedBattery.price }} (each)</li>
+
               <!-- <li><strong>Battery Cost:</strong> Rs {{ selectedBatteryInfo.selectedBattery.price * selectedBatteryInfo.quantity }}</li> -->
             </ul>
           </div>
