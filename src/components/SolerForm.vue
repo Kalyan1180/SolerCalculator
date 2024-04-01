@@ -6,39 +6,43 @@
       <div class="result-container">
         <h2 class="form-title">Solar Calculator Results</h2>
         <div class="result-info">
-    <p>No of Panels Required: {{ calculatePannel() }}</p>
-    <!-- Displaying Inverter Details -->
-    <div v-if="showResults && selectedInverter" class="details-section">
-      <p class="section-title">Inverter Details:</p>
-      <ul class="details-list">
-        <li><strong>Name:</strong> {{ selectedInverter.name }}</li>
-        <li><strong>Peak Load:</strong> {{ selectedInverter.peakLoad }} KVA</li>
-        <li><strong>Max Panels Supported:</strong> {{ selectedInverter.maxPanels }}</li>
-        <li><strong>Battery Supported:</strong> {{ selectedInverter.batterySupported }} Volt</li>
-        <!-- <li><strong>Inverter Cost:</strong> Rs {{ selectedkInverter.cost }}</li> -->
-      </ul>
-    </div>
-    <div v-else>
-      <p>Inverter Details: N/A</p>
-    </div>
-    <!-- Displaying Battery Details -->
-    <div v-if="showResults && selectedBatteryInfo" class="details-section">
-      <p class="section-title">Battery Details:</p>
-      <ul class="details-list">
-        <li><strong>Name:</strong> {{ selectedBatteryInfo.selectedBattery.name }}</li>
-        <li><strong>Capacity:</strong> {{ selectedBatteryInfo.selectedBattery.capacity }} AH</li>
-        <li><strong>Quantity:</strong> {{ selectedBatteryInfo.quantity }}</li>
-        <!-- <li><strong>Battery Cost:</strong> Rs {{ selectedBatteryInfo.selectedBattery.price * selectedBatteryInfo.quantity }}</li> -->
-      </ul>
-    </div>
-    <div v-else>
-      <p>Battery Details: N/A</p>
-    </div>
-    <p>Extimated Cost: Rs {{ Math.round(calculatePrice() * 100) / 100 }}</p>
-  </div>
-  <!-- Back button to go back to the input form -->
-  <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
-</div>
+          <p>No of Panels Required: {{ calculatePannel() }}</p>
+          <!-- Displaying Inverter Details -->
+          <div v-if="showResults && selectedInverter" class="details-section">
+            <p class="section-title">Inverter Details:</p>
+            <ul class="details-list">
+              <li><strong>Name:</strong> {{ selectedInverter.name }}</li>
+              <li><strong>Peak Load:</strong> {{ selectedInverter.peakLoad }} KVA</li>
+              <li><strong>Max Panels Supported:</strong> {{ selectedInverter.maxPanels }}</li>
+              <li><strong>Battery Supported:</strong> {{ selectedInverter.batterySupported }} Volt</li>
+              <!-- <li><strong>Inverter Cost:</strong> Rs {{ selectedkInverter.cost }}</li> -->
+            </ul>
+          </div>
+          <div v-else>
+            <p>Inverter Details: N/A</p>
+          </div>
+          <!-- Displaying Battery Details -->
+          <div v-if="showResults && selectedBatteryInfo" class="details-section">
+            <p class="section-title">Battery Details:</p>
+            <ul class="details-list">
+              <li><strong>Name:</strong> {{ selectedBatteryInfo.selectedBattery.name }}</li>
+              <li><strong>Capacity:</strong> {{ selectedBatteryInfo.selectedBattery.capacity }} AH</li>
+              <li><strong>Quantity:</strong> {{ selectedBatteryInfo.quantity }}</li>
+              <!-- <li><strong>Battery Cost:</strong> Rs {{ selectedBatteryInfo.selectedBattery.price * selectedBatteryInfo.quantity }}</li> -->
+            </ul>
+          </div>
+          <div v-else>
+            <p>Battery Details: N/A</p>
+          </div>
+          <p>Extimated Cost with installation: Rs {{ Math.round(calculatePrice().totalCostWithMarkup * 100) / 100 }}</p>
+          <p>Extimated Cost without profit: Rs {{ Math.round(calculatePrice().totalCostWithoutMarkup * 100) / 100 }}</p>
+          <p>Profit Percentage(%): {{ (((Math.round(calculatePrice().totalCostWithMarkup * 100) /
+            100) - (Math.round(calculatePrice().totalCostWithoutMarkup * 100) /
+              100)) / (Math.round(calculatePrice().totalCostWithoutMarkup * 100) / 100)) * 100 }}</p>
+        </div>
+        <!-- Back button to go back to the input form -->
+        <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
+      </div>
     </div>
     <form v-else @submit.prevent="submitForm" class="solar-form">
       <div class="brand-logo">
@@ -181,7 +185,7 @@ export default {
     return {
       showResults: false, // Added data property to manage the display of results or input form
       selectedInverter: null,
-    selectedBatteryInfo: null,
+      selectedBatteryInfo: null,
       monthlyConsumption: null,
       billType: 'domestic',
       inputMethod: 'peakLoad',
@@ -205,36 +209,38 @@ export default {
       window.location.reload();
     },
 
-    calculate() { try{
-    // ... (other calculations)
-    this.showResults = true
+    calculate() {
+      try {
+        // ... (other calculations)
+        this.showResults = true
 
-    // Set the selected inverter and battery info
-    this.selectedInverter = this.caculateInvewrter();
-    this.selectedBatteryInfo = this.calculateBatteries();
-    }catch (error) {
-        console.error(error);
-        this.displayErrorMessage();
-      }
-  },
-    goBack(){
-      try{
-      this.showResults = false;
-      window.location.reload();
-      }  catch (error) {
+        // Set the selected inverter and battery info
+        this.selectedInverter = this.caculateInvewrter();
+        this.selectedBatteryInfo = this.calculateBatteries();
+      } catch (error) {
         console.error(error);
         this.displayErrorMessage();
       }
     },
-    submitForm() { try{
-      // Check for negative values before processing the form
-      if (this.peakLoad < 0 || this.commercialElectricityBill < 0 || this.domesticElectricityBill < 0 || Object.values(this.appliances).some(value => value < 0)) {
-        alert('Please enter valid positive values.');
-        return;
+    goBack() {
+      try {
+        this.showResults = false;
+        window.location.reload();
+      } catch (error) {
+        console.error(error);
+        this.displayErrorMessage();
       }
+    },
+    submitForm() {
+      try {
+        // Check for negative values before processing the form
+        if (this.peakLoad < 0 || this.commercialElectricityBill < 0 || this.domesticElectricityBill < 0 || Object.values(this.appliances).some(value => value < 0)) {
+          alert('Please enter valid positive values.');
+          return;
+        }
 
-      console.log('Form submitted:', this.billType, this.peakLoad, this.appliances);
-    } catch (error) {
+        console.log('Form submitted:', this.billType, this.peakLoad, this.appliances);
+      } catch (error) {
         console.error(error);
         this.displayErrorMessage();
       }
@@ -280,7 +286,7 @@ export default {
         // Round the result to two decimal places
         return Math.round(totalPowerConsumptionInKWh * 100) / 100;
       }
-      else if (this.commercialElectricityBill == null && this.domesticElectricityBill == null && this.monthlyConsumption!=null) {
+      else if (this.commercialElectricityBill == null && this.domesticElectricityBill == null && this.monthlyConsumption != null) {
         return this.monthlyConsumption / 30
       }
       else {
@@ -327,17 +333,17 @@ export default {
     },
     calculatePannel() {
       var unitPerDay = this.calculateUnitPerDay();
-      if (unitPerDay >0 && unitPerDay <= 2) {
+      if (unitPerDay > 0 && unitPerDay <= 2) {
         return 1;
-      } else if (unitPerDay >2 && unitPerDay <= 5) {
+      } else if (unitPerDay > 2 && unitPerDay <= 5) {
         return 2;
       } else if (unitPerDay > 5 && unitPerDay <= 7) {
         return 3;
-      } else if (unitPerDay >7 && unitPerDay <= 12) {
+      } else if (unitPerDay > 7 && unitPerDay <= 12) {
         return 4;
-      } else if (unitPerDay >12 && unitPerDay <= 18) {
+      } else if (unitPerDay > 12 && unitPerDay <= 18) {
         return 6;
-      } else if (unitPerDay >18 && unitPerDay <= 24) {
+      } else if (unitPerDay > 18 && unitPerDay <= 24) {
         return 8;
       } else {
         return 0;
@@ -348,6 +354,7 @@ export default {
       var peakLoad = this.calculatePeakLoad();
       var maxPanels = this.calculatePannel();
       const inverters = [
+        {name: 'Shamsi Solar Inverter 675 VA/12V', peakLoad: 0.6, maxPanels: 1, batterySupported: 12, cost: 4493 },
         { name: 'UTL Gamma plus 12V 1K', peakLoad: 1, maxPanels: 2, batterySupported: 12, cost: 14342 },
         { name: 'Gamma Plus MPPT Solar Inverter 2600/24 Volt', peakLoad: 2, maxPanels: 4, batterySupported: 24, cost: 18490 },
         { name: 'Gamma Plus MPPT Solar Inverter 3350/24 Volt', peakLoad: 3, maxPanels: 4, batterySupported: 24, cost: 19999 },
@@ -425,17 +432,21 @@ export default {
 
       // Apply a 40% markup for installation, maintenance, and other factors
       var totalCostWithMarkup = 0;
-      if (totalCostWithoutTax<50000){
-        totalCostWithMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 8))*1.6;
+      var totalCostWithoutMarkup = 0;
+      if (totalCostWithoutTax < 50000) {
+        totalCostWithMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 8)) * 1.15;
+        totalCostWithoutMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 8))
       }
-      else if ((noOfPanels > 3) && (totalCostWithoutTax>50000)){
-        totalCostWithMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 12))*1.4;
+      else if ((noOfPanels > 3) && (totalCostWithoutTax > 50000)) {
+        totalCostWithMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 12)) * 1.4;
+        totalCostWithoutMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 12))
 
       }
       else {
-        totalCostWithMarkup = ((totalCostWithoutTax ) + (noOfPanels * 500 * 8))*1.5;
+        totalCostWithMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 8)) * 1.5;
+        totalCostWithoutMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 8));
       }
-      return totalCostWithMarkup;
+      return { totalCostWithMarkup, totalCostWithoutMarkup };
     },
   },
 };
@@ -517,5 +528,4 @@ Make sure to c .btn-primary {
 .btn-primary:hover {
   background-color: #0056b3;
   border-color: #0056b3;
-}
-</style>
+}</style>
