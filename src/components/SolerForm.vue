@@ -401,10 +401,10 @@ export default {
 
       // Define a list of batteries with their specifications and price
       const batteries = [
-        { name: 'Exide Battery 100 AH', energy: 1.2, capacity: 100, price: 8000 },
-        { name: 'Exide Battery 150 AH', energy: 1.8, capacity: 150, price: 12000 },
-        { name: 'Exide Battery 200 AH', energy: 2.4, capacity: 200, price: 15000 },
-        { name: 'Exide Battery 260 AH', energy: 3.12, capacity: 260, price: 24000 },
+        { name: 'Exide Battery 100 AH', energy: 0.96, capacity: 100, price: 8000 },
+        { name: 'Exide Battery 150 AH', energy: 1.44, capacity: 150, price: 12000 },
+        { name: 'Exide Battery 200 AH', energy: 1.92, capacity: 200, price: 15000 },
+        { name: 'Exide Battery 260 AH', energy: 2.49, capacity: 260, price: 24000 },
       ];
 
       // Filter batteries based on capacity and price
