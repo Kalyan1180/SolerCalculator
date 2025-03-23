@@ -1,6 +1,6 @@
 <template>
   <div class="container mt-5">
-    <!-- Error message display -->
+    <!-- Display global error message if present -->
     <div v-if="errorMessage" class="alert alert-danger">
       {{ errorMessage }}
     </div>
@@ -10,8 +10,12 @@
       <div class="result-container">
         <h2 class="form-title">Solar Calculator Results</h2>
         <div class="result-info">
-          <p><strong>No. of Panels Required:</strong> {{ panelCount }}</p>
-          
+          <p>
+            <strong>No. of Panels Required:</strong>
+            <span v-if="panelCount > 0">{{ panelCount }}</span>
+            <span v-else>No panels required (check your input)</span>
+          </p>
+
           <!-- Inverter Details -->
           <div class="details-section">
             <p class="section-title">Inverter Details:</p>
@@ -22,9 +26,9 @@
               <li><strong>Battery Supported:</strong> {{ selectedInverter.batterySupported }} Volt</li>
               <li><strong>Inverter Cost:</strong> Rs: {{ selectedInverter.cost }}</li>
             </ul>
-            <p v-else>Inverter Details: N/A</p>
+            <p v-else>No suitable inverter found. Please adjust your input.</p>
           </div>
-          
+
           <!-- Battery Details -->
           <div class="details-section">
             <p class="section-title">Battery Details:</p>
@@ -34,9 +38,9 @@
               <li><strong>Quantity:</strong> {{ batteryInfo.quantity }}</li>
               <li><strong>Price (each):</strong> Rs: {{ batteryInfo.selectedBattery.price }}</li>
             </ul>
-            <p v-else>Battery Details: N/A</p>
+            <p v-else>No suitable battery found. Please adjust your input.</p>
           </div>
-          
+
           <!-- Cost Calculation -->
           <p>
             <strong>Estimated Cost with installation:</strong>
@@ -275,7 +279,6 @@ export default {
     // Select battery info based on required energy
     batteryInfo() {
       if (!this.selectedInverter) return null;
-      // Calculate required energy (based on unitPerDay)
       const energyRequired = (this.unitPerDay * 3) / 5;
       if (this.selectedInverter.batterySupported === 0 || energyRequired === 0) return null;
       const energyRequiredPerBattery = energyRequired / (this.selectedInverter.batterySupported / 12);
@@ -313,10 +316,10 @@ export default {
     },
   },
   methods: {
-    // Validate and submit the form
+    // Validate inputs and submit the form
     submitForm() {
       this.errorMessage = "";
-      // Validate negative values in inputs
+      // Basic negative value validation
       if (
         (this.peakLoad != null && this.peakLoad < 0) ||
         (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
@@ -326,10 +329,27 @@ export default {
         this.errorMessage = "Please enter valid positive values.";
         return;
       }
-      // If no validation errors, show results
+      // Check that at least one input is provided
+      const totalAppliances = Object.values(this.appliances).reduce((acc, val) => acc + val, 0);
+      if (
+        this.monthlyConsumption == null &&
+        this.domesticElectricityBill == null &&
+        this.commercialElectricityBill == null &&
+        totalAppliances === 0 &&
+        (this.peakLoad == null || this.peakLoad === 0)
+      ) {
+        this.errorMessage = "Please provide some consumption or load input.";
+        return;
+      }
+      // Check if a suitable inverter and battery are found
+      if (!this.selectedInverter || !this.batteryInfo) {
+        this.errorMessage = "No suitable inverter or battery found for the provided input. Please adjust your values.";
+        return;
+      }
+      // All validations passed, show results
       this.showResults = true;
     },
-    // Reset the form for new input
+    // Reset form inputs to go back
     goBack() {
       this.showResults = false;
       this.errorMessage = "";
@@ -414,4 +434,3 @@ export default {
   margin-bottom: 20px;
 }
 </style>
-  
