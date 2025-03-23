@@ -1,68 +1,78 @@
 <template>
   <div class="container mt-5">
-    <!-- Check if showResults is true to display results, otherwise display the input form -->
+    <!-- Error message display -->
+    <div v-if="errorMessage" class="alert alert-danger">
+      {{ errorMessage }}
+    </div>
+
+    <!-- Results view -->
     <div v-if="showResults">
-      <!-- Display calculation results -->
       <div class="result-container">
         <h2 class="form-title">Solar Calculator Results</h2>
         <div class="result-info">
-          <p>No of Panels Required: {{ calculatePannel() }}</p>
-          <!-- Displaying Inverter Details -->
-          <div v-if="showResults && selectedInverter" class="details-section">
+          <p><strong>No. of Panels Required:</strong> {{ panelCount }}</p>
+          
+          <!-- Inverter Details -->
+          <div class="details-section">
             <p class="section-title">Inverter Details:</p>
-            <ul class="details-list">
+            <ul class="details-list" v-if="selectedInverter">
               <li><strong>Name:</strong> {{ selectedInverter.name }}</li>
               <li><strong>Peak Load:</strong> {{ selectedInverter.peakLoad }} KVA</li>
               <li><strong>Max Panels Supported:</strong> {{ selectedInverter.maxPanels }}</li>
               <li><strong>Battery Supported:</strong> {{ selectedInverter.batterySupported }} Volt</li>
               <li><strong>Inverter Cost:</strong> Rs: {{ selectedInverter.cost }}</li>
-
-              <!-- <li><strong>Inverter Cost:</strong> Rs {{ selectedkInverter.cost }}</li> -->
             </ul>
+            <p v-else>Inverter Details: N/A</p>
           </div>
-          <div v-else>
-            <p>Inverter Details: N/A</p>
-          </div>
-          <!-- Displaying Battery Details -->
-          <div v-if="showResults && selectedBatteryInfo" class="details-section">
+          
+          <!-- Battery Details -->
+          <div class="details-section">
             <p class="section-title">Battery Details:</p>
-            <ul class="details-list">
-              <li><strong>Name:</strong> {{ selectedBatteryInfo.selectedBattery.name }}</li>
-              <li><strong>Capacity:</strong> {{ selectedBatteryInfo.selectedBattery.capacity }} AH</li>
-              <li><strong>Quantity:</strong> {{ selectedBatteryInfo.quantity }}</li>
-              <li><strong>Price:</strong> {{ selectedBatteryInfo.selectedBattery.price }} (each)</li>
-
-              <!-- <li><strong>Battery Cost:</strong> Rs {{ selectedBatteryInfo.selectedBattery.price * selectedBatteryInfo.quantity }}</li> -->
+            <ul class="details-list" v-if="batteryInfo">
+              <li><strong>Name:</strong> {{ batteryInfo.selectedBattery.name }}</li>
+              <li><strong>Capacity:</strong> {{ batteryInfo.selectedBattery.capacity }} AH</li>
+              <li><strong>Quantity:</strong> {{ batteryInfo.quantity }}</li>
+              <li><strong>Price (each):</strong> Rs: {{ batteryInfo.selectedBattery.price }}</li>
             </ul>
+            <p v-else>Battery Details: N/A</p>
           </div>
-          <div v-else>
-            <p>Battery Details: N/A</p>
-          </div>
-          <p>Extimated Cost with installation: Rs {{ Math.round(calculatePrice().totalCostWithMarkup * 100) / 100 }}</p>
-          <p>Extimated Cost without profit: Rs {{ Math.round(calculatePrice().totalCostWithoutMarkup * 100) / 100 }}</p>
-          <p>Profit Percentage(%): {{ (((Math.round(calculatePrice().totalCostWithMarkup * 100) /
-            100) - (Math.round(calculatePrice().totalCostWithoutMarkup * 100) /
-              100)) / (Math.round(calculatePrice().totalCostWithoutMarkup * 100) / 100)) * 100 }}</p>
+          
+          <!-- Cost Calculation -->
+          <p>
+            <strong>Estimated Cost with installation:</strong>
+            Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}
+          </p>
+          <p>
+            <strong>Estimated Cost without profit:</strong>
+            Rs: {{ costResults.totalCostWithoutMarkup.toFixed(2) }}
+          </p>
+          <p>
+            <strong>Profit Percentage (%):</strong>
+            {{ profitPercentage.toFixed(2) }}
+          </p>
         </div>
-        <!-- Back button to go back to the input form -->
         <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
       </div>
     </div>
+
+    <!-- Input Form view -->
     <form v-else @submit.prevent="submitForm" class="solar-form">
       <div class="brand-logo">
-        <img :src="require('@/assets/logo.png')" alt="Ant Soler" />
+        <img :src="logo" alt="Ant Soler" />
       </div>
       <h2 class="form-title">Solar Calculator</h2>
+
+      <!-- Monthly Consumption Input -->
       <div class="form-group">
-        <label for="monthlyConsumption" class="form-label">Monthly Consumption (KWH):</label>
-        <input v-model="monthlyConsumption" type="number" class="form-control" id="monthlyConsumption" />
+        <label for="monthlyConsumption" class="form-label">
+          Monthly Consumption (KWH):
+        </label>
+        <input v-model.number="monthlyConsumption" type="number" class="form-control" id="monthlyConsumption" />
       </div>
 
-      <!-- Monthly Electricity Bill Section -->
+      <!-- Electricity Bill Type -->
       <div class="form-group">
         <label class="form-label">Electricity Bill Type:</label>
-
-        <!-- Bootstrap grid for Domestic and Commercial radio buttons -->
         <div class="row">
           <div class="col">
             <div class="form-check">
@@ -77,22 +87,21 @@
             </div>
           </div>
         </div>
-        <!-- Domestic Electricity Bill Input -->
-        <div v-if="billType === 'domestic'" class="form-group">
-          <label for="domesticElectricityBill" class="form-label">Monthly Domestic Bill:</label>
-          <input v-model="domesticElectricityBill" type="number" class="form-control" id="domesticElectricityBill" />
-        </div>
-        <!-- Commercial Electricity Bill Input -->
-        <div v-if="billType === 'commercial'" class="form-group">
-          <label for="commercialElectricityBill" class="form-label">Monthly Commercial Bill:</label>
-          <input v-model="commercialElectricityBill" type="number" class="form-control" id="commercialElectricityBill" />
-        </div>
       </div>
-      <!-- Choose Input Method Section -->
+
+      <!-- Bill Inputs -->
+      <div class="form-group" v-if="billType === 'domestic'">
+        <label for="domesticElectricityBill" class="form-label">Monthly Domestic Bill:</label>
+        <input v-model.number="domesticElectricityBill" type="number" class="form-control" id="domesticElectricityBill" />
+      </div>
+      <div class="form-group" v-if="billType === 'commercial'">
+        <label for="commercialElectricityBill" class="form-label">Monthly Commercial Bill:</label>
+        <input v-model.number="commercialElectricityBill" type="number" class="form-control" id="commercialElectricityBill" />
+      </div>
+
+      <!-- Input Method Selection -->
       <div class="form-group">
         <label class="form-label d-block">Choose Input Method:</label>
-
-        <!-- Bootstrap grid for Peak Load and Number of Appliances radio buttons -->
         <div class="row">
           <div class="col">
             <div class="form-check form-check-inline">
@@ -102,97 +111,47 @@
           </div>
           <div class="col">
             <div class="form-check form-check-inline">
-              <input v-model="inputMethod" class="form-check-input" type="radio" id="appliancesMethod"
-                value="appliances" />
+              <input v-model="inputMethod" class="form-check-input" type="radio" id="appliancesMethod" value="appliances" />
               <label class="form-check-label" for="appliancesMethod">Enter Number of Appliances</label>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Dynamic Input Form based on User's Choice -->
-      <div v-if="inputMethod === 'peakLoad'" class="form-group">
+      <!-- Peak Load Input -->
+      <div class="form-group" v-if="inputMethod === 'peakLoad'">
         <label for="peakLoad" class="form-label">Peak Load Amp:</label>
-        <input v-model="peakLoad" type="number" class="form-control" id="peakLoad" />
+        <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" />
       </div>
 
-      <!-- Number of Appliances Inputs -->
-      <div v-if="inputMethod === 'appliances'" class="form-group">
+      <!-- Appliances Input -->
+      <div class="form-group" v-if="inputMethod === 'appliances'">
         <label class="form-label">Number of Appliances:</label>
-
-        <!-- LED Bulb -->
-        <div class="input-group">
+        <div class="input-group" v-for="(value, key) in appliances" :key="key">
           <div class="input-group-prepend">
-            <span class="input-group-text">LED Bulb</span>
+            <span class="input-group-text">{{ applianceLabels[key] }}</span>
           </div>
-          <input v-model="appliances.ledBulb" type="number" class="form-control" />
-        </div>
-
-        <!-- Tube Light -->
-        <div class="input-group">
-          <div class="input-group-prepend">
-            <span class="input-group-text">Tube Light</span>
-          </div>
-          <input v-model="appliances.tubeLight" type="number" class="form-control" />
-        </div>
-
-        <!-- Fan -->
-        <div class="input-group">
-          <div class="input-group-prepend">
-            <span class="input-group-text">Fan</span>
-          </div>
-          <input v-model="appliances.fan" type="number" class="form-control" />
-        </div>
-
-        <!-- Refrigerator -->
-        <div class="input-group">
-          <div class="input-group-prepend">
-            <span class="input-group-text">Refrigerator</span>
-          </div>
-          <input v-model="appliances.refrigerator" type="number" class="form-control" />
-        </div>
-
-        <!-- LED TV -->
-        <div class="input-group">
-          <div class="input-group-prepend">
-            <span class="input-group-text">LED TV</span>
-          </div>
-          <input v-model="appliances.ledTV" type="number" class="form-control" />
-        </div>
-
-        <!-- Pump in kW -->
-        <div class="input-group">
-          <div class="input-group-prepend">
-            <span class="input-group-text">Pump (1kW)</span>
-          </div>
-          <input v-model="appliances.pump" type="number" class="form-control" />
-        </div>
-
-        <!-- AC -->
-        <div class="input-group">
-          <div class="input-group-prepend">
-            <span class="input-group-text">AC (1Ton)</span>
-          </div>
-          <input v-model="appliances.ac" type="number" class="form-control" />
+          <input v-model.number="appliances[key]" type="number" class="form-control" />
         </div>
       </div>
 
       <!-- Calculate Button -->
-      <button @click="calculate()" class="btn btn-primary btn-block">Calculate</button>
+      <button type="submit" class="btn btn-primary btn-block">Calculate</button>
     </form>
   </div>
 </template>
 
 <script>
 export default {
+  name: "SolerCalculator",
   data() {
     return {
-      showResults: false, // Added data property to manage the display of results or input form
-      selectedInverter: null,
-      selectedBatteryInfo: null,
+      showResults: false,
+      errorMessage: "",
+      // Inputs
       monthlyConsumption: null,
-      billType: 'domestic',
-      inputMethod: 'peakLoad',
+      billType: "domestic",
+      inputMethod: "peakLoad",
       domesticElectricityBill: null,
       commercialElectricityBill: null,
       peakLoad: null,
@@ -205,335 +164,254 @@ export default {
         pump: 0,
         ac: 0,
       },
+      // For logo import (adjust the path as needed)
+      logo: require("@/assets/logo.png"),
+      // Labels for appliances
+      applianceLabels: {
+        ledBulb: "LED Bulb",
+        tubeLight: "Tube Light",
+        fan: "Fan",
+        refrigerator: "Refrigerator",
+        ledTV: "LED TV",
+        pump: "Pump (1kW)",
+        ac: "AC (1Ton)",
+      },
+      // Constants
+      panelCostPerPiece: 15000,
+      inverterList: [
+        { name: "Shamsi Solar Inverter 675 VA/12V", peakLoad: 0.6, maxPanels: 1, batterySupported: 12, cost: 4493 },
+        { name: "UTL Gamma plus 12V 1K", peakLoad: 1, maxPanels: 2, batterySupported: 12, cost: 14342 },
+        { name: "Gamma Plus MPPT Solar Inverter 2600/24 Volt", peakLoad: 2, maxPanels: 4, batterySupported: 24, cost: 18490 },
+        { name: "Gamma Plus MPPT Solar Inverter 3350/24 Volt", peakLoad: 3, maxPanels: 4, batterySupported: 24, cost: 19999 },
+        { name: "Sigma Plus Solar PCU 4kVA/48V", peakLoad: 4, maxPanels: 8, batterySupported: 48, cost: 55887 },
+        { name: "5kVA/48V Alfa+ Solar PCU", peakLoad: 5, maxPanels: 10, batterySupported: 48, cost: 66701 },
+      ],
+      batteryList: [
+        { name: "Exide Battery 100 AH", energy: 0.96, capacity: 100, price: 8000 },
+        { name: "Exide Battery 150 AH", energy: 1.44, capacity: 150, price: 12000 },
+        { name: "Exide Battery 200 AH", energy: 1.92, capacity: 200, price: 15000 },
+        { name: "Exide Battery 260 AH", energy: 2.49, capacity: 260, price: 24000 },
+      ],
+      // Wattage constants for calculations (in watts)
+      wattagePerHour: {
+        ledBulb: 9,
+        tubeLight: 20,
+        fan: 70,
+        refrigerator: 150,
+        ledTV: 50,
+        pump: 1000,
+        ac: 1000,
+      },
+      runningHours: {
+        ledBulb: 10,
+        tubeLight: 8,
+        fan: 12,
+        refrigerator: 24,
+        ledTV: 6,
+        pump: 1,
+        ac: 8,
+      },
+      // Wattage for peak load (different values)
+      peakWattage: {
+        ledBulb: 9,
+        tubeLight: 20,
+        fan: 70,
+        refrigerator: 200,
+        ledTV: 50,
+        pump: 1000,
+        ac: 1500,
+      },
     };
   },
-  methods: {
-    displayErrorMessage() {
-      alert('An error occurred. The application is temporarily unavailable. Please try again later.');
-      window.location.reload();
-    },
-
-    calculate() {
-      try {
-        // ... (other calculations)
-        this.showResults = true
-
-        // Set the selected inverter and battery info
-        this.selectedInverter = this.caculateInvewrter();
-        this.selectedBatteryInfo = this.calculateBatteries();
-      } catch (error) {
-        console.error(error);
-        this.displayErrorMessage();
-      }
-    },
-    goBack() {
-      try {
-        this.showResults = false;
-        window.location.reload();
-      } catch (error) {
-        console.error(error);
-        this.displayErrorMessage();
-      }
-    },
-    submitForm() {
-      try {
-        // Check for negative values before processing the form
-        if (this.peakLoad < 0 || this.commercialElectricityBill < 0 || this.domesticElectricityBill < 0 || Object.values(this.appliances).some(value => value < 0)) {
-          alert('Please enter valid positive values.');
-          return;
-        }
-
-        console.log('Form submitted:', this.billType, this.peakLoad, this.appliances);
-      } catch (error) {
-        console.error(error);
-        this.displayErrorMessage();
-      }
-    },
-    calculateUnitPerDay() {
-      // Constants for wattage and running hours per day
-      if ((this.domesticElectricityBill == null) && (this.commercialElectricityBill == null) && (this.monthlyConsumption == null)) {
-        const wattagePerHour = {
-          ledBulb: 9,
-          tubeLight: 20,
-          fan: 70,
-          refrigerator: 150,
-          ledTV: 50,
-          pump: 1000,
-          ac: 1000,
-        };
-
-        const runningHoursPerDay = {
-          ledBulb: 10,
-          tubeLight: 8,
-          fan: 12,
-          refrigerator: 24,
-          ledTV: 6,
-          pump: 1,
-          ac: 8,
-        };
-
-        // Iterate through all keys (appliance names) in the appliances object
-        const totalPowerConsumption = Object.keys(this.appliances).reduce((acc, appliance) => {
-          // Get the quantity for each appliance
-          const quantity = this.appliances[appliance];
-
-          // Calculate daily power consumption for each appliance
-          const dailyPowerConsumption = wattagePerHour[appliance] * runningHoursPerDay[appliance] * quantity;
-
-          // Sum up the total power consumption
-          return acc + dailyPowerConsumption;
-        }, 0);
-
-        // Convert total power consumption to kilowatt-hours
-        const totalPowerConsumptionInKWh = totalPowerConsumption / 1000;
-
-        // Round the result to two decimal places
-        return Math.round(totalPowerConsumptionInKWh * 100) / 100;
-      }
-      else if (this.commercialElectricityBill == null && this.domesticElectricityBill == null && this.monthlyConsumption != null) {
-        return this.monthlyConsumption / 30
-      }
-      else {
-        if (this.commercialElectricityBill == null) {
-          return ((this.domesticElectricityBill * 12) / 365) / 6.5
-        }
-        else {
-          return ((this.commercialElectricityBill * 12) / 365) / 10
-        }
-      }
-
-    },
-    calculatePeakLoad() {
-      if (this.peakLoad == null) {
-        const wattagePerHour = {
-          ledBulb: 9,
-          tubeLight: 20,
-          fan: 70,
-          refrigerator: 200,
-          ledTV: 50,
-          pump: 1000,
-          ac: 1500,
-        };
-        // Iterate through all keys (appliance names) in the appliances object
-        const peakPowerConsumption = Object.keys(this.appliances).reduce((acc, appliance) => {
-          // Get the quantity for each appliance
-          const quantity = this.appliances[appliance];
-
-          // Calculate daily Peak power consumption for each appliance
-          const dailyPowerConsumption = wattagePerHour[appliance] * quantity;
-
-          // Sum up the total power consumption
-          return acc + dailyPowerConsumption;
-        }, 0);
-        // Convert total power consumption to kilowatt-hours
-        const peakPowerConsumptionInKW = peakPowerConsumption / 1000;
-
-        // Round the result to two decimal places
-        return Math.round(peakPowerConsumptionInKW * 100) / 100;
-      }
-      else {
-        return (this.peakLoad * 220) / 1000
-      }
-    },
-    calculatePannel() {
-      var unitPerDay = this.calculateUnitPerDay();
-      if (unitPerDay > 0 && unitPerDay <= 2) {
-        return 1;
-      } else if (unitPerDay > 2 && unitPerDay <= 5) {
-        return 2;
-      } else if (unitPerDay > 5 && unitPerDay <= 7) {
-        return 3;
-      } else if (unitPerDay > 7 && unitPerDay <= 12) {
-        return 4;
-      } else if (unitPerDay > 12 && unitPerDay <= 18) {
-        return 6;
-      } else if (unitPerDay > 18 && unitPerDay <= 24) {
-        return 8;
+  computed: {
+    // Compute daily unit consumption
+    unitPerDay() {
+      if (this.monthlyConsumption != null && this.monthlyConsumption > 0) {
+        return this.monthlyConsumption / 30;
+      } else if (this.domesticElectricityBill != null && this.domesticElectricityBill > 0) {
+        return ((this.domesticElectricityBill * 12) / 365) / 6.5;
+      } else if (this.commercialElectricityBill != null && this.commercialElectricityBill > 0) {
+        return ((this.commercialElectricityBill * 12) / 365) / 10;
       } else {
-        return 0;
+        // Calculate from appliances
+        let total = 0;
+        for (let key in this.appliances) {
+          total += this.wattagePerHour[key] * this.runningHours[key] * this.appliances[key];
+        }
+        return Math.round((total / 1000) * 100) / 100;
       }
     },
-    caculateInvewrter() {
-      // Define a list of inverters with their specifications
-      var peakLoad = this.calculatePeakLoad();
-      var maxPanels = this.calculatePannel();
-      const inverters = [
-        {name: 'Shamsi Solar Inverter 675 VA/12V', peakLoad: 0.6, maxPanels: 1, batterySupported: 12, cost: 4493 },
-        { name: 'UTL Gamma plus 12V 1K', peakLoad: 1, maxPanels: 2, batterySupported: 12, cost: 14342 },
-        { name: 'Gamma Plus MPPT Solar Inverter 2600/24 Volt', peakLoad: 2, maxPanels: 4, batterySupported: 24, cost: 18490 },
-        { name: 'Gamma Plus MPPT Solar Inverter 3350/24 Volt', peakLoad: 3, maxPanels: 4, batterySupported: 24, cost: 19999 },
-        { name: 'Sigma Plus Solar PCU 4kVA/48V', peakLoad: 4, maxPanels: 8, batterySupported: 48, cost: 55887 },
-        { name: '5kVA/48V Alfa+ Solar PCU', peakLoad: 5, maxPanels: 10, batterySupported: 48, cost: 66701 },
-      ];
-
-      // Filter inverters that fulfill conditions
-      const filteredInverters = inverters.filter((inverter) => {
-        return peakLoad <= inverter.peakLoad && maxPanels <= inverter.maxPanels;
-      });
-
-      // Find the inverter with the lowest cost among the filtered inverters
-      const selectedInverter = filteredInverters.length > 0 ?
-        filteredInverters.reduce((minCostInverter, currentInverter) => {
-          return currentInverter.cost < minCostInverter.cost ? currentInverter : minCostInverter;
-        }) : null;
-       if(maxPanels==0){
-         return null;
-       }
-      else{
-      return selectedInverter;
+    // Compute peak load in kW
+    computedPeakLoad() {
+      if (this.peakLoad != null && this.peakLoad > 0) {
+        return (this.peakLoad * 220) / 1000;
+      } else {
+        let total = 0;
+        for (let key in this.appliances) {
+          total += this.peakWattage[key] * this.appliances[key];
+        }
+        return Math.round((total / 1000) * 100) / 100;
       }
     },
-    calculateBatteries() {
-      var selectedInverter = this.caculateInvewrter();
-      var unitPerDay = this.calculateUnitPerDay();
-      const supportedBattery = selectedInverter ? selectedInverter.batterySupported : 0;
-
-      // Calculate the energy required from the battery
-      const energyRequired = (unitPerDay * 3) / 5;
-
-      // If no supported battery or energyRequired is 0, return null
-      if (supportedBattery === 0 || energyRequired === 0) {
-        return null;
-      }
-
-      // Calculate the energy required per battery
-      const energyRequiredPerBattery = energyRequired / (supportedBattery / 12);
-
-      // Define a list of batteries with their specifications and price
-      const batteries = [
-        { name: 'Exide Battery 100 AH', energy: 0.96, capacity: 100, price: 8000 },
-        { name: 'Exide Battery 150 AH', energy: 1.44, capacity: 150, price: 12000 },
-        { name: 'Exide Battery 200 AH', energy: 1.92, capacity: 200, price: 15000 },
-        { name: 'Exide Battery 260 AH', energy: 2.49, capacity: 260, price: 24000 },
-      ];
-
-      // Filter batteries based on capacity and price
-      const filteredBatteries = batteries.filter((battery) => {
-        return battery.energy >= energyRequiredPerBattery;
-      });
-
-      // If no suitable battery is found, return null
-      if (filteredBatteries.length === 0) {
-        return null;
-      }
-
-      // Find the battery with the lowest price among the filtered batteries
-      const selectedBattery = filteredBatteries.reduce((minPriceBattery, currentBattery) => {
-        return currentBattery.price < minPriceBattery.price ? currentBattery : minPriceBattery;
-      });
-
-      // Calculate the quantity of batteries needed
-      const quantity = supportedBattery / 12;
-
+    // Number of panels needed based on daily unit consumption
+    panelCount() {
+      const units = this.unitPerDay;
+      if (units > 0 && units <= 2) return 1;
+      else if (units > 2 && units <= 5) return 2;
+      else if (units > 5 && units <= 7) return 3;
+      else if (units > 7 && units <= 12) return 4;
+      else if (units > 12 && units <= 18) return 6;
+      else if (units > 18 && units <= 24) return 8;
+      else return 0;
+    },
+    // Select the inverter with the lowest cost that meets requirements
+    selectedInverter() {
+      const filtered = this.inverterList.filter(
+        (inv) => this.computedPeakLoad <= inv.peakLoad && this.panelCount <= inv.maxPanels
+      );
+      if (filtered.length === 0 || this.panelCount === 0) return null;
+      return filtered.reduce((prev, curr) => (curr.cost < prev.cost ? curr : prev));
+    },
+    // Select battery info based on required energy
+    batteryInfo() {
+      if (!this.selectedInverter) return null;
+      // Calculate required energy (based on unitPerDay)
+      const energyRequired = (this.unitPerDay * 3) / 5;
+      if (this.selectedInverter.batterySupported === 0 || energyRequired === 0) return null;
+      const energyRequiredPerBattery = energyRequired / (this.selectedInverter.batterySupported / 12);
+      const filtered = this.batteryList.filter((bat) => bat.energy >= energyRequiredPerBattery);
+      if (filtered.length === 0) return null;
+      const selectedBattery = filtered.reduce((prev, curr) => (curr.price < prev.price ? curr : prev));
+      const quantity = this.selectedInverter.batterySupported / 12;
       return { selectedBattery, quantity };
     },
-    calculatePrice() {
-      const selectedInverter = this.caculateInvewrter();
-      const selectedBatteryInfo = this.calculateBatteries();
-      const noOfPanels = this.calculatePannel();
-      const panelCostPerPiece = 15000; // Adjust the panel cost as needed
-      const inverterCost = selectedInverter ? selectedInverter.cost : 0;
-      const batteryCost = selectedBatteryInfo ? (selectedBatteryInfo.quantity * selectedBatteryInfo.selectedBattery.price) : 0;
-
-      // Calculate the total cost without tax
-      const totalCostWithoutTax = (noOfPanels * panelCostPerPiece) + inverterCost + batteryCost;
-
-      // Apply a 40% markup for installation, maintenance, and other factors
-      var totalCostWithMarkup = 0;
-      var totalCostWithoutMarkup = 0;
-      if (totalCostWithoutTax < 50000) {
-        totalCostWithMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 8)) * 1.15;
-        totalCostWithoutMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 8))
+    // Cost calculations: with and without markup
+    costResults() {
+      const panelCost = this.panelCount * this.panelCostPerPiece;
+      const inverterCost = this.selectedInverter ? this.selectedInverter.cost : 0;
+      const batteryCost = this.batteryInfo ? this.batteryInfo.quantity * this.batteryInfo.selectedBattery.price : 0;
+      const totalWithoutTax = panelCost + inverterCost + batteryCost;
+      let totalWithMarkup = 0,
+        totalWithoutMarkup = 0;
+      if (totalWithoutTax < 50000) {
+        totalWithMarkup = (totalWithoutTax + this.panelCount * 500 * 8) * 1.15;
+        totalWithoutMarkup = totalWithoutTax + this.panelCount * 500 * 8;
+      } else if (this.panelCount > 3 && totalWithoutTax > 50000) {
+        totalWithMarkup = (totalWithoutTax + this.panelCount * 500 * 12) * 1.4;
+        totalWithoutMarkup = totalWithoutTax + this.panelCount * 500 * 12;
+      } else {
+        totalWithMarkup = (totalWithoutTax + this.panelCount * 500 * 8) * 1.5;
+        totalWithoutMarkup = totalWithoutTax + this.panelCount * 500 * 8;
       }
-      else if ((noOfPanels > 3) && (totalCostWithoutTax > 50000)) {
-        totalCostWithMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 12)) * 1.4;
-        totalCostWithoutMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 12))
-
+      return { totalCostWithMarkup: totalWithMarkup, totalCostWithoutMarkup: totalWithoutMarkup };
+    },
+    // Profit percentage calculation
+    profitPercentage() {
+      const { totalCostWithMarkup, totalCostWithoutMarkup } = this.costResults;
+      if (totalCostWithoutMarkup === 0) return 0;
+      return ((totalCostWithMarkup - totalCostWithoutMarkup) / totalCostWithoutMarkup) * 100;
+    },
+  },
+  methods: {
+    // Validate and submit the form
+    submitForm() {
+      this.errorMessage = "";
+      // Validate negative values in inputs
+      if (
+        (this.peakLoad != null && this.peakLoad < 0) ||
+        (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
+        (this.commercialElectricityBill != null && this.commercialElectricityBill < 0) ||
+        Object.values(this.appliances).some((val) => val < 0)
+      ) {
+        this.errorMessage = "Please enter valid positive values.";
+        return;
       }
-      else {
-        totalCostWithMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 8)) * 1.5;
-        totalCostWithoutMarkup = ((totalCostWithoutTax) + (noOfPanels * 500 * 8));
-      }
-      return { totalCostWithMarkup, totalCostWithoutMarkup };
+      // If no validation errors, show results
+      this.showResults = true;
+    },
+    // Reset the form for new input
+    goBack() {
+      this.showResults = false;
+      this.errorMessage = "";
+      this.monthlyConsumption = null;
+      this.billType = "domestic";
+      this.inputMethod = "peakLoad";
+      this.domesticElectricityBill = null;
+      this.commercialElectricityBill = null;
+      this.peakLoad = null;
+      this.appliances = {
+        ledBulb: 0,
+        tubeLight: 0,
+        fan: 0,
+        refrigerator: 0,
+        ledTV: 0,
+        pump: 0,
+        ac: 0,
+      };
     },
   },
 };
 </script>
 
 <style scoped>
-.brand-logo {
-  text-align: center;
-  margin-bottom: 20px;
+.container {
+  max-width: 400px;
+  margin: auto;
 }
-
-.brand-logo img {
-  max-width: 100px;
-  /* Adjust the max-width as needed */
-  height: auto;
-}
-
+.solar-form,
 .result-container {
   background-color: #f8f9fa;
   padding: 20px;
   border-radius: 10px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
-
-.result-info {
-  margin-top: 20px;
+.brand-logo {
+  text-align: center;
+  margin-bottom: 20px;
 }
-
-
-.container {
-  max-width: 400px;
-  margin: auto;
+.brand-logo img {
+  max-width: 100px;
+  height: auto;
 }
-
-.solar-form {
-  background-color: #f8f9fa;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
-
 .form-title {
   text-align: center;
-  color: #007BFF;
+  color: #007bff;
+  margin-bottom: 20px;
 }
-
 .form-group {
   margin-bottom: 20px;
 }
-
 .form-label {
   font-weight: bold;
 }
-
 .form-check-label {
   margin-left: 8px;
 }
-
 .form-control {
   border-radius: 5px;
   margin-top: 5px;
 }
-
+.input-group {
+  margin-bottom: 10px;
+}
+.btn-primary {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+.btn-primary:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
+}
 .btn-secondary {
   background-color: #6c757d;
   border-color: #6c757d;
 }
-
 .btn-secondary:hover {
   background-color: #5a6268;
   border-color: #5a6268;
 }
-
-Make sure to c .btn-primary {
-  background-color: #007BFF;
-  border-color: #007BFF;
+.alert {
+  margin-bottom: 20px;
 }
-
-.btn-primary:hover {
-  background-color: #0056b3;
-  border-color: #0056b3;
-}</style>
+</style>
+  
