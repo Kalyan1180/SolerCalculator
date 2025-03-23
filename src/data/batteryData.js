@@ -1,4 +1,3 @@
-
 // src/data/batteryData.js
 export const batteryList = [
   { name: "Exide Battery 100 AH", energy: 0.96, capacity: 100, price: 8000 },
