@@ -270,25 +270,13 @@ export default {
     // Select battery info based on required energy
     batteryInfo() {
       if (!this.selectedInverter) return null;
-      // Calculate required energy in kWh based on 3 days autonomy with a 40% depth-of-discharge
       const energyRequired = (this.unitPerDay * 3) / 5;
       if (this.selectedInverter.batterySupported === 0 || energyRequired === 0) return null;
-      // Factor based on the inverter’s battery support (e.g. 24V means factor of 2)
-      const batteryVoltageFactor = this.selectedInverter.batterySupported / 12;
-      // Energy required per battery (if batteries were used in parallel)
-      const energyRequiredPerBattery = energyRequired / batteryVoltageFactor;
-      let selectedBattery, quantity;
-      // First, try to find a battery that meets or exceeds the required energy per battery
-      const suitableBatteries = this.batteryList.filter(bat => bat.energy >= energyRequiredPerBattery);
-      if (suitableBatteries.length > 0) {
-        // Choose the one with the lowest price
-        selectedBattery = suitableBatteries.reduce((prev, curr) => (curr.price < prev.price ? curr : prev));
-        quantity = batteryVoltageFactor; // e.g. for 24V support, use 2 batteries
-      } else {
-        // Otherwise, select the battery with the maximum energy and calculate how many are needed
-        selectedBattery = this.batteryList.reduce((prev, curr) => (curr.energy > prev.energy ? curr : prev));
-        quantity = Math.ceil(energyRequired / selectedBattery.energy);
-      }
+      const energyRequiredPerBattery = energyRequired / (this.selectedInverter.batterySupported / 12);
+      const filtered = this.batteryList.filter((bat) => bat.energy >= energyRequiredPerBattery);
+      if (filtered.length === 0) return null;
+      const selectedBattery = filtered.reduce((prev, curr) => (curr.price < prev.price ? curr : prev));
+      const quantity = this.selectedInverter.batterySupported / 12;
       return { selectedBattery, quantity };
     },
     // Cost calculations: with and without markup
@@ -322,7 +310,7 @@ export default {
     // Validate inputs and submit the form
     submitForm() {
       this.errorMessage = "";
-      // Validate for negative values
+      // Basic negative value validation
       if (
         (this.peakLoad != null && this.peakLoad < 0) ||
         (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
@@ -332,7 +320,7 @@ export default {
         this.errorMessage = "Please enter valid positive values.";
         return;
       }
-      // Ensure at least one consumption or load input is provided
+      // Check that at least one input is provided
       const totalAppliances = Object.values(this.appliances).reduce((acc, val) => acc + val, 0);
       if (
         this.monthlyConsumption == null &&
@@ -349,10 +337,10 @@ export default {
         this.errorMessage = "No suitable inverter or battery found for the provided input. Please adjust your values.";
         return;
       }
-      // All validations passed – show results
+      // All validations passed, show results
       this.showResults = true;
     },
-    // Reset form inputs for new calculations
+    // Reset form inputs to go back
     goBack() {
       this.showResults = false;
       this.errorMessage = "";
