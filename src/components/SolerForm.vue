@@ -271,26 +271,35 @@ export default {
       if (filtered.length === 0 || this.panelCount === 0) return null;
       return filtered.reduce((prev, curr) => (curr.cost < prev.cost ? curr : prev));
     },
-    // Select battery info based on required energy
+    // Revised batteryInfo computed property: ensure battery quantity is a multiple of (batterySupported/12)
     batteryInfo() {
       if (!this.selectedInverter) return null;
-      // Calculate required energy (kWh) based on 3 days autonomy with a 40% depth-of-discharge
+      // Calculate required energy (in kWh) based on 3 days autonomy with 40% depth-of-discharge
       const energyRequired = (this.unitPerDay * 3) / 5;
       if (this.selectedInverter.batterySupported === 0 || energyRequired === 0) return null;
-      const batteryVoltageFactor = this.selectedInverter.batterySupported / 12;
-      const energyRequiredPerBattery = energyRequired / batteryVoltageFactor;
-      let selectedBattery, quantity;
-      // Try to find a battery that meets or exceeds the required energy per battery
-      const suitableBatteries = this.batteryList.filter(bat => bat.energy >= energyRequiredPerBattery);
-      if (suitableBatteries.length > 0) {
-        selectedBattery = suitableBatteries.reduce((prev, curr) => (curr.price < prev.price ? curr : prev));
-        quantity = batteryVoltageFactor; // e.g., for 24V support, use 2 batteries
-      } else {
-        // If none meet the criteria, pick the battery with maximum energy
-        selectedBattery = this.batteryList.reduce((prev, curr) => (curr.energy > prev.energy ? curr : prev));
-        quantity = Math.ceil(energyRequired / selectedBattery.energy);
-      }
-      return { selectedBattery, quantity };
+      // Factor: For a 12V system, factor = 1; for 24V, factor = 2; for 48V, factor = 4; etc.
+      const factor = this.selectedInverter.batterySupported / 12;
+      let bestCost = Infinity;
+      let bestCombo = null;
+      
+      // Loop over each battery type and try multiples of factor (e.g., 1x, 2x, …, up to 10x)
+      this.batteryList.forEach(battery => {
+        for (let k = 1; k <= 10; k++) {
+          const quantity = factor * k; // ensures the quantity is a multiple of factor
+          const totalEnergy = battery.energy * quantity;
+          if (totalEnergy >= energyRequired) {
+            const totalCost = battery.price * quantity;
+            if (totalCost < bestCost) {
+              bestCost = totalCost;
+              bestCombo = { selectedBattery: battery, quantity: quantity };
+            }
+            // Once a valid combination is found for this battery type, break out to try the next battery type
+            break;
+          }
+        }
+      });
+      
+      return bestCombo; // returns null if no combination meets energyRequired
     },
     // Cost calculations: with and without markup
     costResults() {
@@ -299,7 +308,7 @@ export default {
       const batteryCost = this.batteryInfo ? this.batteryInfo.quantity * this.batteryInfo.selectedBattery.price : 0;
       const totalWithoutTax = panelCost + inverterCost + batteryCost;
       let totalWithMarkup = 0,
-        totalWithoutMarkup = 0;
+          totalWithoutMarkup = 0;
       if (totalWithoutTax < 50000) {
         totalWithMarkup = (totalWithoutTax + this.panelCount * 500 * 8) * 1.15;
         totalWithoutMarkup = totalWithoutTax + this.panelCount * 500 * 8;
