@@ -146,9 +146,6 @@
 </template>
 
 <script>
-import { inverterList } from "@/data/inverterData.js";
-import { batteryList } from "@/data/batteryData.js";
-
 export default {
   name: "SolerCalculator",
   data() {
@@ -185,8 +182,9 @@ export default {
       },
       // Constants
       panelCostPerPiece: 15000,
-      inverterList: inverterList,
-      batteryList: batteryList,
+      // These lists will be fetched from the backend
+      inverterList: [],
+      batteryList: [],
       // Wattage constants (in watts)
       wattagePerHour: {
         ledBulb: 9,
@@ -270,13 +268,22 @@ export default {
     // Select battery info based on required energy
     batteryInfo() {
       if (!this.selectedInverter) return null;
+      // Calculate required energy (kWh) based on 3 days autonomy with a 40% depth-of-discharge
       const energyRequired = (this.unitPerDay * 3) / 5;
       if (this.selectedInverter.batterySupported === 0 || energyRequired === 0) return null;
-      const energyRequiredPerBattery = energyRequired / (this.selectedInverter.batterySupported / 12);
-      const filtered = this.batteryList.filter((bat) => bat.energy >= energyRequiredPerBattery);
-      if (filtered.length === 0) return null;
-      const selectedBattery = filtered.reduce((prev, curr) => (curr.price < prev.price ? curr : prev));
-      const quantity = this.selectedInverter.batterySupported / 12;
+      const batteryVoltageFactor = this.selectedInverter.batterySupported / 12;
+      const energyRequiredPerBattery = energyRequired / batteryVoltageFactor;
+      let selectedBattery, quantity;
+      // Try to find a battery that meets or exceeds the required energy per battery
+      const suitableBatteries = this.batteryList.filter(bat => bat.energy >= energyRequiredPerBattery);
+      if (suitableBatteries.length > 0) {
+        selectedBattery = suitableBatteries.reduce((prev, curr) => (curr.price < prev.price ? curr : prev));
+        quantity = batteryVoltageFactor; // e.g., for 24V support, use 2 batteries
+      } else {
+        // If none meet the criteria, pick the battery with maximum energy
+        selectedBattery = this.batteryList.reduce((prev, curr) => (curr.energy > prev.energy ? curr : prev));
+        quantity = Math.ceil(energyRequired / selectedBattery.energy);
+      }
       return { selectedBattery, quantity };
     },
     // Cost calculations: with and without markup
@@ -307,10 +314,10 @@ export default {
     },
   },
   methods: {
-    // Validate inputs and submit the form
-    submitForm() {
+    // Validate inputs and fetch data from the backend before calculation
+    async submitForm() {
       this.errorMessage = "";
-      // Basic negative value validation
+      // Validate negative values
       if (
         (this.peakLoad != null && this.peakLoad < 0) ||
         (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
@@ -320,7 +327,7 @@ export default {
         this.errorMessage = "Please enter valid positive values.";
         return;
       }
-      // Check that at least one input is provided
+      // Ensure at least one consumption or load input is provided
       const totalAppliances = Object.values(this.appliances).reduce((acc, val) => acc + val, 0);
       if (
         this.monthlyConsumption == null &&
@@ -332,15 +339,29 @@ export default {
         this.errorMessage = "Please provide some consumption or load input.";
         return;
       }
+      // Fetch inverter and battery data from the backend API
+      try {
+        const response = await fetch("/api/getData");
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+        const { inverters, batteries } = await response.json();
+        this.inverterList = inverters;
+        this.batteryList = batteries;
+      } catch (error) {
+        console.error("Error fetching backend data:", error);
+        this.errorMessage = "Error fetching data from backend. Please try again.";
+        return;
+      }
       // Check if a suitable inverter and battery are found
       if (!this.selectedInverter || !this.batteryInfo) {
         this.errorMessage = "No suitable inverter or battery found for the provided input. Please adjust your values.";
         return;
       }
-      // All validations passed, show results
+      // All validations passed – show results
       this.showResults = true;
     },
-    // Reset form inputs to go back
+    // Reset form inputs for new calculations
     goBack() {
       this.showResults = false;
       this.errorMessage = "";
@@ -361,6 +382,10 @@ export default {
       };
     },
   },
+  // Optionally, you could fetch backend data on component mount
+  // mounted() {
+  //   this.fetchBackendData();
+  // }
 };
 </script>
 
