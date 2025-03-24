@@ -16,6 +16,7 @@
             <span v-else>No panels required (check your input)</span>
           </p>
 
+          
           <!-- Inverter Details -->
           <div class="details-section">
             <p class="section-title">Inverter Details:</p>
