@@ -342,7 +342,7 @@ export default {
       }
       // Fetch inverter and battery data from the backend API
       try {
-        const response = await fetch("/api/getData");
+        const response = await fetch("/.netlify/functions/getData");
         if (!response.ok) {
           throw new Error("Network response was not ok");
         }
