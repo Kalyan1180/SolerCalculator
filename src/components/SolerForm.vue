@@ -1,12 +1,17 @@
 <template>
   <div class="container mt-5">
-    <!-- Display global error message if present -->
+    <!-- Global error message -->
     <div v-if="errorMessage" class="alert alert-danger">
       {{ errorMessage }}
     </div>
 
+    <!-- Loader indicator while API response is pending -->
+    <div v-if="loading" class="loader">
+      Loading data, please wait...
+    </div>
+
     <!-- Results view -->
-    <div v-if="showResults">
+    <div v-else-if="showResults">
       <div class="result-container">
         <h2 class="form-title">Solar Calculator Results</h2>
         <div class="result-info">
@@ -16,7 +21,6 @@
             <span v-else>No panels required (check your input)</span>
           </p>
 
-          
           <!-- Inverter Details -->
           <div class="details-section">
             <p class="section-title">Inverter Details:</p>
@@ -152,6 +156,7 @@ export default {
   data() {
     return {
       showResults: false,
+      loading: false,
       errorMessage: "",
       // Inputs
       monthlyConsumption: null,
@@ -318,6 +323,7 @@ export default {
     // Validate inputs and fetch data from the backend before calculation
     async submitForm() {
       this.errorMessage = "";
+      this.loading = true;
       // Validate negative values
       if (
         (this.peakLoad != null && this.peakLoad < 0) ||
@@ -326,6 +332,7 @@ export default {
         Object.values(this.appliances).some((val) => val < 0)
       ) {
         this.errorMessage = "Please enter valid positive values.";
+        this.loading = false;
         return;
       }
       // Ensure at least one consumption or load input is provided
@@ -338,6 +345,7 @@ export default {
         (this.peakLoad == null || this.peakLoad === 0)
       ) {
         this.errorMessage = "Please provide some consumption or load input.";
+        this.loading = false;
         return;
       }
       // Fetch inverter and battery data from the backend API
@@ -352,14 +360,17 @@ export default {
       } catch (error) {
         console.error("Error fetching backend data:", error);
         this.errorMessage = "Error fetching data from backend. Please try again.";
+        this.loading = false;
         return;
       }
       // Check if a suitable inverter and battery are found
       if (!this.selectedInverter || !this.batteryInfo) {
         this.errorMessage = "No suitable inverter or battery found for the provided input. Please adjust your values.";
+        this.loading = false;
         return;
       }
-      // All validations passed – show results
+      // All validations passed – hide loader and show results
+      this.loading = false;
       this.showResults = true;
     },
     // Reset form inputs for new calculations
@@ -383,10 +394,6 @@ export default {
       };
     },
   },
-  // Optionally, you could fetch backend data on component mount
-  // mounted() {
-  //   this.fetchBackendData();
-  // }
 };
 </script>
 
@@ -449,5 +456,12 @@ export default {
 }
 .alert {
   margin-bottom: 20px;
+}
+/* Simple loader style */
+.loader {
+  text-align: center;
+  padding: 20px;
+  font-size: 18px;
+  color: #007bff;
 }
 </style>
