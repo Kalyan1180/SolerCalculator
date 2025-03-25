@@ -265,6 +265,7 @@ export default {
     },
     // Select the inverter with the lowest cost that meets requirements
     selectedInverter() {
+      if (!this.inverterList.length) return null;
       const filtered = this.inverterList.filter(
         (inv) => this.computedPeakLoad <= inv.peakLoad && this.panelCount <= inv.maxPanels
       );
@@ -273,7 +274,7 @@ export default {
     },
     // Revised batteryInfo computed property: ensure battery quantity is a multiple of (batterySupported/12)
     batteryInfo() {
-      if (!this.selectedInverter) return null;
+      if (!this.selectedInverter || !this.batteryList.length) return null;
       // Calculate required energy (in kWh) based on 3 days autonomy with 40% depth-of-discharge
       const energyRequired = (this.unitPerDay * 3) / 5;
       if (this.selectedInverter.batterySupported === 0 || energyRequired === 0) return null;
@@ -303,6 +304,7 @@ export default {
     },
     // Cost calculations: with and without markup
     costResults() {
+      if (!this.selectedInverter) return { totalCostWithMarkup: 0, totalCostWithoutMarkup: 0 };
       const panelCost = this.panelCount * this.panelCostPerPiece;
       const inverterCost = this.selectedInverter ? this.selectedInverter.cost : 0;
       const batteryCost = this.batteryInfo ? this.batteryInfo.quantity * this.batteryInfo.selectedBattery.price : 0;
@@ -372,9 +374,9 @@ export default {
         this.loading = false;
         return;
       }
-      // Check if a suitable inverter and battery are found
+      // Check if a suitable inverter and battery combination is found
       if (!this.selectedInverter || !this.batteryInfo) {
-        this.errorMessage = "No suitable inverter or battery found for the provided input. Please adjust your values.";
+        this.errorMessage = "No suitable inverter or battery combination found. Please adjust your input.";
         this.loading = false;
         return;
       }
