@@ -87,7 +87,7 @@
       <!-- Choose Input Method -->
       <div class="form-group">
         <label class="form-label">Choose Input Method:</label>
-        <div class="radio-group">
+        <div class="radio-group main-radio">
           <label class="radio-option">
             <input type="radio" v-model="inputMethodType" value="monthly" />
             Monthly Consumption (KWH)
@@ -121,7 +121,7 @@
       <div v-else-if="inputMethodType === 'bill'">
         <div class="form-group">
           <label class="form-label">Electricity Bill Type:</label>
-          <div class="radio-group">
+          <div class="radio-group secondary-radio">
             <label class="radio-option">
               <input type="radio" v-model="billType" value="domestic" />
               Domestic
@@ -439,7 +439,32 @@ export default {
 .container {
   max-width: 400px;
   margin: auto;
+  padding: 15px;
 }
+
+/* Desktop adjustments */
+@media (min-width: 768px) {
+  .container {
+    max-width: 800px;
+  }
+  .radio-group.main-radio {
+    flex-direction: row;
+    justify-content: space-around;
+  }
+}
+
+/* Mobile adjustments */
+@media (max-width: 767px) {
+  .radio-group.main-radio {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .radio-group.secondary-radio {
+    flex-direction: row;
+    justify-content: space-around;
+  }
+}
+
 .solar-form,
 .result-container {
   background-color: #f8f9fa;
@@ -468,12 +493,11 @@ export default {
 }
 .radio-group {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
   margin-top: 10px;
 }
 .radio-option {
   font-size: 16px;
+  margin-bottom: 5px;
 }
 .form-check-label {
   margin-left: 8px;
