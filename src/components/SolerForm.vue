@@ -4,12 +4,12 @@
     <div v-if="errorMessage" class="alert alert-danger">
       {{ errorMessage }}
     </div>
-
-    <!-- Loader indicator while API response is pending -->
+    
+    <!-- Loader indicator -->
     <div v-if="loading" class="loader">
       Loading data, please wait...
     </div>
-
+    
     <!-- Results view -->
     <div v-else-if="showResults">
       <div class="result-container">
@@ -59,15 +59,16 @@
             <strong>Profit Percentage (%):</strong>
             {{ profitPercentage.toFixed(2) }}
           </p>
-
+          
           <!-- Offer Price Section -->
           <div class="offer-section">
             <p class="offer-title">Special Offer Price</p>
             <p class="offer-display">
               <span class="special-price">Rs: {{ (costResults.totalCostWithMarkup * 0.8).toFixed(2) }}</span>
+              <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}</span>
             </p>
           </div>
-          <!-- Disclaimer always displayed -->
+          <!-- Disclaimer (always visible) -->
           <p class="offer-disclaimer">
             * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
           </p>
@@ -75,79 +76,80 @@
         <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
       </div>
     </div>
-
+    
     <!-- Input Form view -->
     <form v-else @submit.prevent="submitForm" class="solar-form">
       <div class="brand-logo">
         <img :src="logo" alt="Ant Soler" />
       </div>
+      
       <h2 class="form-title">Solar Calculator</h2>
-
-      <!-- Monthly Consumption Input -->
+      
+      <!-- Choose Input Method -->
       <div class="form-group">
-        <label for="monthlyConsumption" class="form-label">
-          Monthly Consumption (KWH):
-        </label>
-        <input v-model.number="monthlyConsumption" type="number" class="form-control" id="monthlyConsumption" />
-      </div>
-
-      <!-- Electricity Bill Type -->
-      <div class="form-group">
-        <label class="form-label">Electricity Bill Type:</label>
-        <div class="row">
-          <div class="col">
-            <div class="form-check">
-              <input v-model="billType" class="form-check-input" type="radio" id="domesticBill" value="domestic" />
-              <label class="form-check-label" for="domesticBill">Domestic</label>
-            </div>
-          </div>
-          <div class="col">
-            <div class="form-check">
-              <input v-model="billType" class="form-check-input" type="radio" id="commercialBill" value="commercial" />
-              <label class="form-check-label" for="commercialBill">Commercial</label>
-            </div>
-          </div>
+        <label class="form-label">Choose Input Method:</label>
+        <div class="radio-group">
+          <label>
+            <input type="radio" v-model="inputMethodType" value="monthly" />
+            Monthly Consumption (KWH)
+          </label>
+          <label>
+            <input type="radio" v-model="inputMethodType" value="bill" />
+            Electricity Bill
+          </label>
+          <label>
+            <input type="radio" v-model="inputMethodType" value="appliances" />
+            Enter Number of Appliances
+          </label>
         </div>
       </div>
-
-      <!-- Bill Inputs -->
-      <div class="form-group" v-if="billType === 'domestic'">
-        <label for="domesticElectricityBill" class="form-label">Monthly Domestic Bill:</label>
-        <input v-model.number="domesticElectricityBill" type="number" class="form-control" id="domesticElectricityBill" />
-      </div>
-      <div class="form-group" v-if="billType === 'commercial'">
-        <label for="commercialElectricityBill" class="form-label">Monthly Commercial Bill:</label>
-        <input v-model.number="commercialElectricityBill" type="number" class="form-control" id="commercialElectricityBill" />
-      </div>
-
-      <!-- Input Method Selection -->
-      <div class="form-group">
-        <label class="form-label d-block">Choose Input Method:</label>
-        <div class="row">
-          <div class="col">
-            <div class="form-check form-check-inline">
-              <input v-model="inputMethod" class="form-check-input" type="radio" id="peakLoadMethod" value="peakLoad" />
-              <label class="form-check-label" for="peakLoadMethod">Enter Peak Load</label>
-            </div>
-          </div>
-          <div class="col">
-            <div class="form-check form-check-inline">
-              <input v-model="inputMethod" class="form-check-input" type="radio" id="appliancesMethod" value="appliances" />
-              <label class="form-check-label" for="appliancesMethod">Enter Number of Appliances</label>
-            </div>
-          </div>
+      
+      <!-- If Monthly Consumption is selected -->
+      <div v-if="inputMethodType === 'monthly'">
+        <div class="form-group">
+          <label for="monthlyConsumption" class="form-label">
+            Monthly Consumption (KWH):
+          </label>
+          <input v-model.number="monthlyConsumption" type="number" class="form-control" id="monthlyConsumption" />
+        </div>
+        <div class="form-group">
+          <label for="peakLoad" class="form-label">Peak Load Amp:</label>
+          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" />
         </div>
       </div>
-
-      <!-- Peak Load Input -->
-      <div class="form-group" v-if="inputMethod === 'peakLoad'">
-        <label for="peakLoad" class="form-label">Peak Load Amp:</label>
-        <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" />
+      
+      <!-- If Electricity Bill is selected -->
+      <div v-else-if="inputMethodType === 'bill'">
+        <div class="form-group">
+          <label class="form-label">Electricity Bill Type:</label>
+          <div class="radio-group">
+            <label>
+              <input type="radio" v-model="billType" value="domestic" />
+              Domestic
+            </label>
+            <label>
+              <input type="radio" v-model="billType" value="commercial" />
+              Commercial
+            </label>
+          </div>
+        </div>
+        <div class="form-group" v-if="billType === 'domestic'">
+          <label for="domesticElectricityBill" class="form-label">Monthly Domestic Bill:</label>
+          <input v-model.number="domesticElectricityBill" type="number" class="form-control" id="domesticElectricityBill" />
+        </div>
+        <div class="form-group" v-if="billType === 'commercial'">
+          <label for="commercialElectricityBill" class="form-label">Monthly Commercial Bill:</label>
+          <input v-model.number="commercialElectricityBill" type="number" class="form-control" id="commercialElectricityBill" />
+        </div>
+        <div class="form-group">
+          <label for="peakLoad" class="form-label">Peak Load Amp:</label>
+          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" />
+        </div>
       </div>
-
-      <!-- Appliances Input -->
-      <div class="form-group" v-if="inputMethod === 'appliances'">
-        <label class="form-label">Enter Number of Appliances:</label>
+      
+      <!-- If Enter Number of Appliances is selected -->
+      <div v-else-if="inputMethodType === 'appliances'">
+        <p class="form-label">Enter Number of Appliances:</p>
         <div class="input-group" v-for="(value, key) in appliances" :key="key">
           <div class="input-group-prepend">
             <span class="input-group-text">
@@ -157,10 +159,10 @@
           <input v-model.number="appliances[key]" type="number" class="form-control" />
         </div>
       </div>
-
+      
       <!-- Calculate Button -->
       <button type="submit" class="btn btn-primary btn-block">Calculate</button>
-
+      
       <!-- Admin Panel Link (visible only in input view) -->
       <div class="admin-link">
         <router-link to="/admin">Admin Panel: Add Inverter/Battery</router-link>
@@ -174,15 +176,21 @@ export default {
   name: "SolerCalculator",
   data() {
     return {
+      // Control flags
       showResults: false,
       loading: false,
       errorMessage: "",
+      // Input Method type: 'monthly', 'bill', or 'appliances'
+      inputMethodType: "monthly",
+      // Inputs for Monthly Consumption
       monthlyConsumption: null,
-      billType: "domestic",
-      inputMethod: "peakLoad",
+      // Inputs for Electricity Bill
+      billType: "domestic", // used when inputMethodType === 'bill'
       domesticElectricityBill: null,
       commercialElectricityBill: null,
+      // Common input for Monthly and Bill: Peak Load
       peakLoad: null,
+      // Inputs for Appliances
       appliances: {
         ledBulb: 0,
         tubeLight: 0,
@@ -192,19 +200,24 @@ export default {
         pump: 0,
         ac: 0,
       },
+      // Logo (adjust path as needed)
       logo: require("@/assets/logo.png"),
+      // Labels for appliances
       applianceLabels: {
         ledBulb: "LED Bulb",
         tubeLight: "Tube Light",
         fan: "Fan",
         refrigerator: "Refrigerator",
         ledTV: "LED TV",
-        pump: "Pump (1kW)", // This remains for internal keys; in the UI we change it conditionally
+        pump: "Pump (1kW)", // internal; UI will conditionally change this
         ac: "AC (1Ton)",
       },
+      // Constants
       panelCostPerPiece: 15000,
+      // Data from backend
       inverterList: [],
       batteryList: [],
+      // Wattage constants (in watts)
       wattagePerHour: {
         ledBulb: 9,
         tubeLight: 20,
@@ -223,6 +236,7 @@ export default {
         pump: 1,
         ac: 8,
       },
+      // For appliance-based peak load calculation
       peakWattage: {
         ledBulb: 9,
         tubeLight: 20,
@@ -235,32 +249,48 @@ export default {
     };
   },
   computed: {
+    // Calculate daily consumption based on selected input method
     unitPerDay() {
-      if (this.monthlyConsumption != null && this.monthlyConsumption > 0) {
-        return this.monthlyConsumption / 30;
-      } else if (this.domesticElectricityBill != null && this.domesticElectricityBill > 0) {
-        return ((this.domesticElectricityBill * 12) / 365) / 6.5;
-      } else if (this.commercialElectricityBill != null && this.commercialElectricityBill > 0) {
-        return ((this.commercialElectricityBill * 12) / 365) / 10;
-      } else {
+      if (this.inputMethodType === "monthly") {
+        return this.monthlyConsumption != null && this.monthlyConsumption > 0
+          ? this.monthlyConsumption / 30
+          : 0;
+      } else if (this.inputMethodType === "bill") {
+        if (this.billType === "domestic") {
+          return this.domesticElectricityBill != null && this.domesticElectricityBill > 0
+            ? ((this.domesticElectricityBill * 12) / 365) / 6.5
+            : 0;
+        } else if (this.billType === "commercial") {
+          return this.commercialElectricityBill != null && this.commercialElectricityBill > 0
+            ? ((this.commercialElectricityBill * 12) / 365) / 10
+            : 0;
+        } else {
+          return 0;
+        }
+      } else if (this.inputMethodType === "appliances") {
         let total = 0;
         for (let key in this.appliances) {
           total += this.wattagePerHour[key] * this.runningHours[key] * this.appliances[key];
         }
         return Math.round((total / 1000) * 100) / 100;
       }
+      return 0;
     },
+    // Compute peak load: if appliances-based method is selected, calculate from appliances; else use input
     computedPeakLoad() {
-      if (this.peakLoad != null && this.peakLoad > 0) {
-        return (this.peakLoad * 220) / 1000;
-      } else {
+      if (this.inputMethodType === "appliances") {
         let total = 0;
         for (let key in this.appliances) {
           total += this.peakWattage[key] * this.appliances[key];
         }
         return Math.round((total / 1000) * 100) / 100;
+      } else {
+        return this.peakLoad != null && this.peakLoad > 0
+          ? (this.peakLoad * 220) / 1000
+          : 0;
       }
     },
+    // Number of panels based on daily consumption
     panelCount() {
       const units = this.unitPerDay;
       if (units > 0 && units <= 2) return 1;
@@ -271,6 +301,7 @@ export default {
       else if (units > 18 && units <= 24) return 8;
       else return 0;
     },
+    // Select inverter from backend list based on computed peak load and panel count
     selectedInverter() {
       if (!this.inverterList.length) return null;
       const filtered = this.inverterList.filter(
@@ -279,6 +310,7 @@ export default {
       if (filtered.length === 0 || this.panelCount === 0) return null;
       return filtered.reduce((prev, curr) => (curr.cost < prev.cost ? curr : prev));
     },
+    // Calculate battery combination ensuring quantity is a multiple of (batterySupported/12)
     batteryInfo() {
       if (!this.selectedInverter || !this.batteryList.length) return null;
       const energyRequired = (this.unitPerDay * 3) / 5;
@@ -302,6 +334,7 @@ export default {
       });
       return bestCombo;
     },
+    // Cost calculations using panel, inverter, and battery data
     costResults() {
       if (!this.selectedInverter) return { totalCostWithMarkup: 0, totalCostWithoutMarkup: 0 };
       const panelCost = this.panelCount * this.panelCostPerPiece;
@@ -321,6 +354,7 @@ export default {
       }
       return { totalCostWithMarkup: totalWithMarkup, totalCostWithoutMarkup: totalWithoutMarkup };
     },
+    // Profit percentage calculation based on markup
     profitPercentage() {
       const { totalCostWithMarkup, totalCostWithoutMarkup } = this.costResults;
       if (totalCostWithoutMarkup === 0) return 0;
@@ -331,33 +365,51 @@ export default {
     async submitForm() {
       this.errorMessage = "";
       this.loading = true;
+      // Validate negative values
       if (
         (this.peakLoad != null && this.peakLoad < 0) ||
         (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
         (this.commercialElectricityBill != null && this.commercialElectricityBill < 0) ||
-        Object.values(this.appliances).some((val) => val < 0)
+        Object.values(this.appliances).some(val => val < 0)
       ) {
         this.errorMessage = "Please enter valid positive values.";
         this.loading = false;
         return;
       }
-      const totalAppliances = Object.values(this.appliances).reduce((acc, val) => acc + val, 0);
-      if (
-        this.monthlyConsumption == null &&
-        this.domesticElectricityBill == null &&
-        this.commercialElectricityBill == null &&
-        totalAppliances === 0 &&
-        (this.peakLoad == null || this.peakLoad === 0)
-      ) {
-        this.errorMessage = "Please provide some consumption or load input.";
-        this.loading = false;
-        return;
+      // Validate that required input based on input method is provided
+      if (this.inputMethodType === "monthly") {
+        if (this.monthlyConsumption == null || this.peakLoad == null) {
+          this.errorMessage = "Please provide Monthly Consumption and Peak Load Amp.";
+          this.loading = false;
+          return;
+        }
+      } else if (this.inputMethodType === "bill") {
+        if (this.billType === "domestic") {
+          if (this.domesticElectricityBill == null || this.peakLoad == null) {
+            this.errorMessage = "Please provide Domestic Bill and Peak Load Amp.";
+            this.loading = false;
+            return;
+          }
+        } else if (this.billType === "commercial") {
+          if (this.commercialElectricityBill == null || this.peakLoad == null) {
+            this.errorMessage = "Please provide Commercial Bill and Peak Load Amp.";
+            this.loading = false;
+            return;
+          }
+        }
+      } else if (this.inputMethodType === "appliances") {
+        const totalAppliances = Object.values(this.appliances).reduce((acc, val) => acc + val, 0);
+        if (totalAppliances === 0) {
+          this.errorMessage = "Please enter at least one appliance quantity.";
+          this.loading = false;
+          return;
+        }
       }
+      
+      // Fetch backend data
       try {
         const response = await fetch("/.netlify/functions/getData");
-        if (!response.ok) {
-          throw new Error("Network response was not ok");
-        }
+        if (!response.ok) throw new Error("Network response was not ok");
         const { inverters, batteries } = await response.json();
         this.inverterList = inverters.map(inv => ({
           ...inv,
@@ -391,6 +443,7 @@ export default {
       this.errorMessage = "";
       this.monthlyConsumption = null;
       this.billType = "domestic";
+      this.inputMethodType = "monthly";
       this.inputMethod = "peakLoad";
       this.domesticElectricityBill = null;
       this.commercialElectricityBill = null;
@@ -440,6 +493,14 @@ export default {
 .form-label {
   font-weight: bold;
 }
+.radio-group {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 10px;
+}
+.radio-group label {
+  font-weight: normal;
+}
 .form-check-label {
   margin-left: 8px;
 }
@@ -453,6 +514,8 @@ export default {
 .btn-primary {
   background-color: #007bff;
   border-color: #007bff;
+  width: 100%;
+  padding: 10px;
 }
 .btn-primary:hover {
   background-color: #0056b3;
@@ -461,6 +524,8 @@ export default {
 .btn-secondary {
   background-color: #6c757d;
   border-color: #6c757d;
+  width: 100%;
+  padding: 10px;
 }
 .btn-secondary:hover {
   background-color: #5a6268;
@@ -468,8 +533,9 @@ export default {
 }
 .alert {
   margin-bottom: 20px;
+  text-align: center;
 }
-/* Simple loader style */
+/* Loader style */
 .loader {
   text-align: center;
   padding: 20px;
@@ -499,6 +565,7 @@ export default {
   font-size: 20px;
   font-weight: bold;
   color: #e67e22;
+  margin-bottom: 5px;
 }
 .offer-display {
   font-size: 24px;
@@ -509,9 +576,8 @@ export default {
   margin-right: 10px;
 }
 .actual-price {
-  color: #e74c3c; /* Eye-catching red color */
+  color: #e74c3c;
   font-weight: bold;
-  /* Removed text-decoration line-through */
 }
 .offer-disclaimer {
   font-size: 12px;
@@ -523,11 +589,4 @@ export default {
   margin-top: 20px;
 }
 .admin-link a {
-  text-decoration: none;
-  color: #007bff;
-  font-weight: bold;
-}
-.admin-link a:hover {
-  color: #0056b3;
-}
-</style>
+  text-decoration: no
