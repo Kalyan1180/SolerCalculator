@@ -49,7 +49,7 @@
           <!-- Cost Calculation -->
           <p>
             <strong>Estimated Cost with installation:</strong>
-            Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}
+            <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}</span>
           </p>
           <p>
             <strong>Estimated Cost without profit:</strong>
@@ -68,7 +68,7 @@
               <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}</span>
             </p>
           </div>
-          <!-- Disclaimer: Always displayed on results page -->
+          <!-- Disclaimer always displayed -->
           <p class="offer-disclaimer">
             * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
           </p>
@@ -148,10 +148,12 @@
 
       <!-- Appliances Input -->
       <div class="form-group" v-if="inputMethod === 'appliances'">
-        <label class="form-label">Number of Appliances:</label>
+        <label class="form-label">Enter Number of Appliances:</label>
         <div class="input-group" v-for="(value, key) in appliances" :key="key">
           <div class="input-group-prepend">
-            <span class="input-group-text">{{ applianceLabels[key] }}</span>
+            <span class="input-group-text">
+              {{ key === "pump" ? "Submersible Pump (1kw)" : applianceLabels[key] }}
+            </span>
           </div>
           <input v-model.number="appliances[key]" type="number" class="form-control" />
         </div>
@@ -198,7 +200,7 @@ export default {
         fan: "Fan",
         refrigerator: "Refrigerator",
         ledTV: "LED TV",
-        pump: "Pump (1kW)",
+        pump: "Pump (1kW)", // This remains for internal keys; in the UI we change it conditionally
         ac: "AC (1Ton)",
       },
       panelCostPerPiece: 15000,
@@ -508,8 +510,9 @@ export default {
   margin-right: 10px;
 }
 .actual-price {
-  color: #7f8c8d;
-  text-decoration: line-through;
+  color: #e74c3c; /* Eye-catching red color */
+  font-weight: bold;
+  /* Removed text-decoration line-through */
 }
 .offer-disclaimer {
   font-size: 12px;
