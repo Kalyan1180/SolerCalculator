@@ -4,12 +4,12 @@
     <div v-if="errorMessage" class="alert alert-danger">
       {{ errorMessage }}
     </div>
-    
+
     <!-- Loader indicator -->
     <div v-if="loading" class="loader">
       Loading data, please wait...
     </div>
-    
+
     <!-- Results view -->
     <div v-else-if="showResults">
       <div class="result-container">
@@ -46,7 +46,7 @@
             <p v-else>No suitable battery found. Please adjust your input.</p>
           </div>
 
-          <!-- Cost Calculation -->
+          <!-- Cost Calculations -->
           <p>
             <strong>Estimated Cost with installation:</strong>
             <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}</span>
@@ -82,28 +82,27 @@
       <div class="brand-logo">
         <img :src="logo" alt="Ant Soler" />
       </div>
-      
       <h2 class="form-title">Solar Calculator</h2>
-      
+
       <!-- Choose Input Method -->
       <div class="form-group">
         <label class="form-label">Choose Input Method:</label>
         <div class="radio-group">
-          <label>
+          <label class="radio-option">
             <input type="radio" v-model="inputMethodType" value="monthly" />
             Monthly Consumption (KWH)
           </label>
-          <label>
+          <label class="radio-option">
             <input type="radio" v-model="inputMethodType" value="bill" />
             Electricity Bill
           </label>
-          <label>
+          <label class="radio-option">
             <input type="radio" v-model="inputMethodType" value="appliances" />
             Enter Number of Appliances
           </label>
         </div>
       </div>
-      
+
       <!-- If Monthly Consumption is selected -->
       <div v-if="inputMethodType === 'monthly'">
         <div class="form-group">
@@ -117,17 +116,17 @@
           <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" />
         </div>
       </div>
-      
+
       <!-- If Electricity Bill is selected -->
       <div v-else-if="inputMethodType === 'bill'">
         <div class="form-group">
           <label class="form-label">Electricity Bill Type:</label>
           <div class="radio-group">
-            <label>
+            <label class="radio-option">
               <input type="radio" v-model="billType" value="domestic" />
               Domestic
             </label>
-            <label>
+            <label class="radio-option">
               <input type="radio" v-model="billType" value="commercial" />
               Commercial
             </label>
@@ -146,7 +145,7 @@
           <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" />
         </div>
       </div>
-      
+
       <!-- If Enter Number of Appliances is selected -->
       <div v-else-if="inputMethodType === 'appliances'">
         <p class="form-label">Enter Number of Appliances:</p>
@@ -159,10 +158,10 @@
           <input v-model.number="appliances[key]" type="number" class="form-control" />
         </div>
       </div>
-      
+
       <!-- Calculate Button -->
       <button type="submit" class="btn btn-primary btn-block">Calculate</button>
-      
+
       <!-- Admin Panel Link (visible only in input view) -->
       <div class="admin-link">
         <router-link to="/admin">Admin Panel: Add Inverter/Battery</router-link>
@@ -176,21 +175,15 @@ export default {
   name: "SolerCalculator",
   data() {
     return {
-      // Control flags
       showResults: false,
       loading: false,
       errorMessage: "",
-      // Input Method type: 'monthly', 'bill', or 'appliances'
-      inputMethodType: "monthly",
-      // Inputs for Monthly Consumption
+      inputMethodType: "monthly", // "monthly", "bill", or "appliances"
       monthlyConsumption: null,
-      // Inputs for Electricity Bill
-      billType: "domestic", // used when inputMethodType === 'bill'
+      billType: "domestic",
       domesticElectricityBill: null,
       commercialElectricityBill: null,
-      // Common input for Monthly and Bill: Peak Load
       peakLoad: null,
-      // Inputs for Appliances
       appliances: {
         ledBulb: 0,
         tubeLight: 0,
@@ -200,24 +193,19 @@ export default {
         pump: 0,
         ac: 0,
       },
-      // Logo (adjust path as needed)
       logo: require("@/assets/logo.png"),
-      // Labels for appliances
       applianceLabels: {
         ledBulb: "LED Bulb",
         tubeLight: "Tube Light",
         fan: "Fan",
         refrigerator: "Refrigerator",
         ledTV: "LED TV",
-        pump: "Pump (1kW)", // internal; UI will conditionally change this
+        pump: "Pump (1kW)",
         ac: "AC (1Ton)",
       },
-      // Constants
       panelCostPerPiece: 15000,
-      // Data from backend
       inverterList: [],
       batteryList: [],
-      // Wattage constants (in watts)
       wattagePerHour: {
         ledBulb: 9,
         tubeLight: 20,
@@ -236,7 +224,6 @@ export default {
         pump: 1,
         ac: 8,
       },
-      // For appliance-based peak load calculation
       peakWattage: {
         ledBulb: 9,
         tubeLight: 20,
@@ -249,7 +236,6 @@ export default {
     };
   },
   computed: {
-    // Calculate daily consumption based on selected input method
     unitPerDay() {
       if (this.inputMethodType === "monthly") {
         return this.monthlyConsumption != null && this.monthlyConsumption > 0
@@ -264,8 +250,6 @@ export default {
           return this.commercialElectricityBill != null && this.commercialElectricityBill > 0
             ? ((this.commercialElectricityBill * 12) / 365) / 10
             : 0;
-        } else {
-          return 0;
         }
       } else if (this.inputMethodType === "appliances") {
         let total = 0;
@@ -276,7 +260,6 @@ export default {
       }
       return 0;
     },
-    // Compute peak load: if appliances-based method is selected, calculate from appliances; else use input
     computedPeakLoad() {
       if (this.inputMethodType === "appliances") {
         let total = 0;
@@ -290,7 +273,6 @@ export default {
           : 0;
       }
     },
-    // Number of panels based on daily consumption
     panelCount() {
       const units = this.unitPerDay;
       if (units > 0 && units <= 2) return 1;
@@ -301,7 +283,6 @@ export default {
       else if (units > 18 && units <= 24) return 8;
       else return 0;
     },
-    // Select inverter from backend list based on computed peak load and panel count
     selectedInverter() {
       if (!this.inverterList.length) return null;
       const filtered = this.inverterList.filter(
@@ -310,7 +291,6 @@ export default {
       if (filtered.length === 0 || this.panelCount === 0) return null;
       return filtered.reduce((prev, curr) => (curr.cost < prev.cost ? curr : prev));
     },
-    // Calculate battery combination ensuring quantity is a multiple of (batterySupported/12)
     batteryInfo() {
       if (!this.selectedInverter || !this.batteryList.length) return null;
       const energyRequired = (this.unitPerDay * 3) / 5;
@@ -334,7 +314,6 @@ export default {
       });
       return bestCombo;
     },
-    // Cost calculations using panel, inverter, and battery data
     costResults() {
       if (!this.selectedInverter) return { totalCostWithMarkup: 0, totalCostWithoutMarkup: 0 };
       const panelCost = this.panelCount * this.panelCostPerPiece;
@@ -354,7 +333,6 @@ export default {
       }
       return { totalCostWithMarkup: totalWithMarkup, totalCostWithoutMarkup: totalWithoutMarkup };
     },
-    // Profit percentage calculation based on markup
     profitPercentage() {
       const { totalCostWithMarkup, totalCostWithoutMarkup } = this.costResults;
       if (totalCostWithoutMarkup === 0) return 0;
@@ -365,7 +343,6 @@ export default {
     async submitForm() {
       this.errorMessage = "";
       this.loading = true;
-      // Validate negative values
       if (
         (this.peakLoad != null && this.peakLoad < 0) ||
         (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
@@ -376,7 +353,6 @@ export default {
         this.loading = false;
         return;
       }
-      // Validate that required input based on input method is provided
       if (this.inputMethodType === "monthly") {
         if (this.monthlyConsumption == null || this.peakLoad == null) {
           this.errorMessage = "Please provide Monthly Consumption and Peak Load Amp.";
@@ -405,8 +381,6 @@ export default {
           return;
         }
       }
-      
-      // Fetch backend data
       try {
         const response = await fetch("/.netlify/functions/getData");
         if (!response.ok) throw new Error("Network response was not ok");
@@ -444,10 +418,9 @@ export default {
       this.monthlyConsumption = null;
       this.billType = "domestic";
       this.inputMethodType = "monthly";
-      this.inputMethod = "peakLoad";
+      this.peakLoad = null;
       this.domesticElectricityBill = null;
       this.commercialElectricityBill = null;
-      this.peakLoad = null;
       this.appliances = {
         ledBulb: 0,
         tubeLight: 0,
@@ -495,11 +468,12 @@ export default {
 }
 .radio-group {
   display: flex;
-  justify-content: space-around;
+  flex-direction: column;
+  gap: 10px;
   margin-top: 10px;
 }
-.radio-group label {
-  font-weight: normal;
+.radio-option {
+  font-size: 16px;
 }
 .form-check-label {
   margin-left: 8px;
