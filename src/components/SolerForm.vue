@@ -59,6 +59,15 @@
             <strong>Profit Percentage (%):</strong>
             {{ profitPercentage.toFixed(2) }}
           </p>
+
+          <!-- Offer Price Section -->
+          <div class="offer-section">
+            <p class="offer-title">Special Offer Price</p>
+            <p class="offer-price">Rs: <span>{{ (costResults.totalCostWithMarkup * 0.8).toFixed(2) }}</span></p>
+            <p class="offer-disclaimer">
+              * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
+            </p>
+          </div>
         </div>
         <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
       </div>
@@ -147,6 +156,11 @@
       <!-- Calculate Button -->
       <button type="submit" class="btn btn-primary btn-block">Calculate</button>
     </form>
+
+    <!-- Link to Admin Page for Data Entry -->
+    <div class="admin-link">
+      <router-link to="/admin">Admin Panel: Add Inverter/Battery</router-link>
+    </div>
   </div>
 </template>
 
@@ -232,7 +246,6 @@ export default {
       } else if (this.commercialElectricityBill != null && this.commercialElectricityBill > 0) {
         return ((this.commercialElectricityBill * 12) / 365) / 10;
       } else {
-        // Calculate from appliances
         let total = 0;
         for (let key in this.appliances) {
           total += this.wattagePerHour[key] * this.runningHours[key] * this.appliances[key];
@@ -275,18 +288,14 @@ export default {
     // Revised batteryInfo computed property: ensure battery quantity is a multiple of (batterySupported/12)
     batteryInfo() {
       if (!this.selectedInverter || !this.batteryList.length) return null;
-      // Calculate required energy (in kWh) based on 3 days autonomy with 40% depth-of-discharge
       const energyRequired = (this.unitPerDay * 3) / 5;
       if (this.selectedInverter.batterySupported === 0 || energyRequired === 0) return null;
-      // Factor: For a 12V system, factor = 1; for 24V, factor = 2; for 48V, factor = 4; etc.
       const factor = this.selectedInverter.batterySupported / 12;
       let bestCost = Infinity;
       let bestCombo = null;
-      
-      // Loop over each battery type and try multiples of factor (e.g., 1x, 2x, …, up to 10x)
       this.batteryList.forEach(battery => {
         for (let k = 1; k <= 10; k++) {
-          const quantity = factor * k; // ensures the quantity is a multiple of factor
+          const quantity = factor * k;
           const totalEnergy = battery.energy * quantity;
           if (totalEnergy >= energyRequired) {
             const totalCost = battery.price * quantity;
@@ -294,13 +303,11 @@ export default {
               bestCost = totalCost;
               bestCombo = { selectedBattery: battery, quantity: quantity };
             }
-            // Once a valid combination is found for this battery type, break out to try the next battery type
             break;
           }
         }
       });
-      
-      return bestCombo; // returns null if no combination meets energyRequired
+      return bestCombo;
     },
     // Cost calculations: with and without markup
     costResults() {
@@ -331,11 +338,9 @@ export default {
     },
   },
   methods: {
-    // Validate inputs and fetch data from the backend before calculation
     async submitForm() {
       this.errorMessage = "";
       this.loading = true;
-      // Validate negative values
       if (
         (this.peakLoad != null && this.peakLoad < 0) ||
         (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
@@ -346,7 +351,6 @@ export default {
         this.loading = false;
         return;
       }
-      // Ensure at least one consumption or load input is provided
       const totalAppliances = Object.values(this.appliances).reduce((acc, val) => acc + val, 0);
       if (
         this.monthlyConsumption == null &&
@@ -359,32 +363,39 @@ export default {
         this.loading = false;
         return;
       }
-      // Fetch inverter and battery data from the backend API
       try {
         const response = await fetch("/.netlify/functions/getData");
         if (!response.ok) {
           throw new Error("Network response was not ok");
         }
         const { inverters, batteries } = await response.json();
-        this.inverterList = inverters;
-        this.batteryList = batteries;
+        this.inverterList = inverters.map(inv => ({
+          ...inv,
+          peakLoad: Number(inv.peakLoad),
+          maxPanels: Number(inv.maxPanels),
+          batterySupported: Number(inv.batterySupported),
+          cost: Number(inv.cost)
+        }));
+        this.batteryList = batteries.map(bat => ({
+          ...bat,
+          energy: Number(bat.energy),
+          capacity: Number(bat.capacity),
+          price: Number(bat.price)
+        }));
       } catch (error) {
         console.error("Error fetching backend data:", error);
         this.errorMessage = "Error fetching data from backend. Please try again.";
         this.loading = false;
         return;
       }
-      // Check if a suitable inverter and battery combination is found
       if (!this.selectedInverter || !this.batteryInfo) {
         this.errorMessage = "No suitable inverter or battery combination found. Please adjust your input.";
         this.loading = false;
         return;
       }
-      // All validations passed – hide loader and show results
       this.loading = false;
       this.showResults = true;
     },
-    // Reset form inputs for new calculations
     goBack() {
       this.showResults = false;
       this.errorMessage = "";
@@ -474,5 +485,51 @@ export default {
   padding: 20px;
   font-size: 18px;
   color: #007bff;
+}
+/* Offer Price Section Styling */
+.offer-section {
+  background: #fef9e7;
+  border: 2px dashed #f39c12;
+  padding: 15px;
+  margin-top: 20px;
+  border-radius: 8px;
+  animation: slideUp 1s ease-in-out;
+}
+@keyframes slideUp {
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.offer-title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #e67e22;
+}
+.offer-price {
+  font-size: 24px;
+  font-weight: bold;
+  color: #d35400;
+}
+.offer-disclaimer {
+  font-size: 12px;
+  color: #7f8c8d;
+  margin-top: 10px;
+}
+.admin-link {
+  text-align: center;
+  margin-top: 20px;
+}
+.admin-link a {
+  text-decoration: none;
+  color: #007bff;
+  font-weight: bold;
+}
+.admin-link a:hover {
+  color: #0056b3;
 }
 </style>
