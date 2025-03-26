@@ -589,4 +589,11 @@ export default {
   margin-top: 20px;
 }
 .admin-link a {
-  text-decoration: no
+  text-decoration: none;
+  color: #007bff;
+  font-weight: bold;
+}
+.admin-link a:hover {
+  color: #0056b3;
+}
+</style>
