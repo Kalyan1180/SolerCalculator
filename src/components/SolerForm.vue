@@ -60,10 +60,13 @@
             {{ profitPercentage.toFixed(2) }}
           </p>
 
-          <!-- Offer Price Section (20% discount) -->
+          <!-- Offer Price Section -->
           <div class="offer-section">
             <p class="offer-title">Special Offer Price</p>
-            <p class="offer-price">Rs: <span>{{ (costResults.totalCostWithMarkup * 0.8).toFixed(2) }}</span></p>
+            <p class="offer-display">
+              <span class="special-price">Rs: {{ (costResults.totalCostWithMarkup * 0.8).toFixed(2) }}</span>
+              <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}</span>
+            </p>
           </div>
           <!-- Disclaimer: Always displayed on results page -->
           <p class="offer-disclaimer">
@@ -173,7 +176,6 @@ export default {
       showResults: false,
       loading: false,
       errorMessage: "",
-      // Inputs
       monthlyConsumption: null,
       billType: "domestic",
       inputMethod: "peakLoad",
@@ -189,9 +191,7 @@ export default {
         pump: 0,
         ac: 0,
       },
-      // Logo import (adjust the path as needed)
       logo: require("@/assets/logo.png"),
-      // Appliance labels
       applianceLabels: {
         ledBulb: "LED Bulb",
         tubeLight: "Tube Light",
@@ -201,12 +201,9 @@ export default {
         pump: "Pump (1kW)",
         ac: "AC (1Ton)",
       },
-      // Constants
       panelCostPerPiece: 15000,
-      // Data from backend
       inverterList: [],
       batteryList: [],
-      // Wattage constants (in watts)
       wattagePerHour: {
         ledBulb: 9,
         tubeLight: 20,
@@ -225,7 +222,6 @@ export default {
         pump: 1,
         ac: 8,
       },
-      // Wattage for peak load
       peakWattage: {
         ledBulb: 9,
         tubeLight: 20,
@@ -503,10 +499,17 @@ export default {
   font-weight: bold;
   color: #e67e22;
 }
-.offer-price {
+.offer-display {
   font-size: 24px;
   font-weight: bold;
+}
+.special-price {
   color: #d35400;
+  margin-right: 10px;
+}
+.actual-price {
+  color: #7f8c8d;
+  text-decoration: line-through;
 }
 .offer-disclaimer {
   font-size: 12px;
