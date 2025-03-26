@@ -65,7 +65,6 @@
             <p class="offer-title">Special Offer Price</p>
             <p class="offer-display">
               <span class="special-price">Rs: {{ (costResults.totalCostWithMarkup * 0.8).toFixed(2) }}</span>
-              <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}</span>
             </p>
           </div>
           <!-- Disclaimer always displayed -->
