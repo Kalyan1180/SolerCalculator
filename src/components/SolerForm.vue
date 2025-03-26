@@ -60,14 +60,15 @@
             {{ profitPercentage.toFixed(2) }}
           </p>
 
-          <!-- Offer Price Section -->
+          <!-- Offer Price Section (20% discount) -->
           <div class="offer-section">
             <p class="offer-title">Special Offer Price</p>
             <p class="offer-price">Rs: <span>{{ (costResults.totalCostWithMarkup * 0.8).toFixed(2) }}</span></p>
-            <p class="offer-disclaimer">
-              * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
-            </p>
           </div>
+          <!-- Disclaimer: Always displayed on results page -->
+          <p class="offer-disclaimer">
+            * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
+          </p>
         </div>
         <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
       </div>
@@ -155,12 +156,12 @@
 
       <!-- Calculate Button -->
       <button type="submit" class="btn btn-primary btn-block">Calculate</button>
-    </form>
 
-    <!-- Link to Admin Page for Data Entry -->
-    <div class="admin-link">
-      <router-link to="/admin">Admin Panel: Add Inverter/Battery</router-link>
-    </div>
+      <!-- Admin Panel Link (visible only in input view) -->
+      <div class="admin-link">
+        <router-link to="/admin">Admin Panel: Add Inverter/Battery</router-link>
+      </div>
+    </form>
   </div>
 </template>
 
@@ -202,7 +203,7 @@ export default {
       },
       // Constants
       panelCostPerPiece: 15000,
-      // These lists will be fetched from the backend
+      // Data from backend
       inverterList: [],
       batteryList: [],
       // Wattage constants (in watts)
@@ -224,7 +225,7 @@ export default {
         pump: 1,
         ac: 8,
       },
-      // Wattage for peak load (values may differ)
+      // Wattage for peak load
       peakWattage: {
         ledBulb: 9,
         tubeLight: 20,
@@ -237,7 +238,6 @@ export default {
     };
   },
   computed: {
-    // Compute daily unit consumption
     unitPerDay() {
       if (this.monthlyConsumption != null && this.monthlyConsumption > 0) {
         return this.monthlyConsumption / 30;
@@ -253,7 +253,6 @@ export default {
         return Math.round((total / 1000) * 100) / 100;
       }
     },
-    // Compute peak load in kW
     computedPeakLoad() {
       if (this.peakLoad != null && this.peakLoad > 0) {
         return (this.peakLoad * 220) / 1000;
@@ -265,7 +264,6 @@ export default {
         return Math.round((total / 1000) * 100) / 100;
       }
     },
-    // Number of panels needed based on daily unit consumption
     panelCount() {
       const units = this.unitPerDay;
       if (units > 0 && units <= 2) return 1;
@@ -276,7 +274,6 @@ export default {
       else if (units > 18 && units <= 24) return 8;
       else return 0;
     },
-    // Select the inverter with the lowest cost that meets requirements
     selectedInverter() {
       if (!this.inverterList.length) return null;
       const filtered = this.inverterList.filter(
@@ -285,7 +282,6 @@ export default {
       if (filtered.length === 0 || this.panelCount === 0) return null;
       return filtered.reduce((prev, curr) => (curr.cost < prev.cost ? curr : prev));
     },
-    // Revised batteryInfo computed property: ensure battery quantity is a multiple of (batterySupported/12)
     batteryInfo() {
       if (!this.selectedInverter || !this.batteryList.length) return null;
       const energyRequired = (this.unitPerDay * 3) / 5;
@@ -309,15 +305,13 @@ export default {
       });
       return bestCombo;
     },
-    // Cost calculations: with and without markup
     costResults() {
       if (!this.selectedInverter) return { totalCostWithMarkup: 0, totalCostWithoutMarkup: 0 };
       const panelCost = this.panelCount * this.panelCostPerPiece;
       const inverterCost = this.selectedInverter ? this.selectedInverter.cost : 0;
       const batteryCost = this.batteryInfo ? this.batteryInfo.quantity * this.batteryInfo.selectedBattery.price : 0;
       const totalWithoutTax = panelCost + inverterCost + batteryCost;
-      let totalWithMarkup = 0,
-          totalWithoutMarkup = 0;
+      let totalWithMarkup = 0, totalWithoutMarkup = 0;
       if (totalWithoutTax < 50000) {
         totalWithMarkup = (totalWithoutTax + this.panelCount * 500 * 8) * 1.15;
         totalWithoutMarkup = totalWithoutTax + this.panelCount * 500 * 8;
@@ -330,7 +324,6 @@ export default {
       }
       return { totalCostWithMarkup: totalWithMarkup, totalCostWithoutMarkup: totalWithoutMarkup };
     },
-    // Profit percentage calculation
     profitPercentage() {
       const { totalCostWithMarkup, totalCostWithoutMarkup } = this.costResults;
       if (totalCostWithoutMarkup === 0) return 0;
