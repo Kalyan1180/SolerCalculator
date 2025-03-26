@@ -60,12 +60,11 @@
             {{ profitPercentage.toFixed(2) }}
           </p>
           
-          <!-- Offer Price Section -->
+          <!-- Special Offer Section -->
           <div class="offer-section">
             <p class="offer-title">Special Offer Price</p>
             <p class="offer-display">
-              <span class="special-price">Rs: {{ (costResults.totalCostWithMarkup * 0.8).toFixed(2) }}</span>
-              <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}</span>
+              <span class="special-price">Rs: {{ offerPrice.toFixed(2) }}</span>
             </p>
           </div>
           <!-- Disclaimer (always visible) -->
@@ -103,7 +102,7 @@
         </div>
       </div>
 
-      <!-- If Monthly Consumption is selected -->
+      <!-- Monthly Consumption Inputs -->
       <div v-if="inputMethodType === 'monthly'">
         <div class="form-group">
           <label for="monthlyConsumption" class="form-label">
@@ -112,12 +111,14 @@
           <input v-model.number="monthlyConsumption" type="number" class="form-control" id="monthlyConsumption" />
         </div>
         <div class="form-group">
-          <label for="peakLoad" class="form-label">Peak Load Amp:</label>
-          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" />
+          <label for="peakLoad" class="form-label">
+            Peak Load Amp: <span class="optional">(Optional)</span>
+          </label>
+          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" placeholder="Leave blank if unknown" />
         </div>
       </div>
 
-      <!-- If Electricity Bill is selected -->
+      <!-- Electricity Bill Inputs -->
       <div v-else-if="inputMethodType === 'bill'">
         <div class="form-group">
           <label class="form-label">Electricity Bill Type:</label>
@@ -133,20 +134,26 @@
           </div>
         </div>
         <div class="form-group" v-if="billType === 'domestic'">
-          <label for="domesticElectricityBill" class="form-label">Monthly Domestic Bill:</label>
+          <label for="domesticElectricityBill" class="form-label">
+            Monthly Domestic Bill:
+          </label>
           <input v-model.number="domesticElectricityBill" type="number" class="form-control" id="domesticElectricityBill" />
         </div>
         <div class="form-group" v-if="billType === 'commercial'">
-          <label for="commercialElectricityBill" class="form-label">Monthly Commercial Bill:</label>
+          <label for="commercialElectricityBill" class="form-label">
+            Monthly Commercial Bill:
+          </label>
           <input v-model.number="commercialElectricityBill" type="number" class="form-control" id="commercialElectricityBill" />
         </div>
         <div class="form-group">
-          <label for="peakLoad" class="form-label">Peak Load Amp:</label>
-          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" />
+          <label for="peakLoad" class="form-label">
+            Peak Load Amp: <span class="optional">(Optional)</span>
+          </label>
+          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" placeholder="Leave blank if unknown" />
         </div>
       </div>
 
-      <!-- If Enter Number of Appliances is selected -->
+      <!-- Appliances Inputs -->
       <div v-else-if="inputMethodType === 'appliances'">
         <p class="form-label">Enter Number of Appliances:</p>
         <div class="input-group" v-for="(value, key) in appliances" :key="key">
@@ -338,13 +345,17 @@ export default {
       if (totalCostWithoutMarkup === 0) return 0;
       return ((totalCostWithMarkup - totalCostWithoutMarkup) / totalCostWithoutMarkup) * 100;
     },
+    // New computed property for offered price discount logic
+    offerPrice() {
+      const discountFactor = this.profitPercentage < 30 ? 0.9 : 0.8;
+      return this.costResults.totalCostWithMarkup * discountFactor;
+    },
   },
   methods: {
     async submitForm() {
       this.errorMessage = "";
       this.loading = true;
       if (
-        (this.peakLoad != null && this.peakLoad < 0) ||
         (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
         (this.commercialElectricityBill != null && this.commercialElectricityBill < 0) ||
         Object.values(this.appliances).some(val => val < 0)
@@ -354,21 +365,21 @@ export default {
         return;
       }
       if (this.inputMethodType === "monthly") {
-        if (this.monthlyConsumption == null || this.peakLoad == null) {
-          this.errorMessage = "Please provide Monthly Consumption and Peak Load Amp.";
+        if (this.monthlyConsumption == null) {
+          this.errorMessage = "Please provide Monthly Consumption.";
           this.loading = false;
           return;
         }
       } else if (this.inputMethodType === "bill") {
         if (this.billType === "domestic") {
-          if (this.domesticElectricityBill == null || this.peakLoad == null) {
-            this.errorMessage = "Please provide Domestic Bill and Peak Load Amp.";
+          if (this.domesticElectricityBill == null) {
+            this.errorMessage = "Please provide Domestic Bill.";
             this.loading = false;
             return;
           }
         } else if (this.billType === "commercial") {
-          if (this.commercialElectricityBill == null || this.peakLoad == null) {
-            this.errorMessage = "Please provide Commercial Bill and Peak Load Amp.";
+          if (this.commercialElectricityBill == null) {
+            this.errorMessage = "Please provide Commercial Bill.";
             this.loading = false;
             return;
           }
@@ -449,7 +460,13 @@ export default {
   }
   .radio-group.main-radio {
     flex-direction: row;
-    justify-content: space-around;
+    align-items: center;
+    gap: 20px;
+  }
+  .radio-group.secondary-radio {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
   }
 }
 
@@ -458,10 +475,12 @@ export default {
   .radio-group.main-radio {
     flex-direction: column;
     gap: 10px;
+    align-items: flex-start;
   }
   .radio-group.secondary-radio {
     flex-direction: row;
-    justify-content: space-around;
+    align-items: center;
+    gap: 10px;
   }
 }
 
@@ -497,7 +516,6 @@ export default {
 }
 .radio-option {
   font-size: 16px;
-  margin-bottom: 5px;
 }
 .form-check-label {
   margin-left: 8px;
@@ -508,6 +526,11 @@ export default {
 }
 .input-group {
   margin-bottom: 10px;
+}
+.optional {
+  font-size: 12px;
+  color: #7f8c8d;
+  margin-left: 5px;
 }
 .btn-primary {
   background-color: #007bff;
@@ -548,6 +571,7 @@ export default {
   margin-top: 20px;
   border-radius: 8px;
   animation: slideUp 1s ease-in-out;
+  text-align: center;
 }
 @keyframes slideUp {
   0% {
@@ -581,6 +605,7 @@ export default {
   font-size: 12px;
   color: #7f8c8d;
   margin-top: 10px;
+  text-align: center;
 }
 .admin-link {
   text-align: center;
