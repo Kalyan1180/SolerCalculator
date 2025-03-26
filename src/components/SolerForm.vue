@@ -60,7 +60,7 @@
             {{ profitPercentage.toFixed(2) }}
           </p>
           
-          <!-- Special Offer Section -->
+          <!-- Special Offer Section: Only show offered price -->
           <div class="offer-section">
             <p class="offer-title">Special Offer Price</p>
             <p class="offer-display">
@@ -156,13 +156,15 @@
       <!-- Appliances Inputs -->
       <div v-else-if="inputMethodType === 'appliances'">
         <p class="form-label">Enter Number of Appliances:</p>
-        <div class="input-group" v-for="(value, key) in appliances" :key="key">
-          <div class="input-group-prepend">
-            <span class="input-group-text">
-              {{ key === "pump" ? "Submersible Pump (1kw)" : applianceLabels[key] }}
-            </span>
+        <div v-for="(value, key) in appliances" :key="key" class="appliance-group">
+          <div class="input-group">
+            <div class="input-group-prepend">
+              <span class="input-group-text">
+                {{ key === "pump" ? "Submersible Pump (1kw)" : applianceLabels[key] }}
+              </span>
+            </div>
+            <input v-model.number="appliances[key]" type="number" class="form-control" />
           </div>
-          <input v-model.number="appliances[key]" type="number" class="form-control" />
         </div>
       </div>
 
@@ -345,7 +347,7 @@ export default {
       if (totalCostWithoutMarkup === 0) return 0;
       return ((totalCostWithMarkup - totalCostWithoutMarkup) / totalCostWithoutMarkup) * 100;
     },
-    // New computed property for offered price discount logic
+    // Compute offer price: 10% discount if profit < 30%, else 20%
     offerPrice() {
       const discountFactor = this.profitPercentage < 30 ? 0.9 : 0.8;
       return this.costResults.totalCostWithMarkup * discountFactor;
@@ -618,5 +620,19 @@ export default {
 }
 .admin-link a:hover {
   color: #0056b3;
+}
+
+/* Appliance Input Alignment */
+.appliance-group .input-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.appliance-group .input-group-prepend {
+  flex: 0 0 40%;
+  text-align: left;
+}
+.appliance-group .form-control {
+  flex: 1;
 }
 </style>
