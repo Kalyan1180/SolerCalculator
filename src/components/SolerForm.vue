@@ -106,7 +106,7 @@
       <div v-if="inputMethodType === 'monthly'">
         <div class="form-group">
           <label for="monthlyConsumption" class="form-label">
-            Monthly Consumption (KWH):
+            Monthly Unit Consumption (KWH):
           </label>
           <input v-model.number="monthlyConsumption" type="number" class="form-control" id="monthlyConsumption" />
         </div>
