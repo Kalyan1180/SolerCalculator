@@ -240,7 +240,7 @@ export default {
         refrigerator: 120,
         ledTV: 40,
         pump: 1000,
-        ac: 1000,
+        ac: 1500,
       },
     };
   },
