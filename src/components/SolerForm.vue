@@ -49,22 +49,22 @@
           <!-- Cost Calculations -->
           <p>
             <strong>Estimated Cost with installation:</strong>
-            <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(2) }}</span>
+            <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(0) }}</span>
           </p>
           <p>
             <strong>Estimated Cost without profit:</strong>
-            Rs: {{ costResults.totalCostWithoutMarkup.toFixed(2) }}
+            Rs: {{ costResults.totalCostWithoutMarkup.toFixed(0) }}
           </p>
           <p>
             <strong>Profit Percentage (%):</strong>
             {{ profitPercentage.toFixed(2) }}
           </p>
           
-          <!-- Special Offer Section (only offered price is shown) -->
+          <!-- Special Offer Section -->
           <div class="offer-section">
             <p class="offer-title">Special Offer Price</p>
             <p class="offer-display">
-              <span class="special-price">Rs: {{ offerPrice.toFixed(2) }}</span>
+              <span class="special-price">Rs: {{ offerPrice.toFixed(0) }}</span>
             </p>
           </div>
           <!-- Disclaimer -->
@@ -89,15 +89,15 @@
         <div class="radio-group main-radio">
           <label class="radio-option">
             <input type="radio" v-model="inputMethodType" value="monthly" />
-            Monthly Consumption (KWH)
+            <span>Monthly Consumption (KWH)</span>
           </label>
           <label class="radio-option">
             <input type="radio" v-model="inputMethodType" value="bill" />
-            Electricity Bill
+            <span>Electricity Bill</span>
           </label>
           <label class="radio-option">
             <input type="radio" v-model="inputMethodType" value="appliances" />
-            Enter Number of Appliances
+            <span>Enter Number of Appliances</span>
           </label>
         </div>
       </div>
@@ -125,11 +125,11 @@
           <div class="radio-group secondary-radio">
             <label class="radio-option">
               <input type="radio" v-model="billType" value="domestic" />
-              Domestic
+              <span>Domestic</span>
             </label>
             <label class="radio-option">
               <input type="radio" v-model="billType" value="commercial" />
-              Commercial
+              <span>Commercial</span>
             </label>
           </div>
         </div>
@@ -171,7 +171,7 @@
       <!-- Calculate Button -->
       <button type="submit" class="btn btn-primary btn-block">Calculate</button>
 
-      <!-- Admin Panel Link (visible only in input view) -->
+      <!-- Admin Panel Link -->
       <div class="admin-link">
         <router-link to="/admin">Admin Panel: Add Inverter/Battery</router-link>
       </div>
@@ -215,32 +215,30 @@ export default {
       panelCostPerPiece: 15000,
       inverterList: [],
       batteryList: [],
-      // Updated wattage and running hours based on research:
       wattagePerHour: {
         ledBulb: 9,
         tubeLight: 20,
         fan: 70,
-        refrigerator: 100,  // updated from 150 to 100W
-        ledTV: 40,         // updated from 50 to 40W
+        refrigerator: 100,
+        ledTV: 40,
         pump: 1000,
         ac: 1000,
       },
       runningHours: {
-        ledBulb: 5,        // updated from 10 to 5 hours
-        tubeLight: 4,      // updated from 8 to 4 hours
-        fan: 8,            // updated from 12 to 8 hours
-        refrigerator: 8,   // updated from 24 to 8 hours effective runtime
-        ledTV: 4,          // updated from 6 to 4 hours
-        pump: 0.5,         // updated from 1 to 0.5 hours
-        ac: 4,             // updated from 8 to 4 hours
+        ledBulb: 5,
+        tubeLight: 4,
+        fan: 8,
+        refrigerator: 8,
+        ledTV: 4,
+        pump: 0.5,
+        ac: 4,
       },
-      // Updated peak wattage values:
       peakWattage: {
         ledBulb: 9,
         tubeLight: 20,
         fan: 70,
-        refrigerator: 120, // updated from 200 to 120W
-        ledTV: 40,         // updated from 50 to 40W
+        refrigerator: 120,
+        ledTV: 40,
         pump: 1000,
         ac: 1000,
       },
@@ -522,9 +520,10 @@ export default {
   font-size: 16px;
   display: flex;
   align-items: center;
+  margin-right: 10px;
 }
-.form-check-label {
-  margin-left: 8px;
+.radio-option span {
+  margin-left: 5px;
 }
 .form-control {
   border-radius: 5px;
