@@ -89,7 +89,7 @@
         <div class="radio-group main-radio">
           <label class="radio-option">
             <input type="radio" v-model="inputMethodType" value="monthly" />
-            <span>Monthly Consumption (KWH)</span>
+            <span>Monthly Unit Consumption (KWH)</span>
           </label>
           <label class="radio-option">
             <input type="radio" v-model="inputMethodType" value="bill" />
@@ -368,7 +368,7 @@ export default {
       }
       if (this.inputMethodType === "monthly") {
         if (this.monthlyConsumption == null) {
-          this.errorMessage = "Please provide Monthly Consumption.";
+          this.errorMessage = "Please provide Monthly Unit Consumption.";
           this.loading = false;
           return;
         }
