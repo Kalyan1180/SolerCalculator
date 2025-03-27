@@ -60,14 +60,14 @@
             {{ profitPercentage.toFixed(2) }}
           </p>
           
-          <!-- Special Offer Section: Only show offered price -->
+          <!-- Special Offer Section (only offered price is shown) -->
           <div class="offer-section">
             <p class="offer-title">Special Offer Price</p>
             <p class="offer-display">
               <span class="special-price">Rs: {{ offerPrice.toFixed(2) }}</span>
             </p>
           </div>
-          <!-- Disclaimer (always visible) -->
+          <!-- Disclaimer -->
           <p class="offer-disclaimer">
             * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
           </p>
@@ -215,32 +215,34 @@ export default {
       panelCostPerPiece: 15000,
       inverterList: [],
       batteryList: [],
+      // Updated wattage and running hours based on research:
       wattagePerHour: {
         ledBulb: 9,
         tubeLight: 20,
         fan: 70,
-        refrigerator: 150,
-        ledTV: 50,
+        refrigerator: 100,  // updated from 150 to 100W
+        ledTV: 40,         // updated from 50 to 40W
         pump: 1000,
         ac: 1000,
       },
       runningHours: {
-        ledBulb: 10,
-        tubeLight: 8,
-        fan: 12,
-        refrigerator: 24,
-        ledTV: 6,
-        pump: 1,
-        ac: 8,
+        ledBulb: 5,        // updated from 10 to 5 hours
+        tubeLight: 4,      // updated from 8 to 4 hours
+        fan: 8,            // updated from 12 to 8 hours
+        refrigerator: 8,   // updated from 24 to 8 hours effective runtime
+        ledTV: 4,          // updated from 6 to 4 hours
+        pump: 0.5,         // updated from 1 to 0.5 hours
+        ac: 4,             // updated from 8 to 4 hours
       },
+      // Updated peak wattage values:
       peakWattage: {
         ledBulb: 9,
         tubeLight: 20,
         fan: 70,
-        refrigerator: 200,
-        ledTV: 50,
+        refrigerator: 120, // updated from 200 to 120W
+        ledTV: 40,         // updated from 50 to 40W
         pump: 1000,
-        ac: 1500,
+        ac: 1000,
       },
     };
   },
@@ -347,7 +349,7 @@ export default {
       if (totalCostWithoutMarkup === 0) return 0;
       return ((totalCostWithMarkup - totalCostWithoutMarkup) / totalCostWithoutMarkup) * 100;
     },
-    // Compute offer price: 10% discount if profit < 30%, else 20%
+    // Offer price: 10% discount if profit < 30%, else 20%
     offerPrice() {
       const discountFactor = this.profitPercentage < 30 ? 0.9 : 0.8;
       return this.costResults.totalCostWithMarkup * discountFactor;
@@ -518,6 +520,8 @@ export default {
 }
 .radio-option {
   font-size: 16px;
+  display: flex;
+  align-items: center;
 }
 .form-check-label {
   margin-left: 8px;
@@ -528,6 +532,18 @@ export default {
 }
 .input-group {
   margin-bottom: 10px;
+}
+.appliance-group .input-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.appliance-group .input-group-prepend {
+  flex: 0 0 40%;
+  text-align: left;
+}
+.appliance-group .form-control {
+  flex: 1;
 }
 .optional {
   font-size: 12px;
@@ -620,19 +636,5 @@ export default {
 }
 .admin-link a:hover {
   color: #0056b3;
-}
-
-/* Appliance Input Alignment */
-.appliance-group .input-group {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-}
-.appliance-group .input-group-prepend {
-  flex: 0 0 40%;
-  text-align: left;
-}
-.appliance-group .form-control {
-  flex: 1;
 }
 </style>
