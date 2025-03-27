@@ -231,7 +231,7 @@ export default {
         refrigerator: 8,
         ledTV: 4,
         pump: 0.5,
-        ac: 4,
+        ac: 6,
       },
       peakWattage: {
         ledBulb: 9,
