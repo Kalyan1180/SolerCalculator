@@ -135,7 +135,6 @@
             <thead>
               <tr>
                 <th>Name</th>
-                <!-- Note: Energy is computed and not editable -->
                 <th>Energy (KWh)</th>
                 <th>Capacity (AH)</th>
                 <th>Price (Rs)</th>
@@ -148,12 +147,14 @@
                 <td v-else>
                   <input v-model="editingItem.name" class="form-control" type="text" />
                 </td>
-                <td v-if="!isEditing(bat.id, 'battery')">
-                  {{ computeEnergy(bat.capacity) }}
-                </td>
+                <!-- Energy column: Always computed -->
+                <td>{{ computeEnergy(bat.capacity) }}</td>
+                <!-- Capacity column -->
+                <td v-if="!isEditing(bat.id, 'battery')">{{ bat.capacity }}</td>
                 <td v-else>
                   <input v-model.number="editingItem.capacity" class="form-control" type="number" />
                 </td>
+                <!-- Price column -->
                 <td v-if="!isEditing(bat.id, 'battery')">{{ bat.price }}</td>
                 <td v-else>
                   <input v-model.number="editingItem.price" class="form-control" type="number" />
