@@ -15,61 +15,10 @@
       <button class="btn btn-secondary" @click="fetchData">Refresh Data</button>
     </div>
     
-    <!-- Add New Sections -->
-    <div class="add-section">
-      <!-- Add Inverter Form -->
-      <div class="add-form">
-        <h3>Add New Inverter</h3>
-        <form @submit.prevent="submitNewInverter">
-          <div class="form-group">
-            <label for="newInvName" class="form-label">Name</label>
-            <input v-model="newInverter.name" type="text" id="newInvName" class="form-control" required />
-          </div>
-          <div class="form-group">
-            <label for="newInvPeakLoad" class="form-label">Peak Load (KVA)</label>
-            <input v-model.number="newInverter.peakLoad" type="number" id="newInvPeakLoad" class="form-control" required />
-          </div>
-          <div class="form-group">
-            <label for="newInvMaxPanels" class="form-label">Max Panels Supported</label>
-            <input v-model.number="newInverter.maxPanels" type="number" id="newInvMaxPanels" class="form-control" required />
-          </div>
-          <div class="form-group">
-            <label for="newInvBatterySupported" class="form-label">Battery Supported (Volt)</label>
-            <input v-model.number="newInverter.batterySupported" type="number" id="newInvBatterySupported" class="form-control" required />
-          </div>
-          <div class="form-group">
-            <label for="newInvCost" class="form-label">Cost (Rs)</label>
-            <input v-model.number="newInverter.cost" type="number" id="newInvCost" class="form-control" required />
-          </div>
-          <button type="submit" class="btn btn-primary btn-block">Add Inverter</button>
-        </form>
-      </div>
-      
-      <!-- Add Battery Form -->
-      <div class="add-form">
-        <h3>Add New Battery</h3>
-        <form @submit.prevent="submitNewBattery">
-          <div class="form-group">
-            <label for="newBatName" class="form-label">Name</label>
-            <input v-model="newBattery.name" type="text" id="newBatName" class="form-control" required />
-          </div>
-          <!-- Removed energy input -->
-          <div class="form-group">
-            <label for="newBatCapacity" class="form-label">Capacity (AH)</label>
-            <input v-model.number="newBattery.capacity" type="number" id="newBatCapacity" class="form-control" required />
-          </div>
-          <div class="form-group">
-            <label for="newBatPrice" class="form-label">Price (Rs)</label>
-            <input v-model.number="newBattery.price" type="number" id="newBatPrice" class="form-control" required />
-          </div>
-          <!-- Display computed energy (read-only) -->
-          <div class="form-group" v-if="newBattery.capacity">
-            <label class="form-label">Computed Energy (KWh)</label>
-            <input type="text" class="form-control" :value="computedNewBatteryEnergy" readonly />
-          </div>
-          <button type="submit" class="btn btn-primary btn-block">Add Battery</button>
-        </form>
-      </div>
+    <!-- Add New Buttons -->
+    <div class="add-buttons">
+      <button class="btn btn-primary" @click="showAddInverterModal = true">Add New Inverter</button>
+      <button class="btn btn-primary" @click="showAddBatteryModal = true">Add New Battery</button>
     </div>
     
     <!-- Data Listing: Only show if data exists and not loading -->
@@ -147,14 +96,12 @@
                 <td v-else>
                   <input v-model="editingItem.name" class="form-control" type="text" />
                 </td>
-                <!-- Energy column: Always computed -->
+                <!-- Energy: computed, always read-only -->
                 <td>{{ computeEnergy(bat.capacity) }}</td>
-                <!-- Capacity column -->
                 <td v-if="!isEditing(bat.id, 'battery')">{{ bat.capacity }}</td>
                 <td v-else>
                   <input v-model.number="editingItem.capacity" class="form-control" type="number" />
                 </td>
-                <!-- Price column -->
                 <td v-if="!isEditing(bat.id, 'battery')">{{ bat.price }}</td>
                 <td v-else>
                   <input v-model.number="editingItem.price" class="form-control" type="number" />
@@ -173,6 +120,69 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+    
+    <!-- Add Inverter Modal -->
+    <div v-if="showAddInverterModal" class="modal-overlay">
+      <div class="modal-content">
+        <h3>Add New Inverter</h3>
+        <form @submit.prevent="submitNewInverterModal">
+          <div class="form-group">
+            <label for="modalInvName" class="form-label">Name</label>
+            <input v-model="newInverter.name" type="text" id="modalInvName" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="modalInvPeakLoad" class="form-label">Peak Load (KVA)</label>
+            <input v-model.number="newInverter.peakLoad" type="number" id="modalInvPeakLoad" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="modalInvMaxPanels" class="form-label">Max Panels Supported</label>
+            <input v-model.number="newInverter.maxPanels" type="number" id="modalInvMaxPanels" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="modalInvBatterySupported" class="form-label">Battery Supported (Volt)</label>
+            <input v-model.number="newInverter.batterySupported" type="number" id="modalInvBatterySupported" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="modalInvCost" class="form-label">Cost (Rs)</label>
+            <input v-model.number="newInverter.cost" type="number" id="modalInvCost" class="form-control" required />
+          </div>
+          <div class="modal-buttons">
+            <button type="submit" class="btn btn-primary">Add Inverter</button>
+            <button type="button" class="btn btn-secondary" @click="showAddInverterModal = false">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Add Battery Modal -->
+    <div v-if="showAddBatteryModal" class="modal-overlay">
+      <div class="modal-content">
+        <h3>Add New Battery</h3>
+        <form @submit.prevent="submitNewBatteryModal">
+          <div class="form-group">
+            <label for="modalBatName" class="form-label">Name</label>
+            <input v-model="newBattery.name" type="text" id="modalBatName" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="modalBatCapacity" class="form-label">Capacity (AH)</label>
+            <input v-model.number="newBattery.capacity" type="number" id="modalBatCapacity" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="modalBatPrice" class="form-label">Price (Rs)</label>
+            <input v-model.number="newBattery.price" type="number" id="modalBatPrice" class="form-control" required />
+          </div>
+          <!-- Display computed energy (read-only) -->
+          <div class="form-group" v-if="newBattery.capacity">
+            <label class="form-label">Computed Energy (KWh)</label>
+            <input type="text" class="form-control" :value="computedNewBatteryEnergy" readonly />
+          </div>
+          <div class="modal-buttons">
+            <button type="submit" class="btn btn-primary">Add Battery</button>
+            <button type="button" class="btn btn-secondary" @click="showAddBatteryModal = false">Cancel</button>
+          </div>
+        </form>
       </div>
     </div>
     
@@ -234,6 +244,8 @@ export default {
       editingItem: null,
       editingId: null,
       editingType: "", // "inverter" or "battery"
+      showAddInverterModal: false,
+      showAddBatteryModal: false,
       showDeleteModal: false,
       deleteItem: null,
       deleteType: "", // "inverter" or "battery"
@@ -243,7 +255,6 @@ export default {
     };
   },
   computed: {
-    // Compute new battery energy based on capacity input
     computedNewBatteryEnergy() {
       if (this.newBattery.capacity) {
         return ((this.newBattery.capacity * 12) / 1000 * 0.8).toFixed(2);
@@ -273,6 +284,7 @@ export default {
     },
     async submitNewInverter() {
       try {
+        this.showAddInverterModal = false; // Close modal immediately
         this.loading = true;
         const response = await fetch("/.netlify/functions/addInverter", {
           method: "POST",
@@ -293,8 +305,8 @@ export default {
     },
     async submitNewBattery() {
       try {
+        this.showAddBatteryModal = false; // Close modal immediately
         this.loading = true;
-        // Compute energy from capacity (do not accept energy input from user)
         const computedEnergy = (this.newBattery.capacity * 12) / 1000 * 0.8;
         const batteryData = {
           name: this.newBattery.name,
@@ -339,6 +351,7 @@ export default {
     async submitEdit(id, type) {
       if (type === "inverter") {
         try {
+          this.showEditModal = false; // Close modal immediately
           const response = await fetch("/.netlify/functions/updateInverter", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -349,19 +362,15 @@ export default {
           this.message = result.message;
           this.cancelEdit();
           this.fetchData();
-          this.showEditModal = false;
         } catch (error) {
           console.error("Error updating inverter:", error);
           this.message = "Error updating inverter. Please try again.";
         }
       } else if (type === "battery") {
         try {
-          // Recompute energy based on edited capacity
+          this.showEditModal = false; // Close modal immediately
           const computedEnergy = (this.editingItem.capacity * 12) / 1000 * 0.8;
-          const updateData = {
-            ...this.editingItem,
-            energy: computedEnergy
-          };
+          const updateData = { ...this.editingItem, energy: computedEnergy };
           const response = await fetch("/.netlify/functions/updateBattery", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -372,7 +381,6 @@ export default {
           this.message = result.message;
           this.cancelEdit();
           this.fetchData();
-          this.showEditModal = false;
         } catch (error) {
           console.error("Error updating battery:", error);
           this.message = "Error updating battery. Please try again.";
@@ -390,6 +398,7 @@ export default {
       this.showDeleteModal = false;
     },
     async confirmDelete() {
+      this.showDeleteModal = false; // Close modal immediately
       if (this.deleteType === "inverter") {
         await this.deleteInverter(this.deleteItem.id);
       } else if (this.deleteType === "battery") {
@@ -455,19 +464,11 @@ export default {
   color: #007bff;
   margin-bottom: 20px;
 }
-.add-section {
+.add-buttons {
   display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  margin-bottom: 30px;
-}
-.add-form {
-  flex: 1;
-  min-width: 300px;
-  background-color: #fff;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 20px;
 }
 .data-section {
   margin-bottom: 30px;
@@ -589,11 +590,12 @@ export default {
   margin-top: 20px;
 }
 @media (max-width: 768px) {
-  .add-section {
-    flex-direction: column;
-  }
   .admin-container {
     padding: 10px;
+  }
+  .add-buttons {
+    flex-direction: column;
+    align-items: center;
   }
 }
 </style>
