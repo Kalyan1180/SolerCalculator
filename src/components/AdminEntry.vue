@@ -2,111 +2,160 @@
   <div class="container admin-container">
     <h2 class="form-title">Admin Control Dashboard</h2>
 
-    <!-- Message Display -->
-    <div v-if="message" class="alert alert-info message">{{ message }}</div>
+    <!-- Global Loader -->
+    <div v-if="loading" class="loader-overlay">
+      <div class="loader">Loading data, please wait...</div>
+    </div>
+
+    <!-- Global Error Message -->
+    <div v-if="errorMessage" class="alert alert-danger message">
+      {{ errorMessage }}
+    </div>
+
+    <!-- Global Info Message -->
+    <div v-if="message" class="alert alert-info message">
+      {{ message }}
+    </div>
 
     <!-- Refresh Button -->
-    <div class="refresh-btn">
+    <div class="refresh-btn" v-if="!loading && !errorMessage">
       <button class="btn btn-secondary" @click="fetchData">Refresh Data</button>
     </div>
 
-    <!-- Inverters Section -->
-    <div class="data-section">
-      <h3>Inverters</h3>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Peak Load (KVA)</th>
-            <th>Max Panels</th>
-            <th>Battery Supported (V)</th>
-            <th>Cost (Rs)</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="inv in inverters" :key="inv.id">
-            <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.name }}</td>
-            <td v-else>
-              <input v-model="editingItem.name" class="form-control" type="text" />
-            </td>
-            <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.peakLoad }}</td>
-            <td v-else>
-              <input v-model.number="editingItem.peakLoad" class="form-control" type="number" />
-            </td>
-            <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.maxPanels }}</td>
-            <td v-else>
-              <input v-model.number="editingItem.maxPanels" class="form-control" type="number" />
-            </td>
-            <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.batterySupported }}</td>
-            <td v-else>
-              <input v-model.number="editingItem.batterySupported" class="form-control" type="number" />
-            </td>
-            <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.cost }}</td>
-            <td v-else>
-              <input v-model.number="editingItem.cost" class="form-control" type="number" />
-            </td>
-            <td>
-              <div v-if="!isEditing(inv.id, 'inverter')">
-                <button class="btn btn-sm btn-warning" @click="startEdit(inv, 'inverter')">Edit</button>
-                <button class="btn btn-sm btn-danger" @click="deleteInverter(inv.id)">Delete</button>
-              </div>
-              <div v-else>
-                <button class="btn btn-sm btn-primary" @click="submitEdit(inv.id, 'inverter')">Save</button>
-                <button class="btn btn-sm btn-secondary" @click="cancelEdit()">Cancel</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Data Tables: Only show if both inverters and batteries data are available -->
+    <div v-if="!loading && !errorMessage && hasData">
+      <!-- Inverters Section -->
+      <div class="data-section">
+        <h3>Inverters</h3>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Peak Load (KVA)</th>
+              <th>Max Panels</th>
+              <th>Battery Supported (V)</th>
+              <th>Cost (Rs)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="inv in inverters" :key="inv.id">
+              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.name }}</td>
+              <td v-else>
+                <input v-model="editingItem.name" class="form-control" type="text" />
+              </td>
+              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.peakLoad }}</td>
+              <td v-else>
+                <input v-model.number="editingItem.peakLoad" class="form-control" type="number" />
+              </td>
+              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.maxPanels }}</td>
+              <td v-else>
+                <input v-model.number="editingItem.maxPanels" class="form-control" type="number" />
+              </td>
+              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.batterySupported }}</td>
+              <td v-else>
+                <input v-model.number="editingItem.batterySupported" class="form-control" type="number" />
+              </td>
+              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.cost }}</td>
+              <td v-else>
+                <input v-model.number="editingItem.cost" class="form-control" type="number" />
+              </td>
+              <td>
+                <div v-if="!isEditing(inv.id, 'inverter')">
+                  <button class="btn btn-sm btn-warning" @click="startEdit(inv, 'inverter')">Edit</button>
+                  <button class="btn btn-sm btn-danger" @click="openDeleteModal(inv, 'inverter')">Delete</button>
+                </div>
+                <div v-else>
+                  <button class="btn btn-sm btn-primary" @click="openEditModal()">Save</button>
+                  <button class="btn btn-sm btn-secondary" @click="cancelEdit()">Cancel</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Batteries Section -->
+      <div class="data-section">
+        <h3>Batteries</h3>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Energy (KWh)</th>
+              <th>Capacity (AH)</th>
+              <th>Price (Rs)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="bat in batteries" :key="bat.id">
+              <td v-if="!isEditing(bat.id, 'battery')">{{ bat.name }}</td>
+              <td v-else>
+                <input v-model="editingItem.name" class="form-control" type="text" />
+              </td>
+              <td v-if="!isEditing(bat.id, 'battery')">{{ bat.energy }}</td>
+              <td v-else>
+                <input v-model.number="editingItem.energy" class="form-control" type="number" />
+              </td>
+              <td v-if="!isEditing(bat.id, 'battery')">{{ bat.capacity }}</td>
+              <td v-else>
+                <input v-model.number="editingItem.capacity" class="form-control" type="number" />
+              </td>
+              <td v-if="!isEditing(bat.id, 'battery')">{{ bat.price }}</td>
+              <td v-else>
+                <input v-model.number="editingItem.price" class="form-control" type="number" />
+              </td>
+              <td>
+                <div v-if="!isEditing(bat.id, 'battery')">
+                  <button class="btn btn-sm btn-warning" @click="startEdit(bat, 'battery')">Edit</button>
+                  <button class="btn btn-sm btn-danger" @click="openDeleteModal(bat, 'battery')">Delete</button>
+                </div>
+                <div v-else>
+                  <button class="btn btn-sm btn-primary" @click="openEditModal()">Save</button>
+                  <button class="btn btn-sm btn-secondary" @click="cancelEdit()">Cancel</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- If no data available, show message -->
+    <div v-if="!loading && !errorMessage && !hasData" class="alert alert-warning">
+      No data available.
     </div>
 
-    <!-- Batteries Section -->
-    <div class="data-section">
-      <h3>Batteries</h3>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Energy (KWh)</th>
-            <th>Capacity (AH)</th>
-            <th>Price (Rs)</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="bat in batteries" :key="bat.id">
-            <td v-if="!isEditing(bat.id, 'battery')">{{ bat.name }}</td>
-            <td v-else>
-              <input v-model="editingItem.name" class="form-control" type="text" />
-            </td>
-            <td v-if="!isEditing(bat.id, 'battery')">{{ bat.energy }}</td>
-            <td v-else>
-              <input v-model.number="editingItem.energy" class="form-control" type="number" />
-            </td>
-            <td v-if="!isEditing(bat.id, 'battery')">{{ bat.capacity }}</td>
-            <td v-else>
-              <input v-model.number="editingItem.capacity" class="form-control" type="number" />
-            </td>
-            <td v-if="!isEditing(bat.id, 'battery')">{{ bat.price }}</td>
-            <td v-else>
-              <input v-model.number="editingItem.price" class="form-control" type="number" />
-            </td>
-            <td>
-              <div v-if="!isEditing(bat.id, 'battery')">
-                <button class="btn btn-sm btn-warning" @click="startEdit(bat, 'battery')">Edit</button>
-                <button class="btn btn-sm btn-danger" @click="deleteBattery(bat.id)">Delete</button>
-              </div>
-              <div v-else>
-                <button class="btn btn-sm btn-primary" @click="submitEdit(bat.id, 'battery')">Save</button>
-                <button class="btn btn-sm btn-secondary" @click="cancelEdit()">Cancel</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Delete Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal-overlay">
+      <div class="modal-content">
+        <h3>Confirm Deletion</h3>
+        <p>Are you sure you want to delete this {{ deleteType }}?</p>
+        <div v-if="deleteItem">
+          <pre>{{ formatItem(deleteItem) }}</pre>
+        </div>
+        <div class="modal-buttons">
+          <button class="btn btn-danger" @click="confirmDelete">Yes, Delete</button>
+          <button class="btn btn-secondary" @click="cancelDelete">Cancel</button>
+        </div>
+      </div>
     </div>
-    
+
+    <!-- Edit Confirmation Modal -->
+    <div v-if="showEditModal" class="modal-overlay">
+      <div class="modal-content">
+        <h3>Confirm Update</h3>
+        <p>Please confirm the updated details for the {{ editingType }}:</p>
+        <div v-if="editingItem">
+          <pre>{{ formatItem(editingItem) }}</pre>
+        </div>
+        <div class="modal-buttons">
+          <button class="btn btn-primary" @click="submitEdit(editingId, editingType)">Confirm Update</button>
+          <button class="btn btn-secondary" @click="cancelEdit()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <div class="back-link">
       <router-link to="/" class="btn btn-secondary">Back to Calculator</router-link>
     </div>
@@ -123,33 +172,49 @@ export default {
       editingItem: null,
       editingId: null,
       editingType: "", // "inverter" or "battery"
-      message: ""
+      showDeleteModal: false,
+      deleteItem: null,
+      deleteType: "", // "inverter" or "battery"
+      showEditModal: false,
+      message: "",
+      loading: false
     };
+  },
+  computed: {
+    hasData() {
+      // Only show tables if both inverters and batteries arrays have at least one element
+      return this.inverters.length > 0 && this.batteries.length > 0;
+    }
   },
   methods: {
     async fetchData() {
+      this.loading = true;
       try {
         const response = await fetch("/.netlify/functions/getData");
         if (!response.ok) throw new Error("Network response not ok");
         const { inverters, batteries } = await response.json();
-        // Attach document IDs if not present
         this.inverters = inverters.map(doc => ({ id: doc.id, ...doc }));
         this.batteries = batteries.map(doc => ({ id: doc.id, ...doc }));
+        this.loading = false;
       } catch (error) {
         console.error("Error fetching data:", error);
         this.message = "Error fetching data. Please try again.";
+        this.loading = false;
       }
     },
     startEdit(item, type) {
       this.editingType = type;
       this.editingId = item.id;
-      // Make a deep copy to avoid modifying the original data until save
-      this.editingItem = JSON.parse(JSON.stringify(item));
+      this.editingItem = JSON.parse(JSON.stringify(item)); // Deep copy
+    },
+    openEditModal() {
+      this.showEditModal = true;
     },
     cancelEdit() {
       this.editingItem = null;
       this.editingId = null;
       this.editingType = "";
+      this.showEditModal = false;
     },
     isEditing(id, type) {
       return this.editingItem && this.editingId === id && this.editingType === type;
@@ -167,6 +232,7 @@ export default {
           this.message = result.message;
           this.cancelEdit();
           this.fetchData();
+          this.showEditModal = false;
         } catch (error) {
           console.error("Error updating inverter:", error);
           this.message = "Error updating inverter. Please try again.";
@@ -183,14 +249,32 @@ export default {
           this.message = result.message;
           this.cancelEdit();
           this.fetchData();
+          this.showEditModal = false;
         } catch (error) {
           console.error("Error updating battery:", error);
           this.message = "Error updating battery. Please try again.";
         }
       }
     },
+    openDeleteModal(item, type) {
+      this.deleteType = type;
+      this.deleteItem = item;
+      this.showDeleteModal = true;
+    },
+    cancelDelete() {
+      this.deleteItem = null;
+      this.deleteType = "";
+      this.showDeleteModal = false;
+    },
+    async confirmDelete() {
+      if (this.deleteType === "inverter") {
+        await this.deleteInverter(this.deleteItem.id);
+      } else if (this.deleteType === "battery") {
+        await this.deleteBattery(this.deleteItem.id);
+      }
+      this.cancelDelete();
+    },
     async deleteInverter(id) {
-      if (!confirm("Are you sure you want to delete this inverter?")) return;
       try {
         const response = await fetch("/.netlify/functions/deleteInverter", {
           method: "DELETE",
@@ -207,7 +291,6 @@ export default {
       }
     },
     async deleteBattery(id) {
-      if (!confirm("Are you sure you want to delete this battery?")) return;
       try {
         const response = await fetch("/.netlify/functions/deleteBattery", {
           method: "DELETE",
@@ -222,6 +305,11 @@ export default {
         console.error("Error deleting battery:", error);
         this.message = "Error deleting battery. Please try again.";
       }
+    },
+    formatItem(item) {
+      return Object.entries(item)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join("\n");
     }
   },
   mounted() {
@@ -315,15 +403,49 @@ export default {
   text-align: right;
   margin-bottom: 10px;
 }
-.edit-form {
-  margin-top: 20px;
-  padding: 15px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background-color: #fff;
-}
 .back-link {
   text-align: center;
   margin-top: 20px;
+}
+.loader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.7);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.loader {
+  font-size: 20px;
+  color: #007bff;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-content {
+  background: #fff;
+  padding: 20px;
+  max-width: 400px;
+  width: 90%;
+  border-radius: 8px;
+  text-align: center;
+}
+.modal-buttons {
+  margin-top: 15px;
+  display: flex;
+  justify-content: space-around;
 }
 </style>
