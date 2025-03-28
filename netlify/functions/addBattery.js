@@ -1,59 +1,43 @@
+// netlify/functions/addBattery.js
 const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert({
-          "type": process.env.FB_TYPE,
-          "project_id": process.env.FB_PROJECT_ID,
-          "private_key_id": process.env.FB_PRIVATE_KEY_ID,
-          "private_key": process.env.FB_PRIVATE_KEY.replace(/\\n/g, "\n"),
-          "client_email": process.env.FB_CLIENT_EMAIL,
-          "client_id": process.env.FB_CLIENT_ID,
-          "auth_uri": process.env.FB_AUTH_URI,
-          "token_uri": process.env.FB_TOKEN_URI,
-          "auth_provider_x509_cert_url": process.env.FB_AUTH_PROVIDER_X509_CERT_URL,
-          "client_x509_cert_url": process.env.FB_CLIENT_X509_CERT_URL,
-        }),
-        // You don't need a databaseURL for Firestore unless you have a specific requirement.
-      });
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      "type": process.env.FB_TYPE,
+      "project_id": process.env.FB_PROJECT_ID,
+      "private_key_id": process.env.FB_PRIVATE_KEY_ID,
+      "private_key": process.env.FB_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      "client_email": process.env.FB_CLIENT_EMAIL,
+      "client_id": process.env.FB_CLIENT_ID,
+      "auth_uri": process.env.FB_AUTH_URI,
+      "token_uri": process.env.FB_TOKEN_URI,
+      "auth_provider_x509_cert_url": process.env.FB_AUTH_PROVIDER_X509_CERT_URL,
+      "client_x509_cert_url": process.env.FB_CLIENT_X509_CERT_URL,
+    }),
+    // You don't need a databaseURL for Firestore unless you have a specific requirement.
+  });
 }
 
 exports.handler = async (event, context) => {
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+  }
   try {
-    if (event.httpMethod !== 'POST') {
-      return {
-        statusCode: 405,
-        body: JSON.stringify({ error: 'Method Not Allowed' }),
-      };
-    }
-
     const data = JSON.parse(event.body);
-
-    // Validate required fields for a battery
     if (!data.name || data.energy == null || data.capacity == null || data.price == null) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing required fields' }),
-      };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields' }) };
     }
-
     const db = admin.firestore();
     const docRef = await db.collection('batteries').add({
       name: data.name,
       energy: Number(data.energy),
       capacity: Number(data.capacity),
-      price: Number(data.price),
+      price: Number(data.price)
     });
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: 'Battery added successfully', id: docRef.id }),
-    };
+    return { statusCode: 200, body: JSON.stringify({ message: 'Battery added successfully', id: docRef.id }) };
   } catch (error) {
     console.error('Error adding battery:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to add battery' }),
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to add battery' }) };
   }
 };

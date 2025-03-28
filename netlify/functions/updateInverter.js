@@ -21,19 +21,13 @@ if (!admin.apps.length) {
 
 exports.handler = async (event, context) => {
   if (event.httpMethod !== 'PUT') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method Not Allowed' }),
-    };
+    return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
   try {
     const data = JSON.parse(event.body);
     const { id, updateData } = data;
     if (!id || !updateData) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing inverter id or updateData' }),
-      };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing inverter id or updateData' }) };
     }
     const db = admin.firestore();
     await db.collection('inverters').doc(id).update({
@@ -43,15 +37,9 @@ exports.handler = async (event, context) => {
       batterySupported: Number(updateData.batterySupported),
       cost: Number(updateData.cost)
     });
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: 'Inverter updated successfully' }),
-    };
+    return { statusCode: 200, body: JSON.stringify({ message: 'Inverter updated successfully' }) };
   } catch (error) {
     console.error('Error updating inverter:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to update inverter' }),
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to update inverter' }) };
   }
 };

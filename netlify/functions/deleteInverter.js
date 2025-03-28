@@ -21,31 +21,19 @@ if (!admin.apps.length) {
 
 exports.handler = async (event, context) => {
   if (event.httpMethod !== 'DELETE') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method Not Allowed' }),
-    };
+    return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
   try {
     const data = JSON.parse(event.body);
     const { id } = data;
     if (!id) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing inverter id' }),
-      };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing inverter id' }) };
     }
     const db = admin.firestore();
     await db.collection('inverters').doc(id).delete();
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: 'Inverter deleted successfully' }),
-    };
+    return { statusCode: 200, body: JSON.stringify({ message: 'Inverter deleted successfully' }) };
   } catch (error) {
     console.error('Error deleting inverter:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to delete inverter' }),
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to delete inverter' }) };
   }
 };

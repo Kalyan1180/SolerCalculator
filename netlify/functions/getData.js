@@ -26,11 +26,12 @@ exports.handler = async function (event, context) {
 
     // Fetch inverter data from the "inverters" collection
     const inverterSnapshot = await db.collection("inverters").get();
-    const inverters = inverterSnapshot.docs.map((doc) => doc.data());
+    const inverters = inverterSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
 
     // Fetch battery data from the "batteries" collection
     const batterySnapshot = await db.collection("batteries").get();
-    const batteries = batterySnapshot.docs.map((doc) => doc.data());
+    const batteries = batterySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
     return {
       statusCode: 200,

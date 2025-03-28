@@ -21,19 +21,13 @@ if (!admin.apps.length) {
 
 exports.handler = async (event, context) => {
   if (event.httpMethod !== 'PUT') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method Not Allowed' }),
-    };
+    return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
   try {
     const data = JSON.parse(event.body);
     const { id, updateData } = data;
     if (!id || !updateData) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing battery id or updateData' }),
-      };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing battery id or updateData' }) };
     }
     const db = admin.firestore();
     await db.collection('batteries').doc(id).update({
@@ -42,15 +36,9 @@ exports.handler = async (event, context) => {
       capacity: Number(updateData.capacity),
       price: Number(updateData.price)
     });
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: 'Battery updated successfully' }),
-    };
+    return { statusCode: 200, body: JSON.stringify({ message: 'Battery updated successfully' }) };
   } catch (error) {
     console.error('Error updating battery:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to update battery' }),
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to update battery' }) };
   }
 };

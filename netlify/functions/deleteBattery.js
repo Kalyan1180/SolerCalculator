@@ -21,31 +21,19 @@ if (!admin.apps.length) {
 
 exports.handler = async (event, context) => {
   if (event.httpMethod !== 'DELETE') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method Not Allowed' }),
-    };
+    return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
   try {
     const data = JSON.parse(event.body);
     const { id } = data;
     if (!id) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing battery id' }),
-      };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing battery id' }) };
     }
     const db = admin.firestore();
     await db.collection('batteries').doc(id).delete();
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: 'Battery deleted successfully' }),
-    };
+    return { statusCode: 200, body: JSON.stringify({ message: 'Battery deleted successfully' }) };
   } catch (error) {
     console.error('Error deleting battery:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to delete battery' }),
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to delete battery' }) };
   }
 };
