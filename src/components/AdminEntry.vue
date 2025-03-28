@@ -27,7 +27,7 @@
           </div>
           <div class="form-group">
             <label for="newInvPeakLoad" class="form-label">Peak Load (KVA)</label>
-            <input v-model.number="newInverter.peakLoad" type="number" id="newInvPeakLoad" class="form-control" required />
+            <input v-model.number="newInverter.peakLoad" type="number" step="any" id="newInvPeakLoad" class="form-control" required />
           </div>
           <div class="form-group">
             <label for="newInvMaxPanels" class="form-label">Max Panels Supported</label>
