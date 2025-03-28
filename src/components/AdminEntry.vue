@@ -197,7 +197,8 @@
           <pre>{{ formatItem(editingItem) }}</pre>
         </div>
         <div class="modal-buttons">
-          <button class="btn btn-primary" @click="submitEdit(editingId, editingType)">Confirm Update</button>
+          <!-- Close modal immediately -->
+          <button class="btn btn-primary" @click="confirmEditNow">Confirm Update</button>
           <button class="btn btn-secondary" @click="cancelEdit">Cancel</button>
         </div>
       </div>
@@ -211,6 +212,7 @@
           <pre>{{ formatItem(newInverter) }}</pre>
         </div>
         <div class="modal-buttons">
+          <!-- Close modal immediately -->
           <button class="btn btn-primary" @click="confirmAddInverter">Confirm Add</button>
           <button class="btn btn-secondary" @click="cancelAddInverter">Cancel</button>
         </div>
@@ -225,6 +227,7 @@
           <pre>{{ formatItem({ ...newBattery, energy: computedNewBatteryEnergy }) }}</pre>
         </div>
         <div class="modal-buttons">
+          <!-- Close modal immediately -->
           <button class="btn btn-primary" @click="confirmAddBattery">Confirm Add</button>
           <button class="btn btn-secondary" @click="cancelAddBattery">Cancel</button>
         </div>
@@ -270,7 +273,6 @@ export default {
     };
   },
   computed: {
-    // Compute new battery energy based on capacity input
     computedNewBatteryEnergy() {
       if (this.newBattery.capacity) {
         return ((this.newBattery.capacity * 12) / 1000 * 0.8).toFixed(2);
@@ -311,7 +313,7 @@ export default {
       this.showAddInverterModal = false;
     },
     async confirmAddInverter() {
-      this.showAddInverterModal = false;
+      this.showAddInverterModal = false; // Close instantly
       try {
         this.loading = true;
         const response = await fetch("/.netlify/functions/addInverter", {
@@ -339,7 +341,7 @@ export default {
       this.showAddBatteryModal = false;
     },
     async confirmAddBattery() {
-      this.showAddBatteryModal = false;
+      this.showAddBatteryModal = false; // Close instantly
       try {
         this.loading = true;
         const computedEnergy = (this.newBattery.capacity * 12) / 1000 * 0.8;
@@ -384,6 +386,11 @@ export default {
     isEditing(id, type) {
       return this.editingItem && this.editingId === id && this.editingType === type;
     },
+    async confirmEditNow() {
+      // Immediately close the modal
+      this.showEditModal = false;
+      await this.submitEdit(this.editingId, this.editingType);
+    },
     async submitEdit(id, type) {
       if (type === "inverter") {
         try {
@@ -398,7 +405,6 @@ export default {
           this.message = result.message;
           this.cancelEdit();
           this.fetchData();
-          this.showEditModal = false;
         } catch (error) {
           console.error("Error updating inverter:", error);
           this.message = "Error updating inverter. Please try again.";
@@ -424,7 +430,6 @@ export default {
           this.message = result.message;
           this.cancelEdit();
           this.fetchData();
-          this.showEditModal = false;
         } catch (error) {
           console.error("Error updating battery:", error);
           this.message = "Error updating battery. Please try again.";
@@ -445,12 +450,13 @@ export default {
       this.showDeleteModal = false;
     },
     async confirmDelete() {
+      // Immediately close delete modal
+      this.showDeleteModal = false;
       if (this.deleteType === "inverter") {
         await this.deleteInverter(this.deleteItem.id);
       } else if (this.deleteType === "battery") {
         await this.deleteBattery(this.deleteItem.id);
       }
-      this.cancelDelete();
     },
     async deleteInverter(id) {
       try {
