@@ -1,18 +1,14 @@
 <template>
   <div id="app">
-    <SolerForm />
-    <!-- Add other components or content here -->
+    <!-- The router-view will render the matched component -->
+    <router-view />
   </div>
 </template>
 
 <script>
-import SolerForm from './components/SolerForm';
-
 export default {
-  components: {
-    SolerForm,
-  },
-};
+  name: 'App'
+}
 </script>
 
 <style>
