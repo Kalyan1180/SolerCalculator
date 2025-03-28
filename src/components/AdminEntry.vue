@@ -17,6 +17,7 @@
     
     <!-- Add New Sections -->
     <div class="add-section">
+      <!-- Add Inverter Form -->
       <div class="add-form">
         <h3>Add New Inverter</h3>
         <form @submit.prevent="submitNewInverter">
@@ -43,6 +44,8 @@
           <button type="submit" class="btn btn-primary btn-block">Add Inverter</button>
         </form>
       </div>
+      
+      <!-- Add Battery Form -->
       <div class="add-form">
         <h3>Add New Battery</h3>
         <form @submit.prevent="submitNewBattery">
@@ -50,10 +53,7 @@
             <label for="newBatName" class="form-label">Name</label>
             <input v-model="newBattery.name" type="text" id="newBatName" class="form-control" required />
           </div>
-          <div class="form-group">
-            <label for="newBatEnergy" class="form-label">Energy (KWh)</label>
-            <input v-model.number="newBattery.energy" type="number" id="newBatEnergy" class="form-control" required />
-          </div>
+          <!-- Removed energy input -->
           <div class="form-group">
             <label for="newBatCapacity" class="form-label">Capacity (AH)</label>
             <input v-model.number="newBattery.capacity" type="number" id="newBatCapacity" class="form-control" required />
@@ -61,6 +61,11 @@
           <div class="form-group">
             <label for="newBatPrice" class="form-label">Price (Rs)</label>
             <input v-model.number="newBattery.price" type="number" id="newBatPrice" class="form-control" required />
+          </div>
+          <!-- Display computed energy (read-only) -->
+          <div class="form-group" v-if="newBattery.capacity">
+            <label class="form-label">Computed Energy (KWh)</label>
+            <input type="text" class="form-control" :value="computedNewBatteryEnergy" readonly />
           </div>
           <button type="submit" class="btn btn-primary btn-block">Add Battery</button>
         </form>
@@ -130,6 +135,7 @@
             <thead>
               <tr>
                 <th>Name</th>
+                <!-- Note: Energy is computed and not editable -->
                 <th>Energy (KWh)</th>
                 <th>Capacity (AH)</th>
                 <th>Price (Rs)</th>
@@ -142,11 +148,9 @@
                 <td v-else>
                   <input v-model="editingItem.name" class="form-control" type="text" />
                 </td>
-                <td v-if="!isEditing(bat.id, 'battery')">{{ bat.energy }}</td>
-                <td v-else>
-                  <input v-model.number="editingItem.energy" class="form-control" type="number" />
+                <td v-if="!isEditing(bat.id, 'battery')">
+                  {{ computeEnergy(bat.capacity) }}
                 </td>
-                <td v-if="!isEditing(bat.id, 'battery')">{{ bat.capacity }}</td>
                 <td v-else>
                   <input v-model.number="editingItem.capacity" class="form-control" type="number" />
                 </td>
@@ -223,7 +227,6 @@ export default {
       },
       newBattery: {
         name: "",
-        energy: null,
         capacity: null,
         price: null
       },
@@ -238,7 +241,20 @@ export default {
       loading: false
     };
   },
+  computed: {
+    // Compute new battery energy based on capacity input
+    computedNewBatteryEnergy() {
+      if (this.newBattery.capacity) {
+        return ((this.newBattery.capacity * 12) / 1000 * 0.8).toFixed(2);
+      }
+      return "";
+    }
+  },
   methods: {
+    computeEnergy(capacity) {
+      if (!capacity) return "";
+      return ((capacity * 12) / 1000 * 0.8).toFixed(2);
+    },
     async fetchData() {
       this.loading = true;
       try {
@@ -277,15 +293,23 @@ export default {
     async submitNewBattery() {
       try {
         this.loading = true;
+        // Compute energy from capacity (do not accept energy input from user)
+        const computedEnergy = (this.newBattery.capacity * 12) / 1000 * 0.8;
+        const batteryData = {
+          name: this.newBattery.name,
+          capacity: this.newBattery.capacity,
+          price: this.newBattery.price,
+          energy: computedEnergy
+        };
         const response = await fetch("/.netlify/functions/addBattery", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(this.newBattery)
+          body: JSON.stringify(batteryData)
         });
         if (!response.ok) throw new Error("Network response not ok");
         const result = await response.json();
         this.message = result.message;
-        this.newBattery = { name: "", energy: null, capacity: null, price: null };
+        this.newBattery = { name: "", capacity: null, price: null };
         this.fetchData();
       } catch (error) {
         console.error("Error adding battery:", error);
@@ -331,10 +355,16 @@ export default {
         }
       } else if (type === "battery") {
         try {
+          // Recompute energy based on edited capacity
+          const computedEnergy = (this.editingItem.capacity * 12) / 1000 * 0.8;
+          const updateData = {
+            ...this.editingItem,
+            energy: computedEnergy
+          };
           const response = await fetch("/.netlify/functions/updateBattery", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id, updateData: this.editingItem })
+            body: JSON.stringify({ id, updateData })
           });
           if (!response.ok) throw new Error("Network response not ok");
           const result = await response.json();
