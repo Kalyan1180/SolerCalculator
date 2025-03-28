@@ -1,30 +1,75 @@
 <template>
   <div class="container admin-container">
     <h2 class="form-title">Admin Control Dashboard</h2>
-
+    
     <!-- Global Loader -->
     <div v-if="loading" class="loader-overlay">
       <div class="loader">Loading data, please wait...</div>
     </div>
-
-    <!-- Global Error Message -->
-    <div v-if="errorMessage" class="alert alert-danger message">
-      {{ errorMessage }}
-    </div>
-
-    <!-- Global Info Message -->
-    <div v-if="message" class="alert alert-info message">
-      {{ message }}
-    </div>
-
+    
+    <!-- Global Message -->
+    <div v-if="message" class="alert alert-info message">{{ message }}</div>
+    
     <!-- Refresh Button -->
-    <div class="refresh-btn" v-if="!loading && !errorMessage">
+    <div class="refresh-btn">
       <button class="btn btn-secondary" @click="fetchData">Refresh Data</button>
     </div>
-
-    <!-- Data Tables: Only show if both inverters and batteries data are available -->
-    <div v-if="!loading && !errorMessage && hasData">
-      <!-- Inverters Section -->
+    
+    <!-- Add New Sections (Responsive Flex Layout) -->
+    <div class="add-section">
+      <div class="add-form">
+        <h3>Add New Inverter</h3>
+        <form @submit.prevent="submitNewInverter">
+          <div class="form-group">
+            <label for="newInvName" class="form-label">Name</label>
+            <input v-model="newInverter.name" type="text" id="newInvName" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="newInvPeakLoad" class="form-label">Peak Load (KVA)</label>
+            <input v-model.number="newInverter.peakLoad" type="number" id="newInvPeakLoad" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="newInvMaxPanels" class="form-label">Max Panels Supported</label>
+            <input v-model.number="newInverter.maxPanels" type="number" id="newInvMaxPanels" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="newInvBatterySupported" class="form-label">Battery Supported (Volt)</label>
+            <input v-model.number="newInverter.batterySupported" type="number" id="newInvBatterySupported" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="newInvCost" class="form-label">Cost (Rs)</label>
+            <input v-model.number="newInverter.cost" type="number" id="newInvCost" class="form-control" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Add Inverter</button>
+        </form>
+      </div>
+      <div class="add-form">
+        <h3>Add New Battery</h3>
+        <form @submit.prevent="submitNewBattery">
+          <div class="form-group">
+            <label for="newBatName" class="form-label">Name</label>
+            <input v-model="newBattery.name" type="text" id="newBatName" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="newBatEnergy" class="form-label">Energy (KWh)</label>
+            <input v-model.number="newBattery.energy" type="number" id="newBatEnergy" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="newBatCapacity" class="form-label">Capacity (AH)</label>
+            <input v-model.number="newBattery.capacity" type="number" id="newBatCapacity" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="newBatPrice" class="form-label">Price (Rs)</label>
+            <input v-model.number="newBattery.price" type="number" id="newBatPrice" class="form-control" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Add Battery</button>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Data Listing: Only display if data fetched -->
+    <div v-if="(inverters.length || batteries.length) && !loading">
+      <!-- Inverters List -->
       <div class="data-section">
         <h3>Inverters</h3>
         <table class="table">
@@ -74,8 +119,8 @@
           </tbody>
         </table>
       </div>
-
-      <!-- Batteries Section -->
+      
+      <!-- Batteries List -->
       <div class="data-section">
         <h3>Batteries</h3>
         <table class="table">
@@ -121,11 +166,7 @@
         </table>
       </div>
     </div>
-    <!-- If no data available, show message -->
-    <div v-if="!loading && !errorMessage && !hasData" class="alert alert-warning">
-      No data available.
-    </div>
-
+    
     <!-- Delete Confirmation Modal -->
     <div v-if="showDeleteModal" class="modal-overlay">
       <div class="modal-content">
@@ -155,7 +196,7 @@
         </div>
       </div>
     </div>
-
+    
     <div class="back-link">
       <router-link to="/" class="btn btn-secondary">Back to Calculator</router-link>
     </div>
@@ -169,6 +210,19 @@ export default {
     return {
       inverters: [],
       batteries: [],
+      newInverter: {
+        name: "",
+        peakLoad: null,
+        maxPanels: null,
+        batterySupported: null,
+        cost: null
+      },
+      newBattery: {
+        name: "",
+        energy: null,
+        capacity: null,
+        price: null
+      },
       editingItem: null,
       editingId: null,
       editingType: "", // "inverter" or "battery"
@@ -179,12 +233,6 @@ export default {
       message: "",
       loading: false
     };
-  },
-  computed: {
-    hasData() {
-      // Only show tables if both inverters and batteries arrays have at least one element
-      return this.inverters.length > 0 && this.batteries.length > 0;
-    }
   },
   methods: {
     async fetchData() {
@@ -202,10 +250,50 @@ export default {
         this.loading = false;
       }
     },
+    async submitNewInverter() {
+      try {
+        this.loading = true;
+        const response = await fetch("/.netlify/functions/addInverter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(this.newInverter)
+        });
+        if (!response.ok) throw new Error("Network response not ok");
+        const result = await response.json();
+        this.message = result.message;
+        this.newInverter = { name: "", peakLoad: null, maxPanels: null, batterySupported: null, cost: null };
+        this.fetchData();
+      } catch (error) {
+        console.error("Error adding inverter:", error);
+        this.message = "Error adding inverter. Please try again.";
+      } finally {
+        this.loading = false;
+      }
+    },
+    async submitNewBattery() {
+      try {
+        this.loading = true;
+        const response = await fetch("/.netlify/functions/addBattery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(this.newBattery)
+        });
+        if (!response.ok) throw new Error("Network response not ok");
+        const result = await response.json();
+        this.message = result.message;
+        this.newBattery = { name: "", energy: null, capacity: null, price: null };
+        this.fetchData();
+      } catch (error) {
+        console.error("Error adding battery:", error);
+        this.message = "Error adding battery. Please try again.";
+      } finally {
+        this.loading = false;
+      }
+    },
     startEdit(item, type) {
       this.editingType = type;
       this.editingId = item.id;
-      this.editingItem = JSON.parse(JSON.stringify(item)); // Deep copy
+      this.editingItem = JSON.parse(JSON.stringify(item));
     },
     openEditModal() {
       this.showEditModal = true;
@@ -332,6 +420,20 @@ export default {
   color: #007bff;
   margin-bottom: 20px;
 }
+.add-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+.add-form {
+  flex: 1;
+  min-width: 300px;
+  background-color: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+}
 .data-section {
   margin-bottom: 30px;
 }
@@ -403,26 +505,6 @@ export default {
   text-align: right;
   margin-bottom: 10px;
 }
-.back-link {
-  text-align: center;
-  margin-top: 20px;
-}
-.loader-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.7);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.loader {
-  font-size: 20px;
-  color: #007bff;
-}
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -447,5 +529,30 @@ export default {
   margin-top: 15px;
   display: flex;
   justify-content: space-around;
+}
+.loader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.7);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.loader {
+  font-size: 20px;
+  color: #007bff;
+}
+.back-link {
+  text-align: center;
+  margin-top: 20px;
+}
+@media (max-width: 768px) {
+  .add-section {
+    flex-direction: column;
+  }
 }
 </style>
