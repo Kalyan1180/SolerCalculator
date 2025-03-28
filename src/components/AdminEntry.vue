@@ -61,7 +61,7 @@
             <label for="newBatPrice" class="form-label">Price (Rs)</label>
             <input v-model.number="newBattery.price" type="number" id="newBatPrice" class="form-control" required />
           </div>
-          <!-- Computed Energy (read-only) -->
+          <!-- Display computed energy (read-only) -->
           <div class="form-group" v-if="newBattery.capacity">
             <label class="form-label">Computed Energy (KWh)</label>
             <input type="text" class="form-control" :value="computedNewBatteryEnergy" readonly />
@@ -146,7 +146,7 @@
                 <td v-else>
                   <input v-model="editingItem.name" class="form-control" type="text" />
                 </td>
-                <!-- Energy column: always computed (read-only) -->
+                <!-- Energy column: computed and read-only -->
                 <td>{{ computeEnergy(bat.capacity) }}</td>
                 <td v-if="!isEditing(bat.id, 'battery')">{{ bat.capacity }}</td>
                 <td v-else>
@@ -496,11 +496,6 @@ export default {
       return Object.entries(item)
         .map(([key, value]) => `${key}: ${value}`)
         .join("\n");
-    },
-    clearMessageAfterDelay() {
-      setTimeout(() => {
-        this.message = "";
-      }, 10000);
     }
   },
   mounted() {
