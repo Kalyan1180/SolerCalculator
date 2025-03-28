@@ -15,7 +15,7 @@
       <button class="btn btn-secondary" @click="fetchData">Refresh Data</button>
     </div>
     
-    <!-- Add New Sections (Responsive Flex Layout) -->
+    <!-- Add New Sections -->
     <div class="add-section">
       <div class="add-form">
         <h3>Add New Inverter</h3>
@@ -67,103 +67,107 @@
       </div>
     </div>
     
-    <!-- Data Listing: Only display if data fetched -->
+    <!-- Data Listing: Only show if data exists and not loading -->
     <div v-if="(inverters.length || batteries.length) && !loading">
       <!-- Inverters List -->
       <div class="data-section">
         <h3>Inverters</h3>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Peak Load (KVA)</th>
-              <th>Max Panels</th>
-              <th>Battery Supported (V)</th>
-              <th>Cost (Rs)</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="inv in inverters" :key="inv.id">
-              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.name }}</td>
-              <td v-else>
-                <input v-model="editingItem.name" class="form-control" type="text" />
-              </td>
-              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.peakLoad }}</td>
-              <td v-else>
-                <input v-model.number="editingItem.peakLoad" class="form-control" type="number" />
-              </td>
-              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.maxPanels }}</td>
-              <td v-else>
-                <input v-model.number="editingItem.maxPanels" class="form-control" type="number" />
-              </td>
-              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.batterySupported }}</td>
-              <td v-else>
-                <input v-model.number="editingItem.batterySupported" class="form-control" type="number" />
-              </td>
-              <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.cost }}</td>
-              <td v-else>
-                <input v-model.number="editingItem.cost" class="form-control" type="number" />
-              </td>
-              <td>
-                <div v-if="!isEditing(inv.id, 'inverter')">
-                  <button class="btn btn-sm btn-warning" @click="startEdit(inv, 'inverter')">Edit</button>
-                  <button class="btn btn-sm btn-danger" @click="openDeleteModal(inv, 'inverter')">Delete</button>
-                </div>
-                <div v-else>
-                  <button class="btn btn-sm btn-primary" @click="openEditModal()">Save</button>
-                  <button class="btn btn-sm btn-secondary" @click="cancelEdit()">Cancel</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Peak Load (KVA)</th>
+                <th>Max Panels</th>
+                <th>Battery Supported (V)</th>
+                <th>Cost (Rs)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="inv in inverters" :key="inv.id">
+                <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.name }}</td>
+                <td v-else>
+                  <input v-model="editingItem.name" class="form-control" type="text" />
+                </td>
+                <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.peakLoad }}</td>
+                <td v-else>
+                  <input v-model.number="editingItem.peakLoad" class="form-control" type="number" />
+                </td>
+                <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.maxPanels }}</td>
+                <td v-else>
+                  <input v-model.number="editingItem.maxPanels" class="form-control" type="number" />
+                </td>
+                <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.batterySupported }}</td>
+                <td v-else>
+                  <input v-model.number="editingItem.batterySupported" class="form-control" type="number" />
+                </td>
+                <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.cost }}</td>
+                <td v-else>
+                  <input v-model.number="editingItem.cost" class="form-control" type="number" />
+                </td>
+                <td>
+                  <div v-if="!isEditing(inv.id, 'inverter')">
+                    <button class="btn btn-sm btn-warning" @click="startEdit(inv, 'inverter')">Edit</button>
+                    <button class="btn btn-sm btn-danger" @click="openDeleteModal(inv, 'inverter')">Delete</button>
+                  </div>
+                  <div v-else>
+                    <button class="btn btn-sm btn-primary" @click="openEditModal()">Save</button>
+                    <button class="btn btn-sm btn-secondary" @click="cancelEdit()">Cancel</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
       
       <!-- Batteries List -->
       <div class="data-section">
         <h3>Batteries</h3>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Energy (KWh)</th>
-              <th>Capacity (AH)</th>
-              <th>Price (Rs)</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="bat in batteries" :key="bat.id">
-              <td v-if="!isEditing(bat.id, 'battery')">{{ bat.name }}</td>
-              <td v-else>
-                <input v-model="editingItem.name" class="form-control" type="text" />
-              </td>
-              <td v-if="!isEditing(bat.id, 'battery')">{{ bat.energy }}</td>
-              <td v-else>
-                <input v-model.number="editingItem.energy" class="form-control" type="number" />
-              </td>
-              <td v-if="!isEditing(bat.id, 'battery')">{{ bat.capacity }}</td>
-              <td v-else>
-                <input v-model.number="editingItem.capacity" class="form-control" type="number" />
-              </td>
-              <td v-if="!isEditing(bat.id, 'battery')">{{ bat.price }}</td>
-              <td v-else>
-                <input v-model.number="editingItem.price" class="form-control" type="number" />
-              </td>
-              <td>
-                <div v-if="!isEditing(bat.id, 'battery')">
-                  <button class="btn btn-sm btn-warning" @click="startEdit(bat, 'battery')">Edit</button>
-                  <button class="btn btn-sm btn-danger" @click="openDeleteModal(bat, 'battery')">Delete</button>
-                </div>
-                <div v-else>
-                  <button class="btn btn-sm btn-primary" @click="openEditModal()">Save</button>
-                  <button class="btn btn-sm btn-secondary" @click="cancelEdit()">Cancel</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Energy (KWh)</th>
+                <th>Capacity (AH)</th>
+                <th>Price (Rs)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="bat in batteries" :key="bat.id">
+                <td v-if="!isEditing(bat.id, 'battery')">{{ bat.name }}</td>
+                <td v-else>
+                  <input v-model="editingItem.name" class="form-control" type="text" />
+                </td>
+                <td v-if="!isEditing(bat.id, 'battery')">{{ bat.energy }}</td>
+                <td v-else>
+                  <input v-model.number="editingItem.energy" class="form-control" type="number" />
+                </td>
+                <td v-if="!isEditing(bat.id, 'battery')">{{ bat.capacity }}</td>
+                <td v-else>
+                  <input v-model.number="editingItem.capacity" class="form-control" type="number" />
+                </td>
+                <td v-if="!isEditing(bat.id, 'battery')">{{ bat.price }}</td>
+                <td v-else>
+                  <input v-model.number="editingItem.price" class="form-control" type="number" />
+                </td>
+                <td>
+                  <div v-if="!isEditing(bat.id, 'battery')">
+                    <button class="btn btn-sm btn-warning" @click="startEdit(bat, 'battery')">Edit</button>
+                    <button class="btn btn-sm btn-danger" @click="openDeleteModal(bat, 'battery')">Delete</button>
+                  </div>
+                  <div v-else>
+                    <button class="btn btn-sm btn-primary" @click="openEditModal()">Save</button>
+                    <button class="btn btn-sm btn-secondary" @click="cancelEdit()">Cancel</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
     
@@ -181,7 +185,7 @@
         </div>
       </div>
     </div>
-
+    
     <!-- Edit Confirmation Modal -->
     <div v-if="showEditModal" class="modal-overlay">
       <div class="modal-content">
@@ -192,7 +196,7 @@
         </div>
         <div class="modal-buttons">
           <button class="btn btn-primary" @click="submitEdit(editingId, editingType)">Confirm Update</button>
-          <button class="btn btn-secondary" @click="cancelEdit()">Cancel</button>
+          <button class="btn btn-secondary" @click="cancelEdit">Cancel</button>
         </div>
       </div>
     </div>
@@ -408,7 +412,7 @@ export default {
 
 <style scoped>
 .admin-container {
-  max-width: 90%;
+  max-width: 100%;
   margin: auto;
   background-color: #f8f9fa;
   padding: 20px;
@@ -441,6 +445,9 @@ export default {
   margin-bottom: 15px;
   color: #0056b3;
   text-align: center;
+}
+.table-responsive {
+  overflow-x: auto;
 }
 .table {
   width: 100%;
@@ -553,6 +560,9 @@ export default {
 @media (max-width: 768px) {
   .add-section {
     flex-direction: column;
+  }
+  .admin-container {
+    padding: 10px;
   }
 }
 </style>
