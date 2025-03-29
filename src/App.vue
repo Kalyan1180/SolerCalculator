@@ -1,16 +1,20 @@
 <template>
-  <div id="app">
-    <!-- The router-view will render the matched component -->
+  <div>
+    <NavbarComponent />
     <router-view />
   </div>
 </template>
 
 <script>
+import NavbarComponent from './components/NavbarComponent.vue';
 export default {
-  name: 'App'
-}
+  name: "App",
+  components: {
+    NavbarComponent
+  }
+};
 </script>
 
 <style>
-/* Add any global styling here */
+/* Global styles */
 </style>
