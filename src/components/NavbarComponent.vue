@@ -26,28 +26,29 @@
               <router-link class="nav-link" to="/solercalc">Soler Calculator</router-link>
             </li>
             <li class="nav-item">
-              <router-link class="nav-link" to="/admin">Admin Control</router-link>
-            </li>
-            <li class="nav-item">
               <router-link class="nav-link" to="/about">About Us</router-link>
             </li>
             <li class="nav-item">
               <router-link class="nav-link" to="/contact">Contact Us</router-link>
             </li>
-            <!-- Conditionally show sign up / log in when user is not logged in --> 
+            <!-- Conditionally show Sign Up / Log In when user is not logged in --> 
             <li class="nav-item" v-if="!currentUser">
               <router-link class="nav-link" to="/signup">Sign In</router-link>
             </li>
             <li class="nav-item" v-if="!currentUser">
               <router-link class="nav-link" to="/login">Log In</router-link>
             </li>
-            <!-- If logged in, show profile dropdown instead of Sign In/Log In links -->
+            <!-- If logged in, show profile dropdown with Admin link if role is admin --> 
             <li class="nav-item dropdown" v-if="currentUser">
               <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                 <img :src="currentUser.photoURL || defaultProfile" alt="Profile" class="profile-icon" />
                 {{ currentUser.displayName || currentUser.email }}
               </a>
               <ul class="dropdown-menu dropdown-menu-end">
+                <!-- Only show Admin link if userRole is 'admin' --> 
+                <li v-if="userRole === 'admin'">
+                  <router-link class="dropdown-item" to="/admin">Admin Control</router-link>
+                </li>
                 <li><a class="dropdown-item" href="#" @click="signOut">Sign Out</a></li>
               </ul>
             </li>
@@ -58,34 +59,41 @@
   </template>
   
   <script>
-  import { onAuthStateChanged, signOut } from "firebase/auth";
-  import { getAuth } from "firebase/auth";
+  import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+  import { getUserRole } from "@/utils/firebaseHelpers";
   
   export default {
     name: "NavbarComponent",
     data() {
       return {
         currentUser: null,
+        userRole: null,
         defaultProfile: "https://via.placeholder.com/30"
       };
     },
     methods: {
-      signOutUser() {
-        signOut(getAuth())
-          .then(() => {
-            this.currentUser = null;
-            this.$router.push("/");
-          })
-          .catch((err) => console.error("Sign out error:", err));
+      async signOutUser() {
+        const authInstance = getAuth();
+        await signOut(authInstance);
+        this.currentUser = null;
+        this.userRole = null;
+        this.$router.push("/");
       },
       signOut() {
         this.signOutUser();
+      },
+      async fetchUserRole(uid) {
+        const role = await getUserRole(uid);
+        this.userRole = role;
       }
     },
     created() {
       const authInstance = getAuth();
-      onAuthStateChanged(authInstance, (user) => {
+      onAuthStateChanged(authInstance, async (user) => {
         this.currentUser = user;
+        if (user) {
+          await this.fetchUserRole(user.uid);
+        }
       });
     }
   };

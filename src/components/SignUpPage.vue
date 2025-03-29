@@ -1,6 +1,7 @@
 <template>
     <div class="signup-container container my-5">
       <h2 class="text-center mb-4">Sign Up</h2>
+      
       <!-- Email/Password Sign Up Form -->
       <form @submit.prevent="signUpWithEmail" class="mb-4 border p-3 rounded">
         <div class="mb-3">
@@ -13,19 +14,22 @@
         </div>
         <button type="submit" class="btn btn-primary w-100">Sign Up with Email</button>
       </form>
+      
       <!-- Google Sign Up -->
       <div class="text-center mb-3">
         <button class="btn btn-outline-danger w-100" @click="signUpWithGoogle">
           Sign Up with Google
         </button>
       </div>
+      
       <div v-if="error" class="alert alert-danger mt-3">{{ error }}</div>
     </div>
   </template>
   
   <script>
-  import { getAuth, createUserWithEmailAndPassword, signInWithPopup, getIdTokenResult } from "firebase/auth";
+  import { getAuth, createUserWithEmailAndPassword, signInWithPopup } from "firebase/auth";
   import { googleProvider } from "@/firebase";
+  import { createUserWithRole } from "@/utils/firebaseHelpers";
   
   export default {
     name: "SignUpPage",
@@ -39,9 +43,10 @@
     methods: {
       async signUpWithEmail() {
         try {
-          const result = await createUserWithEmailAndPassword(getAuth(), this.email, this.password);
-          const tokenResult = await getIdTokenResult(result.user);
-          console.log("User token claims:", tokenResult.claims);
+          const authInstance = getAuth();
+          const result = await createUserWithEmailAndPassword(authInstance, this.email, this.password);
+          // Store user role in Firestore
+          await createUserWithRole(result.user, "user");
           this.$router.push("/");
         } catch (err) {
           console.error("Email sign-up error:", err);
@@ -50,9 +55,10 @@
       },
       async signUpWithGoogle() {
         try {
-          const result = await signInWithPopup(getAuth(), googleProvider);
-          const tokenResult = await getIdTokenResult(result.user);
-          console.log("User token claims:", tokenResult.claims);
+          const authInstance = getAuth();
+          const result = await signInWithPopup(authInstance, googleProvider);
+          // You might already have a user document, so check and create if necessary:
+          await createUserWithRole(result.user, "user");
           this.$router.push("/");
         } catch (err) {
           console.error("Google sign-up error:", err);

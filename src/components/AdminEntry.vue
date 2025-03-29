@@ -96,7 +96,7 @@
                 </td>
                 <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.peakLoad }}</td>
                 <td v-else>
-                  <input v-model.number="editingItem.peakLoad" class="form-control" type="number" />
+                  <input v-model.number="editingItem.peakLoad" class="form-control" type="number" step="any" />
                 </td>
                 <td v-if="!isEditing(inv.id, 'inverter')">{{ inv.maxPanels }}</td>
                 <td v-else>
@@ -197,7 +197,6 @@
           <pre>{{ formatItem(editingItem) }}</pre>
         </div>
         <div class="modal-buttons">
-          <!-- Close modal immediately -->
           <button class="btn btn-primary" @click="confirmEditNow">Confirm Update</button>
           <button class="btn btn-secondary" @click="cancelEdit">Cancel</button>
         </div>
@@ -212,7 +211,6 @@
           <pre>{{ formatItem(newInverter) }}</pre>
         </div>
         <div class="modal-buttons">
-          <!-- Close modal immediately -->
           <button class="btn btn-primary" @click="confirmAddInverter">Confirm Add</button>
           <button class="btn btn-secondary" @click="cancelAddInverter">Cancel</button>
         </div>
@@ -227,11 +225,19 @@
           <pre>{{ formatItem({ ...newBattery, energy: computedNewBatteryEnergy }) }}</pre>
         </div>
         <div class="modal-buttons">
-          <!-- Close modal immediately -->
           <button class="btn btn-primary" @click="confirmAddBattery">Confirm Add</button>
           <button class="btn btn-secondary" @click="cancelAddBattery">Cancel</button>
         </div>
       </div>
+    </div>
+    
+    <div class="admin-update-role my-4 p-3 border rounded">
+      <h3>Set User Role to Admin</h3>
+      <div class="form-group mb-3">
+        <label for="userUid" class="form-label">User UID</label>
+        <input v-model="userUid" type="text" id="userUid" class="form-control" placeholder="Enter user UID" />
+      </div>
+      <button class="btn btn-primary" @click="makeAdmin">Make Admin</button>
     </div>
     
     <div class="back-link">
@@ -268,6 +274,7 @@ export default {
       showEditModal: false,
       showAddInverterModal: false,
       showAddBatteryModal: false,
+      userUid: "",
       message: "",
       loading: false
     };
@@ -313,7 +320,7 @@ export default {
       this.showAddInverterModal = false;
     },
     async confirmAddInverter() {
-      this.showAddInverterModal = false; // Close instantly
+      this.showAddInverterModal = false;
       try {
         this.loading = true;
         const response = await fetch("/.netlify/functions/addInverter", {
@@ -341,7 +348,7 @@ export default {
       this.showAddBatteryModal = false;
     },
     async confirmAddBattery() {
-      this.showAddBatteryModal = false; // Close instantly
+      this.showAddBatteryModal = false;
       try {
         this.loading = true;
         const computedEnergy = (this.newBattery.capacity * 12) / 1000 * 0.8;
@@ -387,7 +394,6 @@ export default {
       return this.editingItem && this.editingId === id && this.editingType === type;
     },
     async confirmEditNow() {
-      // Immediately close the modal
       this.showEditModal = false;
       await this.submitEdit(this.editingId, this.editingType);
     },
@@ -450,7 +456,6 @@ export default {
       this.showDeleteModal = false;
     },
     async confirmDelete() {
-      // Immediately close delete modal
       this.showDeleteModal = false;
       if (this.deleteType === "inverter") {
         await this.deleteInverter(this.deleteItem.id);
