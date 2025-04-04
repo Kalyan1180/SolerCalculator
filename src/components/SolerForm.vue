@@ -170,11 +170,6 @@
 
       <!-- Calculate Button -->
       <button type="submit" class="btn btn-primary btn-block">Calculate</button>
-
-      <!-- Admin Panel Link -->
-      <div class="admin-link">
-        <router-link to="/admin">Admin Panel: Add Inverter/Battery</router-link>
-      </div>
     </form>
   </div>
 </template>
