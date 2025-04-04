@@ -51,14 +51,17 @@
             <strong>Estimated Cost with installation:</strong>
             <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(0) }}</span>
           </p>
-          <p>
-            <strong>Estimated Cost without profit:</strong>
-            Rs: {{ costResults.totalCostWithoutMarkup.toFixed(0) }}
-          </p>
-          <p>
-            <strong>Profit Percentage (%):</strong>
-            {{ profitPercentage.toFixed(2) }}
-          </p>
+          <!-- These lines show only if the user is an admin -->
+      <div v-if="userRole === 'admin'">
+        <p>
+          <strong>Estimated Cost without profit:</strong>
+          Rs: {{ costResults.totalCostWithoutMarkup.toFixed(0) }}
+        </p>
+        <p>
+          <strong>Profit Percentage (%):</strong>
+          {{ profitPercentage.toFixed(2) }}
+        </p>
+      </div>
           
           <!-- Special Offer Section -->
           <div class="offer-section">
@@ -175,10 +178,15 @@
 </template>
 
 <script>
+  import { getAuth, onAuthStateChanged } from "firebase/auth";
+  import { getUserRole } from "@/utils/firebaseHelpers";
+
 export default {
   name: "SolerCalculator",
   data() {
     return {
+      currentUser: null,
+      userRole: null,
       showResults: false,
       loading: false,
       errorMessage: "",
@@ -239,6 +247,15 @@ export default {
       },
     };
   },
+  created() {
+      const authInstance = getAuth();
+      onAuthStateChanged(authInstance, async (user) => {
+        this.currentUser = user;
+        if (user) {
+          await this.fetchUserRole(user.uid);
+        }
+      });
+    },
   computed: {
     unitPerDay() {
       if (this.inputMethodType === "monthly") {
@@ -349,6 +366,10 @@ export default {
     },
   },
   methods: {
+    async fetchUserRole(uid) {
+        const role = await getUserRole(uid);
+        this.userRole = role;
+      },
     async submitForm() {
       this.errorMessage = "";
       this.loading = true;
