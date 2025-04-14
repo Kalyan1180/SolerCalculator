@@ -377,7 +377,7 @@ export default {
     costWith: this.costResults.totalCostWithMarkup,
     costWithout: this.costResults.totalCostWithoutMarkup,
     profit: this.profitPercentage,
-    special: this.offerPrice.toFixed(0),
+    special: this.offerPrice,
     inverter: this.selectedInverter,
     battery: this.batteryInfo
   });
