@@ -12,78 +12,88 @@
 
     <!-- Results view -->
     <div v-else-if="showResults">
-      <div class="result-container">
-        <h2 class="form-title">Solar Calculator Results</h2>
-        <div class="result-info">
-          <p>
-            <strong>No. of Panels Required:</strong>
-            <span v-if="panelCount > 0">{{ panelCount }}</span>
-            <span v-else>No panels required (check your input)</span>
-          </p>
-
-          <!-- Inverter Details -->
-          <div class="details-section">
-            <p class="section-title">Inverter Details:</p>
-            <ul class="details-list" v-if="selectedInverter">
-              <li><strong>Name:</strong> {{ selectedInverter.name }}</li>
-              <li><strong>Peak Load:</strong> {{ selectedInverter.peakLoad }} KVA</li>
-              <li><strong>Max Panels Supported:</strong> {{ selectedInverter.maxPanels }}</li>
-              <li><strong>Battery Supported:</strong> {{ selectedInverter.batterySupported }} Volt</li>
-              <li><strong>Inverter Cost:</strong> Rs: {{ selectedInverter.cost }}</li>
-            </ul>
-            <p v-else>No suitable inverter found. Please adjust your input.</p>
-          </div>
-
-          <!-- Battery Details -->
-          <div class="details-section">
-            <p class="section-title">Battery Details:</p>
-            <ul class="details-list" v-if="batteryInfo">
-              <li><strong>Name:</strong> {{ batteryInfo.selectedBattery.name }}</li>
-              <li><strong>Capacity:</strong> {{ batteryInfo.selectedBattery.capacity }} AH</li>
-              <li><strong>Quantity:</strong> {{ batteryInfo.quantity }}</li>
-              <li><strong>Price (each):</strong> Rs: {{ batteryInfo.selectedBattery.price }}</li>
-            </ul>
-            <p v-else>No suitable battery found. Please adjust your input.</p>
-          </div>
-
-          <!-- Cost Calculations -->
-          <p>
-            <strong>Estimated Cost with installation:</strong>
-            <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(0) }}</span>
-          </p>
-          <!-- These lines show only if the user is an admin -->
-      <div v-if="userRole === 'admin'">
+      <!-- Place this inside the <div v-else-if="showResults"> block -->
+      <h2 class="form-title">Solar Calculator Results</h2>
+      <div class="result-info">
         <p>
-          <strong>Estimated Cost without profit:</strong>
-          Rs: {{ costResults.totalCostWithoutMarkup.toFixed(0) }}
+          <strong>No. of Panels Required:</strong>
+          <span v-if="panelCount > 0">{{ panelCount }}</span>
+          <span v-else>No panels required (check your input)</span>
         </p>
-        <p>
-          <strong>Profit Percentage (%):</strong>
-          {{ profitPercentage.toFixed(2) }}
-        </p>
-      </div>
-          
-          <!-- Special Offer Section -->
-          <div class="offer-section">
-            <p class="offer-title">Special Offer Price</p>
-            <p class="offer-display">
-              <span class="special-price">Rs: {{ offerPrice.toFixed(0) }}</span>
-            </p>
-          </div>
-          <!-- In the Results View, just below the offer section -->
-<div v-if="userRole === 'admin'" class="generate-quotation">
-  <button type="button" class="btn btn-success btn-block" @click="goToQuotation">Generate Quotation</button>
-</div>
 
-          <!-- Disclaimer -->
-          <p class="offer-disclaimer">
-            * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
+        <!-- Inverter Details -->
+        <div class="details-section">
+          <p class="section-title">Inverter Details:</p>
+          <ul class="details-list" v-if="selectedInverter">
+            <li><strong>Name:</strong> {{ selectedInverter.name }}</li>
+            <li><strong>Peak Load:</strong> {{ selectedInverter.peakLoad }} KVA</li>
+            <li><strong>Max Panels Supported:</strong> {{ selectedInverter.maxPanels }}</li>
+            <li><strong>Battery Supported:</strong> {{ selectedInverter.batterySupported }} Volt</li>
+            <li><strong>Inverter Cost:</strong> Rs: {{ selectedInverter.cost }}</li>
+          </ul>
+          <p v-else>No suitable inverter found. Please adjust your input.</p>
+        </div>
+
+        <!-- Battery Details -->
+        <div class="details-section">
+          <p class="section-title">Battery Details:</p>
+          <ul class="details-list" v-if="batteryInfo">
+            <li><strong>Name:</strong> {{ batteryInfo.selectedBattery.name }}</li>
+            <li><strong>Capacity:</strong> {{ batteryInfo.selectedBattery.capacity }} AH</li>
+            <li><strong>Quantity:</strong> {{ batteryInfo.quantity }}</li>
+            <li><strong>Price (each):</strong> Rs: {{ batteryInfo.selectedBattery.price }}</li>
+          </ul>
+          <p v-else>No suitable battery found. Please adjust your input.</p>
+        </div>
+
+        <!-- Cost Calculations -->
+        <p>
+          <strong>Estimated Cost with installation:</strong>
+          <span class="actual-price">Rs: {{ costResults.totalCostWithMarkup.toFixed(0) }}</span>
+        </p>
+        <!-- Show additional cost details only for admin users -->
+        <div v-if="userRole === 'admin'">
+          <p>
+            <strong>Estimated Cost without profit:</strong>
+            Rs: {{ costResults.totalCostWithoutMarkup.toFixed(0) }}
+          </p>
+          <p>
+            <strong>Profit Percentage (%):</strong>
+            {{ profitPercentage.toFixed(2) }}
           </p>
         </div>
-        <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
+
+        <!-- Special Offer Section -->
+        <div class="offer-section">
+          <p class="offer-title">Special Offer Price</p>
+          <p class="offer-display">
+            <span class="special-price">Rs: {{ offerPrice.toFixed(0) }}</span>
+          </p>
+        </div>
+
+        <!-- Quotation Button Section -->
+        <!-- If the logged-in user is admin, display "Generate Quotation" button -->
+        <div v-if="userRole === 'admin'" class="generate-quotation">
+          <button type="button" class="btn btn-success btn-block" @click="goToQuotation">
+            Generate Quotation
+          </button>
+        </div>
+        <!-- Else if non-admin, display "Send This Requirement" button -->
+        <div v-else class="send-requirement">
+          <button type="button" class="btn btn-success btn-block" @click="goToRequirement">
+            Send This Requirement
+          </button>
+        </div>
+
+        <!-- Disclaimer -->
+        <p class="offer-disclaimer">
+          * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
+        </p>
       </div>
+      <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
+
     </div>
-    
+
     <!-- Input Form view -->
     <form v-else @submit.prevent="submitForm" class="solar-form">
       <div class="brand-logo">
@@ -122,7 +132,8 @@
           <label for="peakLoad" class="form-label">
             Peak Load Amp: <span class="optional">(Optional)</span>
           </label>
-          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" placeholder="Leave blank if unknown" />
+          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad"
+            placeholder="Leave blank if unknown" />
         </div>
       </div>
 
@@ -145,19 +156,22 @@
           <label for="domesticElectricityBill" class="form-label">
             Monthly Domestic Bill:
           </label>
-          <input v-model.number="domesticElectricityBill" type="number" class="form-control" id="domesticElectricityBill" />
+          <input v-model.number="domesticElectricityBill" type="number" class="form-control"
+            id="domesticElectricityBill" />
         </div>
         <div class="form-group" v-if="billType === 'commercial'">
           <label for="commercialElectricityBill" class="form-label">
             Monthly Commercial Bill:
           </label>
-          <input v-model.number="commercialElectricityBill" type="number" class="form-control" id="commercialElectricityBill" />
+          <input v-model.number="commercialElectricityBill" type="number" class="form-control"
+            id="commercialElectricityBill" />
         </div>
         <div class="form-group">
           <label for="peakLoad" class="form-label">
             Peak Load Amp: <span class="optional">(Optional)</span>
           </label>
-          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad" placeholder="Leave blank if unknown" />
+          <input v-model.number="peakLoad" type="number" class="form-control" id="peakLoad"
+            placeholder="Leave blank if unknown" />
         </div>
       </div>
 
@@ -183,8 +197,8 @@
 </template>
 
 <script>
-  import { getAuth, onAuthStateChanged } from "firebase/auth";
-  import { getUserRole } from "@/utils/firebaseHelpers";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getUserRole } from "@/utils/firebaseHelpers";
 
 export default {
   name: "SolerCalculator",
@@ -253,14 +267,14 @@ export default {
     };
   },
   created() {
-      const authInstance = getAuth();
-      onAuthStateChanged(authInstance, async (user) => {
-        this.currentUser = user;
-        if (user) {
-          await this.fetchUserRole(user.uid);
-        }
-      });
-    },
+    const authInstance = getAuth();
+    onAuthStateChanged(authInstance, async (user) => {
+      this.currentUser = user;
+      if (user) {
+        await this.fetchUserRole(user.uid);
+      }
+    });
+  },
   computed: {
     unitPerDay() {
       if (this.inputMethodType === "monthly") {
@@ -372,23 +386,34 @@ export default {
   },
   methods: {
     goToQuotation() {
-  // Dispatch computed results to Vuex store
-  this.$store.dispatch('updateSolerResults', {
-    costWith: this.costResults.totalCostWithMarkup,
-    costWithout: this.costResults.totalCostWithoutMarkup,
-    profit: this.profitPercentage,
-    special: this.offerPrice,
-    inverter: this.selectedInverter,
-    battery: this.batteryInfo
-  });
-  // Navigate to the Quotation component
-  this.$router.push({ name: "SubmitQuotation" });
-}
-,
+    // For admin: dispatch computed results to Vuex and navigate to SubmitQuotation in admin mode
+    this.$store.dispatch('updateSolerResults', {
+      costWith: this.costResults.totalCostWithMarkup,
+      costWithout: this.costResults.totalCostWithoutMarkup,
+      profit: this.profitPercentage,
+      special: this.offerPrice(),
+      inverter: this.selectedInverter,
+      battery: this.batteryInfo
+    });
+    this.$router.push({ name: "SubmitQuotation", state: { mode: "admin" } });
+  },
+  goToRequirement() {
+    // For non-admin: dispatch computed results to Vuex and navigate to SubmitQuotation in user mode
+    this.$store.dispatch('updateSolerResults', {
+      costWith: this.costResults.totalCostWithMarkup,
+      costWithout: this.costResults.totalCostWithoutMarkup,
+      profit: this.profitPercentage,
+      special: this.offerPrice(),
+      inverter: this.selectedInverter,
+      battery: this.batteryInfo
+    });
+    // Navigate with mode "user" so that prefilled data is hidden in the quotation page
+    this.$router.push({ name: "SubmitQuotation", state: { mode: "user" } });
+  },
     async fetchUserRole(uid) {
-        const role = await getUserRole(uid);
-        this.userRole = role;
-      },
+      const role = await getUserRole(uid);
+      this.userRole = role;
+    },
     async submitForm() {
       this.errorMessage = "";
       this.loading = true;
@@ -495,11 +520,13 @@ export default {
   .container {
     max-width: 800px;
   }
+
   .radio-group.main-radio {
     flex-direction: row;
     align-items: center;
     gap: 20px;
   }
+
   .radio-group.secondary-radio {
     flex-direction: row;
     align-items: center;
@@ -514,6 +541,7 @@ export default {
     gap: 10px;
     align-items: flex-start;
   }
+
   .radio-group.secondary-radio {
     flex-direction: row;
     align-items: center;
@@ -528,86 +556,106 @@ export default {
   border-radius: 10px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
+
 .brand-logo {
   text-align: center;
   margin-bottom: 20px;
 }
+
 .brand-logo img {
   max-width: 100px;
   height: auto;
 }
+
 .form-title {
   text-align: center;
   color: #007bff;
   margin-bottom: 20px;
 }
+
 .form-group {
   margin-bottom: 20px;
 }
+
 .form-label {
   font-weight: bold;
 }
+
 .radio-group {
   display: flex;
   margin-top: 10px;
 }
+
 .radio-option {
   font-size: 16px;
   display: flex;
   align-items: center;
   margin-right: 10px;
 }
+
 .radio-option span {
   margin-left: 5px;
 }
+
 .form-control {
   border-radius: 5px;
   margin-top: 5px;
 }
+
 .input-group {
   margin-bottom: 10px;
 }
+
 .appliance-group .input-group {
   display: flex;
   align-items: center;
   margin-bottom: 10px;
 }
+
 .appliance-group .input-group-prepend {
   flex: 0 0 40%;
   text-align: left;
 }
+
 .appliance-group .form-control {
   flex: 1;
 }
+
 .optional {
   font-size: 12px;
   color: #7f8c8d;
   margin-left: 5px;
 }
+
 .btn-primary {
   background-color: #007bff;
   border-color: #007bff;
   width: 100%;
   padding: 10px;
 }
+
 .btn-primary:hover {
   background-color: #0056b3;
   border-color: #0056b3;
 }
+
 .btn-secondary {
   background-color: #6c757d;
   border-color: #6c757d;
   width: 100%;
   padding: 10px;
 }
+
 .btn-secondary:hover {
   background-color: #5a6268;
   border-color: #5a6268;
 }
+
 .alert {
   margin-bottom: 20px;
   text-align: center;
 }
+
 /* Loader style */
 .loader {
   text-align: center;
@@ -615,6 +663,7 @@ export default {
   font-size: 18px;
   color: #007bff;
 }
+
 /* Offer Price Section Styling */
 .offer-section {
   background: #fef9e7;
@@ -625,49 +674,59 @@ export default {
   animation: slideUp 1s ease-in-out;
   text-align: center;
 }
+
 @keyframes slideUp {
   0% {
     transform: translateY(20px);
     opacity: 0;
   }
+
   100% {
     transform: translateY(0);
     opacity: 1;
   }
 }
+
 .offer-title {
   font-size: 20px;
   font-weight: bold;
   color: #e67e22;
   margin-bottom: 5px;
 }
+
 .offer-display {
   font-size: 24px;
   font-weight: bold;
 }
+
 .special-price {
   color: #d35400;
   margin-right: 10px;
 }
+
 .actual-price {
   color: #e74c3c;
   font-weight: bold;
 }
+
 .offer-disclaimer {
   font-size: 12px;
   color: #7f8c8d;
   margin-top: 10px;
   text-align: center;
 }
+
 .admin-link {
   text-align: center;
   margin-top: 20px;
 }
+
 .admin-link a {
   text-decoration: none;
   color: #007bff;
   font-weight: bold;
 }
+
 .admin-link a:hover {
   color: #0056b3;
 }
