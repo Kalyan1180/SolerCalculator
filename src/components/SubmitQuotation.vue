@@ -14,6 +14,7 @@
       </div>
     </div>
     
+    
     <!-- Main Form: only shown when not loading and no success message -->
     <div v-else>
       <form @submit.prevent="submitQuotation" class="quotation-form border p-4 rounded">
