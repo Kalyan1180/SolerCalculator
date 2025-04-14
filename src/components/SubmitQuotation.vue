@@ -58,12 +58,15 @@
 
 <script>
 import { mapGetters } from 'vuex';
-import { getAuth} from 'firebase/auth';
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getUserRole } from "@/utils/firebaseHelpers";
 
 export default {
   name: "SubmitQuotation",
   data() {
     return {
+      currentUser: null,
+      userRole: null,
       // Form fields for customer inputs
       formData: {
         name: "",
@@ -80,24 +83,30 @@ export default {
       redirectCountdown: 5,
       countdownInterval: null,
       // Mode: "admin" or "user"
-      mode: "admin"
+      mode: "user"
     };
+  },
+  created() {
+    const authInstance = getAuth();
+    onAuthStateChanged(authInstance, async (user) => {
+      this.currentUser = user;
+      this.formData.email =this.currentUser.email;
+
+      if (user) {
+        await this.fetchUserRole(user.uid);
+      }
+    });
   },
   computed: {
     ...mapGetters(['solerResults'])
   },
-  created() {
-    // Determine the mode from router state (if provided)
-    if (this.$router.history.state && this.$router.history.state.mode) {
-      this.mode = this.$router.history.state.mode;
-    }
-    // Auto-fill email from Firebase Auth if available
-    const auth = getAuth();
-    if (auth.currentUser) {
-      this.formData.email = auth.currentUser.email;
-    }
-  },
+
   methods: {
+    async fetchUserRole(uid) {
+      const role = await getUserRole(uid);
+      this.userRole = role;
+      this.mode=this.userRole;
+    },
     async submitQuotation() {
       this.loading = true;
       
