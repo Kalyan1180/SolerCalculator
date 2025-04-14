@@ -372,18 +372,17 @@ export default {
   },
   methods: {
     goToQuotation() {
-  // Pass computed values and required details via router state
-  this.$router.push({
-    name: "SubmitQuotation",
-    state: {
-      costWith: this.costResults.totalCostWithMarkup,
-      costWithout: this.costResults.totalCostWithoutMarkup,
-      profit: this.profitPercentage,
-      special: this.offerPrice.toFixed(0),
-      inverter: this.selectedInverter,
-      battery: this.batteryInfo
-    }
+  // Dispatch computed results to Vuex store
+  this.$store.dispatch('updateSolerResults', {
+    costWith: this.costResults.totalCostWithMarkup,
+    costWithout: this.costResults.totalCostWithoutMarkup,
+    profit: this.profitPercentage,
+    special: this.offerPrice.toFixed(0),
+    inverter: this.selectedInverter,
+    battery: this.batteryInfo
   });
+  // Navigate to the Quotation component
+  this.$router.push({ name: "Quotation" });
 }
 ,
     async fetchUserRole(uid) {
