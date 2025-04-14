@@ -72,7 +72,7 @@
           </div>
           <!-- In the Results View, just below the offer section -->
 <div v-if="userRole === 'admin'" class="generate-quotation">
-  <button class="btn btn-success btn-block" @click="goToQuotation">Generate Quotation</button>
+  <button type="button" class="btn btn-success btn-block" @click="goToQuotation">Generate Quotation</button>
 </div>
 
           <!-- Disclaimer -->
