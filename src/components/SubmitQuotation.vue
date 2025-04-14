@@ -57,7 +57,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 
 export default {
   name: "SubmitQuotation",
