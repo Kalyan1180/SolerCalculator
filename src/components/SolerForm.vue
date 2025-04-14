@@ -374,7 +374,7 @@ export default {
     goToQuotation() {
   // Pass computed values and required details via router state
   this.$router.push({
-    name: "Quotation",
+    name: "SubmitQuotation",
     state: {
       costWith: this.costResults.totalCostWithMarkup,
       costWithout: this.costResults.totalCostWithoutMarkup,
