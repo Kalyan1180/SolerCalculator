@@ -382,7 +382,7 @@ export default {
     battery: this.batteryInfo
   });
   // Navigate to the Quotation component
-  this.$router.push({ name: "Quotation" });
+  this.$router.push({ name: "SubmitQuotation" });
 }
 ,
     async fetchUserRole(uid) {
