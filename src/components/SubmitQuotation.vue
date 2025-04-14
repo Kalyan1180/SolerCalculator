@@ -33,6 +33,9 @@
         <pre>{{ JSON.stringify(solerResults.battery, null, 2) }}</pre>
       </div>
       
+      <!-- Loader (visible during API call) -->
+      <div v-if="loading" class="loader">Submitting quotation, please wait...</div>
+      
       <button type="submit" class="btn btn-primary w-100">Submit Quotation</button>
     </form>
     <div v-if="message" class="alert alert-info mt-3">{{ message }}</div>
@@ -46,7 +49,6 @@ import { getAuth } from 'firebase/auth';
 export default {
   name: "SubmitQuotation",
   data() {
-    
     return {
       formData: {
         name: "",
@@ -55,7 +57,10 @@ export default {
         suggestedPrice: 0,
         email: "" // will be auto-filled if available
       },
-      message: ""
+      message: "",
+      loading: false,
+      redirectCountdown: 5,
+      countdownInterval: null
     };
   },
   computed: {
@@ -70,8 +75,9 @@ export default {
   },
   methods: {
     async submitQuotation() {
+      this.loading = true;
       // Build a project record using formData and prefilled data from store.
-      const projectId = Date.now(); // Use a timestamp for unique project ID (consider more robust method)
+      const projectId = Date.now(); // Unique project ID using timestamp
       const projectData = {
         name: this.formData.name,
         address: this.formData.address,
@@ -84,7 +90,7 @@ export default {
         requiredBattery: this.solerResults.battery,
         percentCompletion: 0,
         systemIssues: "",
-        note: "",
+        note: ""
       };
 
       try {
@@ -97,10 +103,26 @@ export default {
           throw new Error("Network response was not ok");
         }
         const result = await response.json();
-        this.message = result.message || "Project created successfully!";
+        // Set success message with countdown information
+        this.message = result.message + " Redirecting to home page in " + this.redirectCountdown + " seconds...";
+        // Clear form data (preserve email)
+        this.formData = { name: "", address: "", phone: "", suggestedPrice: 0, email: this.formData.email };
+
+        // Start a countdown timer: update message each second
+        this.countdownInterval = setInterval(() => {
+          this.redirectCountdown--;
+          this.message = result.message + " Redirecting to home page in " + this.redirectCountdown + " seconds...";
+          if (this.redirectCountdown <= 0) {
+            clearInterval(this.countdownInterval);
+            this.message = "";
+            this.$router.push("/");
+          }
+        }, 1000);
       } catch (error) {
         console.error("Error creating project:", error);
         this.message = "Error creating project: " + error.message;
+      } finally {
+        this.loading = false;
       }
     }
   }
@@ -131,5 +153,11 @@ export default {
   padding: 10px;
   border-radius: 4px;
   overflow-x: auto;
+}
+.loader {
+  text-align: center;
+  font-size: 16px;
+  color: #007bff;
+  margin-bottom: 15px;
 }
 </style>
