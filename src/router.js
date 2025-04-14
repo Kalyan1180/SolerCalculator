@@ -9,15 +9,17 @@ import LoginPage from '@/components/LoginPage.vue';
 import SignUpPage from '@/components/SignUpPage.vue';
 import { auth } from '@/firebase';
 import { getUserRole } from '@/utils/firebaseHelpers';
+import SubmitQuotation from './components/SubmitQuotation.vue';
 
 const routes = [
   { path: '/', name: 'Home', component: HomePage },
   { path: '/solercalc', name: 'SolerCalculator', component: SolerCalculator },
-  { path: '/admin', name: 'AdminControl', component: AdminControl, meta: { requiresRole: 'admin' } },
+  { path: '/admin', name: 'AdminControl', component: AdminControl },
   { path: '/about', name: 'AboutPage', component: AboutPage },
   { path: '/contact', name: 'ContactPage', component: ContactPage },
   { path: '/login', name: 'LoginPage', component: LoginPage },
-  { path: '/signup', name: 'SignUpPage', component: SignUpPage }
+  { path: '/signup', name: 'SignUpPage', component: SignUpPage },
+  { path: '/Submitquotation', name: 'SubmitQuotation', component: SubmitQuotation}
 ];
 
 const router = createRouter({
