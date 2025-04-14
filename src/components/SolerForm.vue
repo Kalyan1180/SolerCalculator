@@ -403,7 +403,7 @@ export default {
       costWith: this.costResults.totalCostWithMarkup,
       costWithout: this.costResults.totalCostWithoutMarkup,
       profit: this.profitPercentage,
-      special: this.offerPrice(),
+      special: this.offerPrice,
       inverter: this.selectedInverter,
       battery: this.batteryInfo
     });
