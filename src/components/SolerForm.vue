@@ -70,6 +70,11 @@
               <span class="special-price">Rs: {{ offerPrice.toFixed(0) }}</span>
             </p>
           </div>
+          <!-- In the Results View, just below the offer section -->
+<div v-if="userRole === 'admin'" class="generate-quotation">
+  <button class="btn btn-success btn-block" @click="goToQuotation">Generate Quotation</button>
+</div>
+
           <!-- Disclaimer -->
           <p class="offer-disclaimer">
             * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
@@ -366,6 +371,21 @@ export default {
     },
   },
   methods: {
+    goToQuotation() {
+  // Pass computed values and required details via router state
+  this.$router.push({
+    name: "Quotation",
+    state: {
+      costWith: this.costResults.totalCostWithMarkup,
+      costWithout: this.costResults.totalCostWithoutMarkup,
+      profit: this.profitPercentage,
+      special: this.offerPrice(),
+      inverter: this.selectedInverter,
+      battery: this.batteryInfo
+    }
+  });
+}
+,
     async fetchUserRole(uid) {
         const role = await getUserRole(uid);
         this.userRole = role;
