@@ -1,4 +1,7 @@
 <template>
+    <div v-if="statusMessage" :class="['alert', statusType === 'success' ? 'alert-success' : 'alert-danger']">
+        {{ statusMessage }}
+    </div>
     <div class="project-detail container my-5">
         <!-- Loader -->
         <div v-if="loading" class="loader-overlay">
@@ -9,10 +12,7 @@
         <div v-else-if="error" class="alert alert-danger text-center">
             {{ error }}
         </div>
-        <div v-if="statusMessage"
-                    :class="['alert', statusType === 'success' ? 'alert-success' : 'alert-danger']">
-                    {{ statusMessage }}
-                </div>
+
         <!-- Project Details Display or Edit Mode -->
         <div v-else class="detail-card card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -21,16 +21,16 @@
                 <button v-if="!isEditing" class="btn btn-sm btn-warning" @click="enterEditMode">Edit Details</button>
             </div>
             <div class="card-body">
-               
+
                 <!-- Display non-editable fields -->
                 <p><strong>Customer Name:</strong> {{ project.name }}</p>
                 <p><strong>Address:</strong> {{ project.address }}</p>
                 <p><strong>Email:</strong> {{ project.email }}</p>
                 <p><strong>Suggested Price (Cost):</strong> Rs: {{ project.cost }}</p>
-                <p><strong>Advance Price:</strong> Rs: {{ project.advancePrice }}</p>
 
                 <!-- Editable Section for Phone, % Completion, and Note -->
                 <div v-if="!isEditing">
+                    <p><strong>Advance Price:</strong> Rs: {{ project.advancePrice }}</p>
                     <p><strong>Phone Number:</strong> {{ project.phone }}</p>
                     <p><strong>Percent Completion:</strong> {{ project.percentCompletion }}%</p>
                     <p><strong>Note:</strong> {{ project.note || "N/A" }}</p>
@@ -47,7 +47,8 @@
                     <div class="mb-3">
                         <label class="form-label"><strong>Percent Completion (%):</strong></label>
                         <select v-model.number="editableData.percentCompletion" class="form-control">
-                            <option value="30">30</option>
+                            <option value="0">0</option>
+                            <option value="30">20</option>
                             <option value="50">50</option>
                             <option value="80">80</option>
                             <option value="100">100</option>

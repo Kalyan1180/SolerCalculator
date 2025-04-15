@@ -71,25 +71,26 @@
           </p>
         </div>
 
-        <!-- Quotation Button Section -->
-        <!-- If the logged-in user is admin, display "Generate Quotation" button -->
-        <div v-if="userRole === 'admin'" class="generate-quotation">
-          <button type="button" class="btn btn-success btn-block" @click="goToQuotation">
-            Generate Quotation
-          </button>
-        </div>
-        <!-- Else if non-admin, display "Send This Requirement" button -->
-        <div v-else class="send-requirement">
-          <button type="button" class="btn btn-success btn-block" @click="goToRequirement">
-            Send This Requirement
-          </button>
-        </div>
-
         <!-- Disclaimer -->
         <p class="offer-disclaimer">
           * Actual cost may occasionally differ after site survey by ANT team or in case of any wrong input.
         </p>
       </div>
+      <!-- Place this snippet at the bottom of your result view (inside the result-container div) -->
+      <div class="button-group d-flex justify-content-between mt-3">
+        <!-- If admin, show Generate Quotation; otherwise, show Send This Requirement -->
+        <button type="button" class="btn btn-success flex-fill me-2" v-if="userRole === 'admin'" @click="goToQuotation">
+          Generate Quotation
+        </button>
+        <button type="button" class="btn btn-success flex-fill me-2" v-else @click="goToRequirement">
+          Send This Requirement
+        </button>
+        <!-- Back button renamed as Regenerate -->
+        <button type="button" class="btn btn-secondary flex-fill" @click="goBack">
+          Regenerate
+        </button>
+      </div>
+
       <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
 
     </div>
@@ -386,30 +387,30 @@ export default {
   },
   methods: {
     goToQuotation() {
-    // For admin: dispatch computed results to Vuex and navigate to SubmitQuotation in admin mode
-    this.$store.dispatch('updateSolerResults', {
-      costWith: this.costResults.totalCostWithMarkup,
-      costWithout: this.costResults.totalCostWithoutMarkup,
-      profit: this.profitPercentage,
-      special: this.offerPrice,
-      inverter: this.selectedInverter,
-      battery: this.batteryInfo
-    });
-    this.$router.push({ name: "SubmitQuotation", state: { mode: "admin" } });
-  },
-  goToRequirement() {
-    // For non-admin: dispatch computed results to Vuex and navigate to SubmitQuotation in user mode
-    this.$store.dispatch('updateSolerResults', {
-      costWith: this.costResults.totalCostWithMarkup,
-      costWithout: this.costResults.totalCostWithoutMarkup,
-      profit: this.profitPercentage,
-      special: this.offerPrice,
-      inverter: this.selectedInverter,
-      battery: this.batteryInfo
-    });
-    // Navigate with mode "user" so that prefilled data is hidden in the quotation page
-    this.$router.push({ name: "SubmitQuotation", state: { mode: "user" } });
-  },
+      // For admin: dispatch computed results to Vuex and navigate to SubmitQuotation in admin mode
+      this.$store.dispatch('updateSolerResults', {
+        costWith: this.costResults.totalCostWithMarkup,
+        costWithout: this.costResults.totalCostWithoutMarkup,
+        profit: this.profitPercentage,
+        special: this.offerPrice,
+        inverter: this.selectedInverter,
+        battery: this.batteryInfo
+      });
+      this.$router.push({ name: "SubmitQuotation", state: { mode: "admin" } });
+    },
+    goToRequirement() {
+      // For non-admin: dispatch computed results to Vuex and navigate to SubmitQuotation in user mode
+      this.$store.dispatch('updateSolerResults', {
+        costWith: this.costResults.totalCostWithMarkup,
+        costWithout: this.costResults.totalCostWithoutMarkup,
+        profit: this.profitPercentage,
+        special: this.offerPrice,
+        inverter: this.selectedInverter,
+        battery: this.batteryInfo
+      });
+      // Navigate with mode "user" so that prefilled data is hidden in the quotation page
+      this.$router.push({ name: "SubmitQuotation", state: { mode: "user" } });
+    },
     async fetchUserRole(uid) {
       const role = await getUserRole(uid);
       this.userRole = role;
