@@ -68,7 +68,7 @@
         this.error = "";
         try {
           // Call your Netlify function with the projectId as a query parameter
-          const response = await fetch(`/.netlify/functions/getProject?projectId=${this.projectId}`);
+          const response = await fetch(`/.netlify/functions/getProjects?projectId=${this.projectId}`);
           if (!response.ok) {
             throw new Error("Network response was not ok");
           }
