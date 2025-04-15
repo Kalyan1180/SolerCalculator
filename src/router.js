@@ -14,6 +14,7 @@ import ManageInventry from './components/ManageInventry.vue';
 import ProjectManagement from './components/ProjectManagement.vue';
 import UserManagement from './components/UserManagement.vue';
 import AdminInvestigate from './components/AdminInvestigate.vue';
+import ProjectDetail from './components/ProjectDetail.vue';
 
 const routes = [
   { path: '/', name: 'Home', component: HomePage },
@@ -28,7 +29,12 @@ const routes = [
   { path: '/admin/projects', name: 'ProjectManagement', component: ProjectManagement },
   { path: '/admin/users', name: 'UserManagement', component: UserManagement },
   { path: '/admin/investigate', name: 'AdminInvestigate', component: AdminInvestigate},
-
+  { 
+    path: '/admin/projects/:projectId', 
+    name: 'ProjectDetail', 
+    component: ProjectDetail,
+    props: true  // This allows projectId to be passed as a prop to the ProjectDetail component
+  },
 
 
 ];
