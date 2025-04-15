@@ -9,7 +9,10 @@
         <div v-else-if="error" class="alert alert-danger text-center">
             {{ error }}
         </div>
-
+        <div v-if="statusMessage"
+                    :class="['alert', statusType === 'success' ? 'alert-success' : 'alert-danger']">
+                    {{ statusMessage }}
+                </div>
         <!-- Project Details Display or Edit Mode -->
         <div v-else class="detail-card card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -18,10 +21,7 @@
                 <button v-if="!isEditing" class="btn btn-sm btn-warning" @click="enterEditMode">Edit Details</button>
             </div>
             <div class="card-body">
-                <div v-if="statusMessage"
-                    :class="['alert', statusType === 'success' ? 'alert-success' : 'alert-danger']">
-                    {{ statusMessage }}
-                </div>
+               
                 <!-- Display non-editable fields -->
                 <p><strong>Customer Name:</strong> {{ project.name }}</p>
                 <p><strong>Address:</strong> {{ project.address }}</p>
@@ -84,6 +84,7 @@
                 <h3>Confirm Update</h3>
                 <p>Please confirm the updated details:</p>
                 <div>
+                    <p><strong>Advance Price:</strong> {{ editableData.advancePrice }}</p>
                     <p><strong>Phone Number:</strong> {{ editableData.phone }}</p>
                     <p><strong>Percent Completion:</strong> {{ editableData.percentCompletion }}%</p>
                     <p><strong>Note:</strong> {{ editableData.note }}</p>
