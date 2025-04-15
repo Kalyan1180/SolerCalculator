@@ -86,13 +86,10 @@
           Send This Requirement
         </button>
         <!-- Back button renamed as Regenerate -->
-        <button type="button" class="btn btn-secondary flex-fill" @click="goBack">
+        <button type="button" class="btn btn-secondary flex-fill" @click="showResults = false">
           Regenerate
         </button>
       </div>
-
-      <button @click="goBack" class="btn btn-secondary btn-block">Back</button>
-
     </div>
 
     <!-- Input Form view -->
@@ -397,8 +394,11 @@ export default {
         battery: this.batteryInfo
       });
       this.$router.push({ name: "SubmitQuotation", state: { mode: "admin" } });
+      this.goBack();
+
     },
     goToRequirement() {
+
       // For non-admin: dispatch computed results to Vuex and navigate to SubmitQuotation in user mode
       this.$store.dispatch('updateSolerResults', {
         costWith: this.costResults.totalCostWithMarkup,
@@ -410,6 +410,7 @@ export default {
       });
       // Navigate with mode "user" so that prefilled data is hidden in the quotation page
       this.$router.push({ name: "SubmitQuotation", state: { mode: "user" } });
+      this.goBack();
     },
     async fetchUserRole(uid) {
       const role = await getUserRole(uid);
@@ -487,7 +488,6 @@ export default {
       this.showResults = true;
     },
     goBack() {
-      this.showResults = false;
       this.errorMessage = "";
       this.monthlyConsumption = null;
       this.billType = "domestic";
