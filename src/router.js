@@ -10,16 +10,27 @@ import SignUpPage from '@/components/SignUpPage.vue';
 import { auth } from '@/firebase';
 import { getUserRole } from '@/utils/firebaseHelpers';
 import SubmitQuotation from './components/SubmitQuotation.vue';
+import ManageInventry from './components/ManageInventry.vue';
+import ProjectManagement from './components/ProjectManagement.vue';
+import UserManagement from './components/UserManagement.vue';
+import AdminInvestigate from './components/AdminInvestigate.vue';
 
 const routes = [
   { path: '/', name: 'Home', component: HomePage },
   { path: '/solercalc', name: 'SolerCalculator', component: SolerCalculator },
-  { path: '/admin', name: 'AdminControl', component: AdminControl },
+  { path: '/admin', name: 'AdminControl', component: AdminControl},
   { path: '/about', name: 'AboutPage', component: AboutPage },
   { path: '/contact', name: 'ContactPage', component: ContactPage },
   { path: '/login', name: 'LoginPage', component: LoginPage },
   { path: '/signup', name: 'SignUpPage', component: SignUpPage },
-  { path: '/Submitquotation', name: 'SubmitQuotation', component: SubmitQuotation}
+  { path: '/Submitquotation', name: 'SubmitQuotation', component: SubmitQuotation},
+  { path: '/admin/inventory', name: 'ManageInventry', component: ManageInventry },
+  { path: '/admin/projects', name: 'ProjectManagement', component: ProjectManagement },
+  { path: '/admin/users', name: 'UserManagement', component: UserManagement },
+  { path: '/admin/investigate', name: 'AdminInvestigate', component: AdminInvestigate},
+
+
+
 ];
 
 const router = createRouter({
