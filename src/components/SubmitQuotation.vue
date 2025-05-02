@@ -125,6 +125,7 @@ export default {
         projectId: projectId,
         cost: this.formData.suggestedPrice,
         advancePrice: 0,
+        panelCount:0,
         requiredInverter: this.solerResults.inverter,
         requiredBattery: this.solerResults.battery,
         percentCompletion: 0,
