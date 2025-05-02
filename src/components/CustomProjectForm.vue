@@ -200,14 +200,14 @@ export default {
         // Redirect to project management after 5 seconds
         setTimeout(() => {
             this.$router.push("/admin/projects");
-        }, 5000);
+        }, 2000);
 
     } catch (err) {
         this.statusMessage = err.message;
         this.statusType = "error";
     } finally {
         this.loading = false;
-        setTimeout(() => this.statusMessage = "", 5000);
+        setTimeout(() => this.statusMessage = "", 2000);
     }
 }
 

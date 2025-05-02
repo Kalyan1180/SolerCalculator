@@ -1,45 +1,75 @@
 <template>
-  <div class="container project-management my-5">
-    <h2 class="text-center mb-4">Project Management</h2>
+  <div class="project-management container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2 class="mb-0">Project Management</h2>
+      <router-link
+        :to="{ name: 'AddCustomProject' }"
+        class="btn btn-primary"
+      >
+        <i class="fas fa-plus me-1"></i> Add Custom Project
+      </router-link>
+    </div>
 
     <!-- Loader -->
-    <div v-if="loading" class="loader">Loading projects, please wait...</div>
+    <div v-if="loading" class="text-center my-5">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-2">Loading projects, please wait...</p>
+    </div>
 
-    <!-- Error Message -->
+    <!-- Error -->
     <div v-if="error" class="alert alert-danger text-center">
       {{ error }}
     </div>
-    <router-link :to="{ name: 'AddCustomProject' }" class="btn btn-primary mb-3">
-      Add Custom Project
-    </router-link>
-    <!-- Project Cards Grid -->
-    <div v-if="!loading && projects.length" class="row">
-      <div v-for="project in paginatedProjects" :key="project.projectId" class="col-md-4 mb-4">
-        <div class="card h-100">
-          <div class="card-body">
-            <h5 class="card-title">Project ID: {{ project.projectId }}</h5>
-            <p class="card-text">
+
+    <!-- Projects Grid -->
+    <div v-if="!loading && !error && projects.length" class="row g-4">
+      <div
+        v-for="project in paginatedProjects"
+        :key="project.projectId"
+        class="col-sm-6 col-md-4 col-lg-3"
+      >
+        <div class="card h-100 shadow-sm">
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title">#{{ project.projectId }}</h5>
+            <p class="card-text flex-grow-1">
               <strong>Customer:</strong> {{ project.name }}<br>
               <strong>Address:</strong> {{ project.address }}
             </p>
-            <button class="btn btn-link view-more" @click="viewProject(project.projectId)">
-              View More <i class="fas fa-arrow-right"></i>
-            </button>
+            <div class="mt-3 text-end">
+              <button
+                class="btn btn-sm btn-outline-primary"
+                @click="viewProject(project.projectId)"
+              >
+                View More <i class="fas fa-arrow-right ms-1"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Pagination Controls -->
-    <div v-if="!loading && totalPages > 1" class="pagination-controls text-center">
-      <button class="btn btn-secondary mx-2" :disabled="currentPage === 1" @click="prevPage">
-        Previous
-      </button>
-      <span>Page {{ currentPage }} of {{ totalPages }}</span>
-      <button class="btn btn-secondary mx-2" :disabled="currentPage === totalPages" @click="nextPage">
-        Next
-      </button>
+    <!-- No Projects -->
+    <div v-if="!loading && !error && !projects.length" class="text-center my-5 text-muted">
+      No projects found.
     </div>
+
+    <!-- Pagination -->
+    <nav v-if="totalPages > 1" class="d-flex justify-content-center mt-4">
+      <ul class="pagination">
+        <li :class="['page-item', { disabled: currentPage === 1 } ]">
+          <button class="page-link" @click="prevPage">Previous</button>
+        </li>
+        <li class="page-item disabled">
+          <span class="page-link">
+            Page {{ currentPage }} of {{ totalPages }}
+          </span>
+        </li>
+        <li :class="['page-item', { disabled: currentPage === totalPages } ]">
+          <button class="page-link" @click="nextPage">Next</button>
+        </li>
+      </ul>
+    </nav>
   </div>
 </template>
 
@@ -52,7 +82,7 @@ export default {
       loading: false,
       error: "",
       currentPage: 1,
-      pageSize: 6  // Number of project cards per page
+      pageSize: 8
     };
   },
   computed: {
@@ -69,68 +99,51 @@ export default {
       this.loading = true;
       this.error = "";
       try {
-        const response = await fetch("/.netlify/functions/getProjects");
-        if (!response.ok) {
-          throw new Error("Network response was not ok");
-        }
-        const data = await response.json();
-        // Assume the API returns an object with a 'projects' array
+        const resp = await fetch("/.netlify/functions/getProjects");
+        if (!resp.ok) throw new Error("Failed to load");
+        const data = await resp.json();
         this.projects = data.projects || [];
-      } catch (err) {
-        console.error("Error fetching projects:", err);
+      } catch (e) {
+        console.error(e);
         this.error = "Error fetching projects. Please try again.";
       } finally {
         this.loading = false;
       }
     },
-    viewProject(projectId) {
-      this.$router.push(`/admin/projects/${projectId}`);
+    viewProject(id) {
+      this.$router.push({ path: `/admin/projects/${id}` });
     },
     nextPage() {
-      if (this.currentPage < this.totalPages) {
-        this.currentPage++;
-      }
+      if (this.currentPage < this.totalPages) this.currentPage++;
     },
     prevPage() {
-      if (this.currentPage > 1) {
-        this.currentPage--;
-      }
+      if (this.currentPage > 1) this.currentPage--;
     }
   },
-  created() {
+  mounted() {
     this.fetchProjects();
   }
 };
 </script>
 
 <style scoped>
+.project-management {
+  max-width: 1200px;
+}
 .card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
   border: none;
-  border-radius: 8px;
+  border-radius: 0.5rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-
 .card:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
-
-.view-more {
-  color: #007bff;
-  text-decoration: none;
+.page-link {
+  cursor: pointer;
 }
-
-.view-more:hover {
-  text-decoration: underline;
-}
-
-.pagination-controls {
-  margin-top: 20px;
-}
-
-.loader {
-  text-align: center;
-  font-size: 18px;
-  color: #007bff;
+.spinner-border {
+  width: 3rem;
+  height: 3rem;
 }
 </style>
