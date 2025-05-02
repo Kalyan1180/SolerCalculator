@@ -390,7 +390,7 @@ export default {
         costWithout: this.costResults.totalCostWithoutMarkup,
         profit: this.profitPercentage,
         special: this.offerPrice,
-        panelCount: this.panelCount(),
+        panelCount: this.panelCount,
         inverter: this.selectedInverter,
         battery: this.batteryInfo
       });
