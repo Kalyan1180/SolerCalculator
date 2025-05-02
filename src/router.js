@@ -15,6 +15,7 @@ import ProjectManagement from './components/ProjectManagement.vue';
 import UserManagement from './components/UserManagement.vue';
 import AdminInvestigate from './components/AdminInvestigate.vue';
 import ProjectDetail from './components/ProjectDetail.vue';
+import CustomProjectForm from '@/components/CustomProjectForm.vue';
 
 const routes = [
   { path: '/', name: 'Home', component: HomePage },
@@ -28,7 +29,10 @@ const routes = [
   { path: '/admin/inventory', name: 'ManageInventry', component: ManageInventry },
   { path: '/admin/projects', name: 'ProjectManagement', component: ProjectManagement },
   { path: '/admin/users', name: 'UserManagement', component: UserManagement },
-  { path: '/admin/investigate', name: 'AdminInvestigate', component: AdminInvestigate},
+  { path: '/admin/investigate', name: 'AdminInvestigate', component: AdminInvestigate},  { path: '/admin/projects/new', component: CustomProjectForm, name: 'AddCustomProject' },
+
+  { path: '/admin/projects/new', component: CustomProjectForm, name: 'AddCustomProject' },
+
   { 
     path: '/admin/projects/:projectId', 
     name: 'ProjectDetail', 
