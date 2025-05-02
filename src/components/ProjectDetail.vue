@@ -27,6 +27,7 @@
                 <p><strong>Address:</strong> {{ project.address }}</p>
                 <p><strong>Email:</strong> {{ project.email }}</p>
                 <p><strong>Suggested Price (Cost):</strong> Rs: {{ project.cost }}</p>
+                <p><strong>No of Panel(s):</strong> Rs: {{ project.panelCount }}</p>
 
                 <!-- Editable Section for Phone, % Completion, and Note -->
                 <div v-if="!isEditing">
