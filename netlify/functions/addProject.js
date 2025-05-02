@@ -44,6 +44,7 @@ exports.handler = async (event, context) => {
       projectId: data.projectId,          // Unique project id, e.g. timestamp or generated number
       cost: data.cost,                    // Suggested price
       advancePrice: data.advancePrice || 0, // Advance price, default 0
+      panelCount:data.panelCount,
       requiredInverter: data.requiredInverter, // Inverter details (object)
       requiredBattery: data.requiredBattery,   // Battery details (object)
       percentCompletion: 0,               // Initial percentage completion
