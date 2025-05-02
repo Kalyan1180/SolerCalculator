@@ -9,7 +9,7 @@
     <div v-if="error" class="alert alert-danger text-center">
       {{ error }}
     </div>
-    <router-link to="{ name: 'AddCustomProject' }" class="btn btn-primary mb-3">
+    <router-link :to="{ name: 'AddCustomProject' }" class="btn btn-primary mb-3">
       Add Custom Project
     </router-link>
     <!-- Project Cards Grid -->
