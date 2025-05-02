@@ -143,51 +143,74 @@ export default {
             }
         },
         async submitCustomProject() {
-            this.loading = true;
-            this.statusMessage = "";
-            this.statusType = "";
+    this.loading = true;
+    this.statusMessage = "";
+    this.statusType = "";
 
-            const projectId = Date.now();
-            const projectData = {
-                name: this.form.name,
-                email: this.form.email,
-                phone: this.form.phone,
-                address: this.form.address,
-                projectId: projectId,
-                panelCount: this.form.panels,
-                cost: this.form.cost,
-                advancePrice: this.form.advancePrice,
-                requiredInverter: this.manual.inverter
-                    ? { name: this.form.invName, peakLoad: this.form.invPeakLoad, maxPanels: this.form.invMaxPanels, batterySupported: this.form.invBatteryVolt, cost: this.form.invCost }
-                    : this.inverters.find(i => i.id === this.form.selectedInverterId),
-                requiredBattery: this.manual.battery
-                    ? { name: this.form.batName, capacity: this.form.batCapacity, price: this.form.batPrice, energy: this.form.batEnergy }
-                    : this.batteries.find(b => b.id === this.form.selectedBatteryId),
-                percentCompletion: 0,
-                systemIssues: "",
-                note: ""
-            };
+    const projectId = Date.now(); // Using timestamp for unique project ID
+    const projectData = {
+        name: this.form.name,
+        email: this.form.email,
+        phone: this.form.phone,
+        address: this.form.address,
+        projectId: projectId,
+        panelCount: this.form.panels,
+        cost: this.form.cost,
+        advancePrice: this.form.advancePrice,
+        requiredInverter: this.manual.inverter
+            ? {
+                name: this.form.invName,
+                peakLoad: this.form.invPeakLoad,
+                maxPanels: this.form.invMaxPanels,
+                batterySupported: this.form.invBatteryVolt,
+                cost: this.form.invCost
+              }
+            : this.inverters.find(i => i.id === this.form.selectedInverterId),
+        requiredBattery: this.manual.battery
+            ? {
+                name: this.form.batName,
+                capacity: this.form.batCapacity,
+                price: this.form.batPrice,
+                energy: this.form.batEnergy
+              }
+            : this.batteries.find(b => b.id === this.form.selectedBatteryId),
+        percentCompletion: 0,
+        systemIssues: "",
+        note: ""
+    };
 
-            try {
-                const res = await fetch("/.netlify/functions/addProject", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(projectData)
-                });
-                const json = await res.json();
-                if (!res.ok) throw new Error(json.error || "Failed to add project");
-                this.statusMessage = json.message || "Project added successfully!";
-                this.statusType = "success";
-                Object.keys(this.form).forEach(k => this.form[k] = typeof this.form[k] === "number" ? 0 : "");
-                this.manual = { inverter: false, battery: false };
-            } catch (err) {
-                this.statusMessage = err.message;
-                this.statusType = "error";
-            } finally {
-                this.loading = false;
-                setTimeout(() => this.statusMessage = "", 5000);
-            }
-        }
+    try {
+        const res = await fetch("/.netlify/functions/addProject", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(projectData)
+        });
+
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Failed to add project");
+
+        this.statusMessage = json.message || "Project added successfully!";
+        this.statusType = "success";
+
+        // Reset form
+        Object.keys(this.form).forEach(k =>
+            this.form[k] = (typeof this.form[k] === "number" ? 0 : "")
+        );
+
+        // Redirect to project management after 5 seconds
+        setTimeout(() => {
+            this.$router.push("/admin/projects");
+        }, 5000);
+
+    } catch (err) {
+        this.statusMessage = err.message;
+        this.statusType = "error";
+    } finally {
+        this.loading = false;
+        setTimeout(() => this.statusMessage = "", 5000);
+    }
+}
+
     },
     mounted() {
         this.fetchData();
