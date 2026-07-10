@@ -3,22 +3,20 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-
-// Replace these with your actual config values
+// Firebase config from environment variables
 const firebaseConfig = {
-    apiKey: "AIzaSyBTBcdZb5FMZpf2kbUx6eWhC2hQXrPb9hU",
-    authDomain: "ant-soler.firebaseapp.com",
-    projectId: "ant-soler",
-    storageBucket: "ant-soler.firebasestorage.app",
-    messagingSenderId: "859294648883",
-    appId: "1:859294648883:web:944270286ecf293614f146",
-    measurementId: "G-VSNNLEK1KG"
-  };
+  apiKey: process.env.VUE_APP_FIREBASE_API_KEY,
+  authDomain: process.env.VUE_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.VUE_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.VUE_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.VUE_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.VUE_APP_FIREBASE_APP_ID,
+  measurementId: process.env.VUE_APP_FIREBASE_MEASUREMENT_ID
+};
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
 
-
-export { auth, googleProvider,db };
+export { auth, googleProvider, db };

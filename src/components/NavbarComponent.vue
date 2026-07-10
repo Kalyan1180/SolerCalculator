@@ -68,6 +68,7 @@
       return {
         currentUser: null,
         userRole: null,
+        unsubscribeAuth: null,
         defaultProfile: "https://via.placeholder.com/30"
       };
     },
@@ -83,18 +84,29 @@
         this.signOutUser();
       },
       async fetchUserRole(uid) {
-        const role = await getUserRole(uid);
-        this.userRole = role;
+        try {
+          const role = await getUserRole(uid);
+          this.userRole = role;
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+          this.userRole = null;
+        }
       }
     },
     created() {
       const authInstance = getAuth();
-      onAuthStateChanged(authInstance, async (user) => {
+      this.unsubscribeAuth = onAuthStateChanged(authInstance, async (user) => {
         this.currentUser = user;
         if (user) {
           await this.fetchUserRole(user.uid);
         }
       });
+    },
+    beforeUnmount() {
+      // Clean up auth subscription to prevent memory leaks
+      if (this.unsubscribeAuth) {
+        this.unsubscribeAuth();
+      }
     }
   };
   </script>
@@ -117,4 +129,3 @@
     object-fit: cover;
   }
   </style>
-  

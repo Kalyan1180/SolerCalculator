@@ -20,27 +20,23 @@ import CustomProjectForm from '@/components/CustomProjectForm.vue';
 const routes = [
   { path: '/', name: 'Home', component: HomePage },
   { path: '/solercalc', name: 'SolerCalculator', component: SolerCalculator },
-  { path: '/admin', name: 'AdminControl', component: AdminControl},
+  { path: '/admin', name: 'AdminControl', component: AdminControl },
   { path: '/about', name: 'AboutPage', component: AboutPage },
   { path: '/contact', name: 'ContactPage', component: ContactPage },
   { path: '/login', name: 'LoginPage', component: LoginPage },
   { path: '/signup', name: 'SignUpPage', component: SignUpPage },
-  { path: '/Submitquotation', name: 'SubmitQuotation', component: SubmitQuotation},
+  { path: '/Submitquotation', name: 'SubmitQuotation', component: SubmitQuotation },
   { path: '/admin/inventory', name: 'ManageInventry', component: ManageInventry },
   { path: '/admin/projects', name: 'ProjectManagement', component: ProjectManagement },
   { path: '/admin/users', name: 'UserManagement', component: UserManagement },
-  { path: '/admin/investigate', name: 'AdminInvestigate', component: AdminInvestigate},  { path: '/admin/projects/new', component: CustomProjectForm, name: 'AddCustomProject' },
-
+  { path: '/admin/investigate', name: 'AdminInvestigate', component: AdminInvestigate },
   { path: '/admin/projects/new', component: CustomProjectForm, name: 'AddCustomProject' },
-
-  { 
-    path: '/admin/projects/:projectId', 
-    name: 'ProjectDetail', 
+  {
+    path: '/admin/projects/:projectId',
+    name: 'ProjectDetail',
     component: ProjectDetail,
     props: true  // This allows projectId to be passed as a prop to the ProjectDetail component
-  },
-
-
+  }
 ];
 
 const router = createRouter({
@@ -54,12 +50,17 @@ router.beforeEach(async (to, from, next) => {
     if (!currentUser) {
       next('/login');
     } else {
-      const role = await getUserRole(currentUser.uid);
-      if (role === to.meta.requiresRole) {
-        next();
-      } else {
-        alert('Access Denied!');
-        next('/');
+      try {
+        const role = await getUserRole(currentUser.uid);
+        if (role === to.meta.requiresRole) {
+          next();
+        } else {
+          alert('Access Denied!');
+          next('/');
+        }
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+        next('/login');
       }
     }
   } else {

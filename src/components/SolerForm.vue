@@ -197,6 +197,7 @@
 <script>
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getUserRole } from "@/utils/firebaseHelpers";
+import { COST_CONFIG, ELECTRICITY_RATES, VALIDATION_CONFIG } from "@/constants/calculationConstants";
 
 export default {
   name: "SolerCalculator",
@@ -204,6 +205,7 @@ export default {
     return {
       currentUser: null,
       userRole: null,
+      unsubscribeAuth: null,
       showResults: false,
       loading: false,
       errorMessage: "",
@@ -232,7 +234,7 @@ export default {
         pump: "Pump (1kW)",
         ac: "AC (1Ton)",
       },
-      panelCostPerPiece: 15000,
+      panelCostPerPiece: COST_CONFIG.PANEL_COST_PER_PIECE,
       inverterList: [],
       batteryList: [],
       wattagePerHour: {
@@ -266,12 +268,18 @@ export default {
   },
   created() {
     const authInstance = getAuth();
-    onAuthStateChanged(authInstance, async (user) => {
+    this.unsubscribeAuth = onAuthStateChanged(authInstance, async (user) => {
       this.currentUser = user;
       if (user) {
         await this.fetchUserRole(user.uid);
       }
     });
+  },
+  beforeUnmount() {
+    // Clean up auth subscription to prevent memory leaks
+    if (this.unsubscribeAuth) {
+      this.unsubscribeAuth();
+    }
   },
   computed: {
     unitPerDay() {
@@ -282,11 +290,11 @@ export default {
       } else if (this.inputMethodType === "bill") {
         if (this.billType === "domestic") {
           return this.domesticElectricityBill != null && this.domesticElectricityBill > 0
-            ? ((this.domesticElectricityBill * 12) / 365) / 6.5
+            ? ((this.domesticElectricityBill * 12) / 365) / ELECTRICITY_RATES.DOMESTIC_RATE
             : 0;
         } else if (this.billType === "commercial") {
           return this.commercialElectricityBill != null && this.commercialElectricityBill > 0
-            ? ((this.commercialElectricityBill * 12) / 365) / 10
+            ? ((this.commercialElectricityBill * 12) / 365) / ELECTRICITY_RATES.COMMERCIAL_RATE
             : 0;
         }
       } else if (this.inputMethodType === "appliances") {
@@ -337,7 +345,7 @@ export default {
       let bestCost = Infinity;
       let bestCombo = null;
       this.batteryList.forEach(battery => {
-        for (let k = 1; k <= 10; k++) {
+        for (let k = 1; k <= VALIDATION_CONFIG.MAX_BATTERY_COMBINATIONS; k++) {
           const quantity = factor * k;
           const totalEnergy = battery.energy * quantity;
           if (totalEnergy >= energyRequired) {
@@ -359,15 +367,20 @@ export default {
       const batteryCost = this.batteryInfo ? this.batteryInfo.quantity * this.batteryInfo.selectedBattery.price : 0;
       const totalWithoutTax = panelCost + inverterCost + batteryCost;
       let totalWithMarkup = 0, totalWithoutMarkup = 0;
-      if (totalWithoutTax < 50000) {
-        totalWithMarkup = (totalWithoutTax + this.panelCount * 500 * 8) * 1.15;
-        totalWithoutMarkup = totalWithoutTax + this.panelCount * 500 * 8;
-      } else if (this.panelCount > 3 && totalWithoutTax > 50000) {
-        totalWithMarkup = (totalWithoutTax + this.panelCount * 500 * 12) * 1.4;
-        totalWithoutMarkup = totalWithoutTax + this.panelCount * 500 * 12;
+
+      // Calculate labor cost and apply appropriate markup tier
+      if (totalWithoutTax < COST_CONFIG.COST_THRESHOLD) {
+        const laborCost = this.panelCount * COST_CONFIG.LABOR_COST_PER_PANEL * COST_CONFIG.LABOR_DAYS_LOW;
+        totalWithMarkup = (totalWithoutTax + laborCost) * COST_CONFIG.MARKUP_RATE_LOW;
+        totalWithoutMarkup = totalWithoutTax + laborCost;
+      } else if (this.panelCount > 3 && totalWithoutTax > COST_CONFIG.COST_THRESHOLD) {
+        const laborCost = this.panelCount * COST_CONFIG.LABOR_COST_PER_PANEL * COST_CONFIG.LABOR_DAYS_HIGH;
+        totalWithMarkup = (totalWithoutTax + laborCost) * COST_CONFIG.MARKUP_RATE_MEDIUM;
+        totalWithoutMarkup = totalWithoutTax + laborCost;
       } else {
-        totalWithMarkup = (totalWithoutTax + this.panelCount * 500 * 8) * 1.5;
-        totalWithoutMarkup = totalWithoutTax + this.panelCount * 500 * 8;
+        const laborCost = this.panelCount * COST_CONFIG.LABOR_COST_PER_PANEL * COST_CONFIG.LABOR_DAYS_LOW;
+        totalWithMarkup = (totalWithoutTax + laborCost) * COST_CONFIG.MARKUP_RATE_HIGH;
+        totalWithoutMarkup = totalWithoutTax + laborCost;
       }
       return { totalCostWithMarkup: totalWithMarkup, totalCostWithoutMarkup: totalWithoutMarkup };
     },
@@ -376,9 +389,9 @@ export default {
       if (totalCostWithoutMarkup === 0) return 0;
       return ((totalCostWithMarkup - totalCostWithoutMarkup) / totalCostWithoutMarkup) * 100;
     },
-    // Offer price: 10% discount if profit < 30%, else 20%
+    // Offer price: 10% discount if profit < threshold, else 20%
     offerPrice() {
-      const discountFactor = this.profitPercentage < 30 ? 0.9 : 0.8;
+      const discountFactor = this.profitPercentage < COST_CONFIG.PROFIT_THRESHOLD_FOR_DISCOUNT ? 0.9 : 0.8;
       return this.costResults.totalCostWithMarkup * discountFactor;
     },
   },
@@ -396,17 +409,15 @@ export default {
       });
       this.$router.push({ name: "SubmitQuotation", state: { mode: "admin" } });
       this.goBack();
-
     },
     goToRequirement() {
-
       // For non-admin: dispatch computed results to Vuex and navigate to SubmitQuotation in user mode
       this.$store.dispatch('updateSolerResults', {
         costWith: this.costResults.totalCostWithMarkup,
         costWithout: this.costResults.totalCostWithoutMarkup,
         profit: this.profitPercentage,
         special: this.offerPrice,
-        panelCount: this.panelCount(),
+        panelCount: this.panelCount,  // FIXED: was calling as function this.panelCount()
         inverter: this.selectedInverter,
         battery: this.batteryInfo
       });
@@ -415,50 +426,62 @@ export default {
       this.goBack();
     },
     async fetchUserRole(uid) {
-      const role = await getUserRole(uid);
-      this.userRole = role;
+      try {
+        const role = await getUserRole(uid);
+        this.userRole = role;
+      } catch (error) {
+        console.error("Error fetching user role:", error);
+        this.userRole = null;
+      }
     },
     async submitForm() {
       this.errorMessage = "";
       this.loading = true;
-      if (
-        (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
-        (this.commercialElectricityBill != null && this.commercialElectricityBill < 0) ||
-        Object.values(this.appliances).some(val => val < 0)
-      ) {
-        this.errorMessage = "Please enter valid positive values.";
-        this.loading = false;
-        return;
-      }
-      if (this.inputMethodType === "monthly") {
-        if (this.monthlyConsumption == null) {
-          this.errorMessage = "Please provide Monthly Unit Consumption.";
-          this.loading = false;
-          return;
-        }
-      } else if (this.inputMethodType === "bill") {
-        if (this.billType === "domestic") {
-          if (this.domesticElectricityBill == null) {
-            this.errorMessage = "Please provide Domestic Bill.";
-            this.loading = false;
-            return;
-          }
-        } else if (this.billType === "commercial") {
-          if (this.commercialElectricityBill == null) {
-            this.errorMessage = "Please provide Commercial Bill.";
-            this.loading = false;
-            return;
-          }
-        }
-      } else if (this.inputMethodType === "appliances") {
-        const totalAppliances = Object.values(this.appliances).reduce((acc, val) => acc + val, 0);
-        if (totalAppliances === 0) {
-          this.errorMessage = "Please enter at least one appliance quantity.";
-          this.loading = false;
-          return;
-        }
-      }
+
       try {
+        // Validate input values are positive
+        if (
+          (this.domesticElectricityBill != null && this.domesticElectricityBill < 0) ||
+          (this.commercialElectricityBill != null && this.commercialElectricityBill < 0) ||
+          Object.values(this.appliances).some(val => val < 0)
+        ) {
+          this.errorMessage = "Please enter valid positive values.";
+          return;
+        }
+
+        // Validate appliance quantities don't exceed max
+        if (Object.values(this.appliances).some(val => val > VALIDATION_CONFIG.MAX_APPLIANCE_COUNT)) {
+          this.errorMessage = `Appliance quantity cannot exceed ${VALIDATION_CONFIG.MAX_APPLIANCE_COUNT}.`;
+          return;
+        }
+
+        // Validate required inputs based on method type
+        if (this.inputMethodType === "monthly") {
+          if (this.monthlyConsumption == null) {
+            this.errorMessage = "Please provide Monthly Unit Consumption.";
+            return;
+          }
+        } else if (this.inputMethodType === "bill") {
+          if (this.billType === "domestic") {
+            if (this.domesticElectricityBill == null) {
+              this.errorMessage = "Please provide Domestic Bill.";
+              return;
+            }
+          } else if (this.billType === "commercial") {
+            if (this.commercialElectricityBill == null) {
+              this.errorMessage = "Please provide Commercial Bill.";
+              return;
+            }
+          }
+        } else if (this.inputMethodType === "appliances") {
+          const totalAppliances = Object.values(this.appliances).reduce((acc, val) => acc + val, 0);
+          if (totalAppliances === 0) {
+            this.errorMessage = "Please enter at least one appliance quantity.";
+            return;
+          }
+        }
+
+        // Fetch data from backend
         const response = await fetch("/.netlify/functions/getData");
         if (!response.ok) throw new Error("Network response was not ok");
         const { inverters, batteries } = await response.json();
@@ -475,19 +498,20 @@ export default {
           capacity: Number(bat.capacity),
           price: Number(bat.price)
         }));
+
+        // Validate that suitable inverter and battery were found
+        if (!this.selectedInverter || !this.batteryInfo) {
+          this.errorMessage = "No suitable inverter or battery combination found. Please adjust your input.";
+          return;
+        }
+
+        this.showResults = true;
       } catch (error) {
-        console.error("Error fetching backend data:", error);
-        this.errorMessage = "Error fetching data from backend. Please try again.";
+        console.error("Error during form submission:", error);
+        this.errorMessage = error.message || "Error fetching data from backend. Please try again.";
+      } finally {
         this.loading = false;
-        return;
       }
-      if (!this.selectedInverter || !this.batteryInfo) {
-        this.errorMessage = "No suitable inverter or battery combination found. Please adjust your input.";
-        this.loading = false;
-        return;
-      }
-      this.loading = false;
-      this.showResults = true;
     },
     goBack() {
       this.errorMessage = "";
