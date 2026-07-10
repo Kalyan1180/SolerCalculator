@@ -10,11 +10,13 @@ import SignUpPage from '@/components/SignUpPage.vue';
 import { auth } from '@/firebase';
 import { getUserRole } from '@/utils/firebaseHelpers';
 import SubmitQuotation from './components/SubmitQuotation.vue';
-import ManageInventry from './components/ManageInventry.vue';
+import ManageInventory from './components/ManageInventory.vue';
 import ProjectManagement from './components/ProjectManagement.vue';
 import UserManagement from './components/UserManagement.vue';
 import AdminInvestigate from './components/AdminInvestigate.vue';
 import ProjectDetail from './components/ProjectDetail.vue';
+import ProjectApproval from './components/ProjectApproval.vue';
+import CustomerProjects from './components/CustomerProjects.vue';
 import CustomProjectForm from '@/components/CustomProjectForm.vue';
 
 const routes = [
@@ -26,17 +28,24 @@ const routes = [
   { path: '/login', name: 'LoginPage', component: LoginPage },
   { path: '/signup', name: 'SignUpPage', component: SignUpPage },
   { path: '/Submitquotation', name: 'SubmitQuotation', component: SubmitQuotation },
-  { path: '/admin/inventory', name: 'ManageInventry', component: ManageInventry },
+  { path: '/admin/inventory', name: 'ManageInventory', component: ManageInventory },
   { path: '/admin/projects', name: 'ProjectManagement', component: ProjectManagement },
-  { path: '/admin/users', name: 'UserManagement', component: UserManagement },
-  { path: '/admin/investigate', name: 'AdminInvestigate', component: AdminInvestigate },
   { path: '/admin/projects/new', component: CustomProjectForm, name: 'AddCustomProject' },
   {
     path: '/admin/projects/:projectId',
+    name: 'ProjectApproval',
+    component: ProjectApproval,
+    props: true
+  },
+  {
+    path: '/admin/projects/:projectId/detail',
     name: 'ProjectDetail',
     component: ProjectDetail,
-    props: true  // This allows projectId to be passed as a prop to the ProjectDetail component
-  }
+    props: true
+  },
+  { path: '/admin/users', name: 'UserManagement', component: UserManagement },
+  { path: '/admin/investigate', name: 'AdminInvestigate', component: AdminInvestigate },
+  { path: '/customer/my-projects', name: 'CustomerProjects', component: CustomerProjects }
 ];
 
 const router = createRouter({
