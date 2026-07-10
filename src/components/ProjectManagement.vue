@@ -1,12 +1,20 @@
 <template>
   <div class="project-management container-fluid py-4">
-    <!-- Header -->
+    <h2 class="mb-4">Project Management</h2>
+
+    <!-- Filter & Add Button -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2 class="mb-0">Project Management</h2>
-      <router-link
-        :to="{ name: 'AddCustomProject' }"
-        class="btn btn-primary"
-      >
+      <div>
+        <button
+          v-for="status in ['all', 'quote_pending', 'approved', 'in_progress', 'completed']"
+          :key="status"
+          @click="selectedStatus = status"
+          :class="['btn me-2', selectedStatus === status ? 'btn-primary' : 'btn-outline-primary']"
+        >
+          {{ getStatusLabel(status) }}
+        </button>
+      </div>
+      <router-link :to="{ name: 'AddCustomProject' }" class="btn btn-success">
         <i class="fas fa-plus me-1"></i> Add Custom Project
       </router-link>
     </div>
@@ -23,50 +31,56 @@
     </div>
 
     <!-- Projects Grid -->
-    <div v-if="!loading && !error && projects.length" class="row g-4">
-      <div
-        v-for="project in paginatedProjects"
-        :key="project.projectId"
-        class="col-sm-6 col-md-4 col-lg-3"
-      >
-        <div class="card h-100 shadow-sm">
+    <div v-if="!loading && !error && filteredProjects.length" class="row g-4">
+      <div v-for="project in paginatedProjects" :key="project.projectId" class="col-sm-6 col-md-4 col-lg-3">
+        <div class="card h-100 shadow-sm project-card">
           <div class="card-body d-flex flex-column">
-            <h5 class="card-title">#{{ project.projectId }}</h5>
-            <p class="card-text flex-grow-1">
-              <strong>Customer:</strong> {{ project.name }}<br>
-              <strong>Address:</strong> {{ project.address }}
-            </p>
-            <div class="mt-3 text-end">
-              <button
-                class="btn btn-sm btn-outline-primary"
-                @click="viewProject(project.projectId)"
-              >
-                View More <i class="fas fa-arrow-right ms-1"></i>
-              </button>
+            <!-- Project ID & Status -->
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <h5 class="card-title mb-0">#{{ project.projectId.substring(0, 8) }}</h5>
+              <span class="badge" :style="{ backgroundColor: getStatusColor(project.status) }">
+                {{ getStatusLabel(project.status) }}
+              </span>
             </div>
+
+            <!-- Customer Info -->
+            <p class="card-text flex-grow-1">
+              <strong>Customer:</strong> {{ project.customerName }}<br>
+              <strong>Address:</strong> {{ project.address }}<br>
+              <strong>Phone:</strong> {{ project.customerPhone }}
+            </p>
+
+            <!-- Cost & Payment -->
+            <div class="mb-3 pb-3 border-bottom">
+              <small class="text-muted">Quoted Price: <strong class="text-primary">₹{{ formatCurrency(project.quotedPrice) }}</strong></small><br>
+              <small class="text-muted">Payment: <strong :class="getPaymentClass(project.paymentStatus)">{{ project.paymentStatus }}</strong></small>
+            </div>
+
+            <!-- Action Button -->
+            <button class="btn btn-sm btn-outline-primary" @click="viewProject(project.projectId)">
+              View & Update <i class="fas fa-arrow-right ms-1"></i>
+            </button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- No Projects -->
-    <div v-if="!loading && !error && !projects.length" class="text-center my-5 text-muted">
+    <div v-if="!loading && !error && !filteredProjects.length" class="text-center my-5 text-muted">
       No projects found.
     </div>
 
     <!-- Pagination -->
     <nav v-if="totalPages > 1" class="d-flex justify-content-center mt-4">
       <ul class="pagination">
-        <li :class="['page-item', { disabled: currentPage === 1 } ]">
-          <button class="page-link" @click="prevPage">Previous</button>
+        <li :class="['page-item', { disabled: currentPage === 1 }]">
+          <button class="page-link" @click="prevPage" :disabled="currentPage === 1">Previous</button>
         </li>
         <li class="page-item disabled">
-          <span class="page-link">
-            Page {{ currentPage }} of {{ totalPages }}
-          </span>
+          <span class="page-link">Page {{ currentPage }} of {{ totalPages }}</span>
         </li>
-        <li :class="['page-item', { disabled: currentPage === totalPages } ]">
-          <button class="page-link" @click="nextPage">Next</button>
+        <li :class="['page-item', { disabled: currentPage === totalPages }]">
+          <button class="page-link" @click="nextPage" :disabled="currentPage === totalPages">Next</button>
         </li>
       </ul>
     </nav>
@@ -74,76 +88,103 @@
 </template>
 
 <script>
+import { getAllProjects } from '@/models/projectModel';
+import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from '@/constants/businessConstants';
+
 export default {
-  name: "ProjectManagement",
+  name: 'ProjectManagement',
   data() {
     return {
       projects: [],
       loading: false,
-      error: "",
+      error: '',
       currentPage: 1,
-      pageSize: 8
+      pageSize: 8,
+      selectedStatus: 'all'
     };
   },
   computed: {
+    filteredProjects() {
+      if (this.selectedStatus === 'all') {
+        return this.projects;
+      }
+      return this.projects.filter(p => p.status === this.selectedStatus);
+    },
     paginatedProjects() {
       const start = (this.currentPage - 1) * this.pageSize;
-      return this.projects.slice(start, start + this.pageSize);
+      return this.filteredProjects.slice(start, start + this.pageSize);
     },
     totalPages() {
-      return Math.ceil(this.projects.length / this.pageSize);
+      return Math.ceil(this.filteredProjects.length / this.pageSize);
     }
+  },
+  created() {
+    this.fetchProjects();
   },
   methods: {
     async fetchProjects() {
       this.loading = true;
-      this.error = "";
+      this.error = '';
       try {
-        const resp = await fetch("/.netlify/functions/getProjects");
-        if (!resp.ok) throw new Error("Failed to load");
-        const data = await resp.json();
-        this.projects = data.projects || [];
-      } catch (e) {
-        console.error(e);
-        this.error = "Error fetching projects. Please try again.";
+        const result = await getAllProjects();
+        if (result.success) {
+          this.projects = result.projects;
+        } else {
+          this.error = result.error || 'Failed to load projects';
+        }
+      } catch (error) {
+        console.error('Error loading projects:', error);
+        this.error = 'Error loading projects';
       } finally {
         this.loading = false;
       }
     },
-    viewProject(id) {
-      this.$router.push({ path: `/admin/projects/${id}` });
+    viewProject(projectId) {
+      this.$router.push({
+        name: 'ProjectDetail',
+        params: { projectId }
+      });
     },
-    nextPage() {
-      if (this.currentPage < this.totalPages) this.currentPage++;
+    getStatusLabel(status) {
+      return PROJECT_STATUS_LABELS[status] || status;
+    },
+    getStatusColor(status) {
+      return PROJECT_STATUS_COLORS[status] || '#999';
+    },
+    getPaymentClass(paymentStatus) {
+      if (paymentStatus === 'balance_paid') return 'text-success';
+      if (paymentStatus === 'advance_paid') return 'text-warning';
+      return 'text-danger';
+    },
+    formatCurrency(value) {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'decimal',
+        maximumFractionDigits: 0
+      }).format(value);
     },
     prevPage() {
       if (this.currentPage > 1) this.currentPage--;
+    },
+    nextPage() {
+      if (this.currentPage < this.totalPages) this.currentPage++;
     }
-  },
-  mounted() {
-    this.fetchProjects();
   }
 };
 </script>
 
 <style scoped>
-.project-management {
-  max-width: 1200px;
+.project-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1px solid #e0e0e0;
 }
-.card {
-  border: none;
-  border-radius: 0.5rem;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+.project-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
 }
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-.page-link {
-  cursor: pointer;
-}
-.spinner-border {
-  width: 3rem;
-  height: 3rem;
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.65rem;
 }
 </style>
