@@ -2,7 +2,7 @@
 // Analytics and reporting model
 
 import { db } from '@/firebase';
-import { collection, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { PROJECT_STATUS } from '@/constants/businessConstants';
 
 const PROJECTS_COLLECTION = 'projects';
