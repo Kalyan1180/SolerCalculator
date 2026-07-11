@@ -24,97 +24,144 @@ import ProjectApproval from '@/components/ProjectApproval.vue';
 import CustomerProjects from '@/components/CustomerProjects.vue';
 import CustomProjectForm from '@/components/CustomProjectForm.vue';
 
-function protectedMeta(requiredPermission) {
-  return { requiresAuth: true, requiredPermission };
+function protectedMeta(requiredPermission, title, description) {
+  return {
+    requiresAuth: true,
+    requiredPermission,
+    layout: 'admin',
+    title,
+    description
+  };
 }
 
 const routes = [
-  { path: '/', name: 'Home', component: HomePage },
-  { path: '/solercalc', name: 'SolerCalculator', component: SolerCalculator },
-  { path: '/about', name: 'AboutPage', component: AboutPage },
-  { path: '/contact', name: 'ContactPage', component: ContactPage },
-  { path: '/login', name: 'LoginPage', component: LoginPage, meta: { requiresGuest: true } },
-  { path: '/signup', name: 'SignUpPage', component: SignUpPage, meta: { requiresGuest: true } },
-  { path: '/forbidden', name: 'AccessDenied', component: AccessDenied, meta: { requiresAuth: true } },
+  { path: '/', name: 'Home', component: HomePage, meta: { title: 'Solar solutions made practical' } },
+  { path: '/solercalc', name: 'SolerCalculator', component: SolerCalculator, meta: { title: 'Solar Calculator' } },
+  { path: '/about', name: 'AboutPage', component: AboutPage, meta: { title: 'About ANT Solar' } },
+  { path: '/contact', name: 'ContactPage', component: ContactPage, meta: { title: 'Contact ANT Solar' } },
+  { path: '/login', name: 'LoginPage', component: LoginPage, meta: { requiresGuest: true, title: 'Sign in' } },
+  { path: '/signup', name: 'SignUpPage', component: SignUpPage, meta: { requiresGuest: true, title: 'Create account' } },
+  { path: '/forbidden', name: 'AccessDenied', component: AccessDenied, meta: { requiresAuth: true, title: 'Access denied' } },
   {
     path: '/submit-quotation',
     alias: '/Submitquotation',
     name: 'SubmitQuotation',
     component: SubmitQuotation,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, title: 'Submit quotation request' }
   },
   {
     path: '/admin',
     name: 'AdminControl',
     component: AdminControl,
-    meta: protectedMeta(PERMISSIONS.DASHBOARD_ACCESS)
+    meta: protectedMeta(
+      PERMISSIONS.DASHBOARD_ACCESS,
+      'Overview',
+      'Your permitted administration modules and operational shortcuts.'
+    )
   },
   {
     path: '/admin/inventory',
     name: 'ManageInventory',
     component: ManageInventory,
-    meta: protectedMeta(PERMISSIONS.INVENTORY_READ)
+    meta: protectedMeta(
+      PERMISSIONS.INVENTORY_READ,
+      'Stock Inventory',
+      'Track stock levels, costs, suppliers and selling prices.'
+    )
   },
   {
     path: '/admin/equipment',
     name: 'EquipmentCatalog',
     component: EquipmentCatalog,
-    meta: protectedMeta(PERMISSIONS.EQUIPMENT_READ)
+    meta: protectedMeta(
+      PERMISSIONS.EQUIPMENT_READ,
+      'Equipment Catalog',
+      'Manage the inverter and battery records used by the calculator.'
+    )
   },
   {
     path: '/admin/projects',
     name: 'ProjectManagement',
     component: ProjectManagement,
-    meta: protectedMeta(PERMISSIONS.PROJECTS_READ)
+    meta: protectedMeta(
+      PERMISSIONS.PROJECTS_READ,
+      'Projects',
+      'Review quotations, payments, installations and customer progress.'
+    )
   },
   {
     path: '/admin/projects/new',
     name: 'AddCustomProject',
     component: CustomProjectForm,
-    meta: protectedMeta(PERMISSIONS.PROJECTS_CREATE)
+    meta: protectedMeta(
+      PERMISSIONS.PROJECTS_CREATE,
+      'Create Project',
+      'Create a managed solar project for a customer.'
+    )
   },
   {
     path: '/admin/projects/:projectId',
     name: 'ProjectApproval',
     component: ProjectApproval,
     props: true,
-    meta: protectedMeta(PERMISSIONS.PROJECTS_READ)
+    meta: protectedMeta(
+      PERMISSIONS.PROJECTS_READ,
+      'Project Workspace',
+      'Review project specifications, payments and authorized actions.'
+    )
   },
   {
     path: '/admin/projects/:projectId/detail',
     redirect: to => ({ name: 'ProjectApproval', params: { projectId: to.params.projectId } }),
-    meta: protectedMeta(PERMISSIONS.PROJECTS_READ)
+    meta: protectedMeta(PERMISSIONS.PROJECTS_READ, 'Project Workspace', 'Project details and activity.')
   },
   {
     path: '/admin/users',
     name: 'UserManagement',
     component: UserManagement,
-    meta: protectedMeta(PERMISSIONS.USERS_READ)
+    meta: protectedMeta(
+      PERMISSIONS.USERS_READ,
+      'Users & Access',
+      'Review identities, assign roles and revoke active sessions.'
+    )
   },
   {
     path: '/admin/audit',
     name: 'AuditLog',
     component: AuditLog,
-    meta: protectedMeta(PERMISSIONS.AUDIT_READ)
+    meta: protectedMeta(
+      PERMISSIONS.AUDIT_READ,
+      'Security Audit',
+      'Review append-only role and session security activity.'
+    )
   },
   {
     path: '/admin/investigate',
     name: 'AdminInvestigate',
     component: AdminInvestigate,
-    meta: protectedMeta(PERMISSIONS.ANALYTICS_READ)
+    meta: protectedMeta(
+      PERMISSIONS.ANALYTICS_READ,
+      'Analytics',
+      'Monitor project, payment, revenue and inventory performance.'
+    )
   },
   {
     path: '/customer/my-projects',
     name: 'CustomerProjects',
     component: CustomerProjects,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, title: 'My Projects' }
   },
   { path: '/:pathMatch(.*)*', redirect: '/' }
 ];
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition;
+    if (to.hash) return { el: to.hash, behavior: 'smooth' };
+    return { top: 0 };
+  }
 });
 
 let authInitialized = false;
@@ -205,6 +252,11 @@ router.beforeEach(async to => {
   }
 
   return true;
+});
+
+router.afterEach(to => {
+  const pageTitle = String(to.meta.title || 'ANT Solar');
+  document.title = pageTitle === 'ANT Solar' ? pageTitle : `${pageTitle} | ANT Solar`;
 });
 
 export default router;
