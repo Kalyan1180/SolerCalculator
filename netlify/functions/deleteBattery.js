@@ -1,39 +1,28 @@
-// netlify/functions/deleteBattery.js
-const admin = require('firebase-admin');
+const { jsonResponse, requireAdmin } = require('./_firebaseAdmin');
 
-if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert({
-          "type": process.env.FB_TYPE,
-          "project_id": process.env.FB_PROJECT_ID,
-          "private_key_id": process.env.FB_PRIVATE_KEY_ID,
-          "private_key": process.env.FB_PRIVATE_KEY.replace(/\\n/g, "\n"),
-          "client_email": process.env.FB_CLIENT_EMAIL,
-          "client_id": process.env.FB_CLIENT_ID,
-          "auth_uri": process.env.FB_AUTH_URI,
-          "token_uri": process.env.FB_TOKEN_URI,
-          "auth_provider_x509_cert_url": process.env.FB_AUTH_PROVIDER_X509_CERT_URL,
-          "client_x509_cert_url": process.env.FB_CLIENT_X509_CERT_URL,
-        }),
-        // You don't need a databaseURL for Firestore unless you have a specific requirement.
-      });
+function validId(value) {
+  const id = String(value || '').trim();
+  return /^[A-Za-z0-9_-]{1,128}$/.test(id) ? id : null;
 }
 
-exports.handler = async (event, context) => {
-  if (event.httpMethod !== 'DELETE') {
-    return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
+exports.handler = async event => {
+  if (event.httpMethod !== 'DELETE') return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'DELETE' });
+  const authorization = await requireAdmin(event);
+  if (!authorization.authorized) return authorization.response;
+
   try {
-    const data = JSON.parse(event.body);
-    const { id } = data;
-    if (!id) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing battery id' }) };
-    }
-    const db = admin.firestore();
-    await db.collection('batteries').doc(id).delete();
-    return { statusCode: 200, body: JSON.stringify({ message: 'Battery deleted successfully' }) };
+    const payload = JSON.parse(event.body || '{}');
+    const id = validId(payload.id);
+    if (!id) return jsonResponse(400, { error: 'A valid battery ID is required' });
+
+    const batteryRef = authorization.db.collection('batteries').doc(id);
+    const snapshot = await batteryRef.get();
+    if (!snapshot.exists) return jsonResponse(404, { error: 'Battery not found' });
+    await batteryRef.delete();
+    return jsonResponse(200, { message: 'Battery deleted successfully' });
   } catch (error) {
     console.error('Error deleting battery:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to delete battery' }) };
+    if (error instanceof SyntaxError) return jsonResponse(400, { error: 'Invalid JSON request body' });
+    return jsonResponse(500, { error: 'Failed to delete battery' });
   }
 };
