@@ -79,18 +79,12 @@
         </div>
 
         <div class="card">
-          <div class="card-header bg-info text-white"><h5 class="mb-0">Site Photos</h5></div>
+          <div class="card-header bg-light"><h5 class="mb-0">Site Photos</h5></div>
           <div class="card-body">
-            <input
-              ref="fileInput"
-              class="form-control"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              :disabled="busyAction"
-              @change="handleFileUpload"
-            />
-            <small class="text-muted">JPEG, PNG or WebP; maximum 8 MB per image.</small>
+            <p class="mb-2">
+              Photo upload is disabled so this application can operate without a paid Firebase Storage plan.
+            </p>
+            <small class="text-muted">Projects, quotations, payments, inventory and status updates are unaffected.</small>
 
             <div v-if="project.sitePhotos?.length" class="row g-3 mt-2">
               <div v-for="(photo, index) in project.sitePhotos" :key="`${photo}-${index}`" class="col-6 col-md-3">
@@ -190,7 +184,6 @@ import {
 import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/constants/businessConstants';
 import { sendCompletionEmail, sendProjectUpdateEmail } from '@/utils/emailService';
 import { downloadInvoicePDF, downloadQuotationPDF } from '@/utils/pdfGenerator';
-import { uploadMultiplePhotos } from '@/utils/storageService';
 
 export default {
   name: 'ProjectApproval',
@@ -339,27 +332,6 @@ export default {
         this.error = error.message;
       } finally {
         this.busyAction = false;
-      }
-    },
-    async handleFileUpload(event) {
-      const files = Array.from(event.target.files || []);
-      if (!files.length) return;
-      this.busyAction = true;
-      this.error = '';
-      try {
-        const result = await uploadMultiplePhotos(this.projectId, files);
-        if (!result.success) throw new Error(result.error || 'Unable to upload photos');
-        const newUrls = result.uploads.map(item => item.downloadURL);
-        const sitePhotos = [...(this.project.sitePhotos || []), ...newUrls];
-        const updateResult = await updateProjectFields(this.projectId, { sitePhotos });
-        if (!updateResult.success) throw new Error(updateResult.error || 'Photos uploaded but project could not be updated');
-        await this.loadProject();
-        this.showSuccess(`${newUrls.length} photo(s) uploaded.`);
-      } catch (error) {
-        this.error = error.message;
-      } finally {
-        this.busyAction = false;
-        if (this.$refs.fileInput) this.$refs.fileInput.value = '';
       }
     },
     getStatusLabel(status) {
