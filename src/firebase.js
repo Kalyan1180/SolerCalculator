@@ -2,8 +2,8 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
-// Firebase config from environment variables
 const firebaseConfig = {
   apiKey: process.env.VUE_APP_FIREBASE_API_KEY,
   authDomain: process.env.VUE_APP_FIREBASE_AUTH_DOMAIN,
@@ -14,9 +14,20 @@ const firebaseConfig = {
   measurementId: process.env.VUE_APP_FIREBASE_MEASUREMENT_ID
 };
 
+const requiredConfig = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'appId'];
+const missingConfig = requiredConfig.filter((key) => !firebaseConfig[key]);
+
+if (missingConfig.length) {
+  throw new Error(
+    `Missing Firebase configuration: ${missingConfig.join(', ')}. ` +
+    'Copy .env.example to .env.local and provide the required VUE_APP_FIREBASE_* values.'
+  );
+}
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
+const storage = getStorage(app);
 
-export { auth, googleProvider, db };
+export { app, auth, googleProvider, db, storage };
