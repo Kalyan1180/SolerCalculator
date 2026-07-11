@@ -1,66 +1,53 @@
-// netlify/functions/sendSMS.js
-// SMS service using Twilio
-
 const twilio = require('twilio');
+const { jsonResponse, requireAdmin } = require('./_firebaseAdmin');
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
+const ALLOWED_TYPES = new Set(['project-status', 'payment-reminder', 'project-completion']);
 
-const client = new twilio(accountSid, authToken);
+function getClient() {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+  if (!accountSid || !authToken || !fromNumber) throw new Error('SMS service is not configured');
+  if (!E164_PATTERN.test(fromNumber)) throw new Error('Twilio sender number is invalid');
+  return { client: twilio(accountSid, authToken), fromNumber };
+}
 
-exports.handler = async (event) => {
+exports.handler = async event => {
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'POST' });
   }
 
+  const authorization = await requireAdmin(event);
+  if (!authorization.authorized) return authorization.response;
+
   try {
-    const { to, message, projectId, type } = JSON.parse(event.body);
+    const payload = JSON.parse(event.body || '{}');
+    const to = String(payload.to || '').replace(/[\s()-]/g, '');
+    const message = String(payload.message || '').trim();
+    const type = String(payload.type || '').trim();
 
-    if (!to || !message) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing required fields: to, message' })
-      };
+    if (!E164_PATTERN.test(to)) {
+      return jsonResponse(400, { error: 'Phone number must use E.164 format, for example +919876543210' });
     }
-
-    // Validate phone number format
-    if (!to.startsWith('+')) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Phone number must include country code (e.g., +91...)' })
-      };
+    if (!message || message.length > 500) {
+      return jsonResponse(400, { error: 'SMS message must contain between 1 and 500 characters' });
     }
+    if (!ALLOWED_TYPES.has(type)) return jsonResponse(400, { error: 'Unsupported SMS type' });
 
-    const result = await client.messages.create({
-      body: message,
-      from: fromNumber,
-      to: to
+    const { client, fromNumber } = getClient();
+    const result = await client.messages.create({ body: message, from: fromNumber, to });
+
+    return jsonResponse(200, {
+      success: true,
+      message: 'SMS sent successfully',
+      messageId: result.sid,
+      projectId: payload.projectId || null,
+      type
     });
-
-    console.log('SMS sent:', result.sid);
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        message: 'SMS sent successfully',
-        messageId: result.sid,
-        projectId: projectId,
-        type: type
-      })
-    };
   } catch (error) {
     console.error('Error sending SMS:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: error.message
-      })
-    };
+    if (error instanceof SyntaxError) return jsonResponse(400, { error: 'Invalid JSON request body' });
+    return jsonResponse(500, { success: false, error: 'Unable to send SMS' });
   }
 };
