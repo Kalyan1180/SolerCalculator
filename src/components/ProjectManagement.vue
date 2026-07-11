@@ -1,10 +1,17 @@
 <template>
   <div class="project-management container-fluid py-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-      <h2 class="mb-0">Project Management</h2>
-      <router-link :to="{ name: 'AddCustomProject' }" class="btn btn-success">
+      <div>
+        <h2 class="mb-1">Project Management</h2>
+        <p class="text-muted mb-0">{{ canUpdateProjects ? 'Manage quotations, payments and installation progress.' : 'Read-only project access.' }}</p>
+      </div>
+      <router-link v-if="canCreateProjects" :to="{ name: 'AddCustomProject' }" class="btn btn-success">
         <i class="fas fa-plus me-1"></i> Add Custom Project
       </router-link>
+    </div>
+
+    <div v-if="!accessLoading && !canUpdateProjects" class="alert alert-info">
+      Your role can view project records but cannot change project status, payments or notes.
     </div>
 
     <div class="d-flex flex-wrap gap-2 mb-4">
@@ -52,7 +59,7 @@
               <p class="mb-1"><strong>Quote:</strong> Rs {{ formatCurrency(project.quotedPrice) }}</p>
               <p class="mb-3"><strong>Payment:</strong> <span :class="getPaymentClass(project.paymentStatus)">{{ getPaymentLabel(project.paymentStatus) }}</span></p>
               <button type="button" class="btn btn-sm btn-outline-primary w-100" @click="viewProject(project.projectId || project.id)">
-                View & Update
+                {{ canUpdateProjects ? 'View & Update' : 'View Project' }}
               </button>
             </div>
           </div>
@@ -83,9 +90,12 @@ import {
   PROJECT_STATUS_COLORS,
   PROJECT_STATUS_LABELS
 } from '@/constants/businessConstants';
+import rbacMixin from '@/mixins/rbacMixin';
+import { PERMISSIONS } from '@/constants/rbac';
 
 export default {
   name: 'ProjectManagement',
+  mixins: [rbacMixin],
   data() {
     return {
       projects: [],
@@ -98,6 +108,12 @@ export default {
     };
   },
   computed: {
+    canCreateProjects() {
+      return this.can(PERMISSIONS.PROJECTS_CREATE);
+    },
+    canUpdateProjects() {
+      return this.can(PERMISSIONS.PROJECTS_UPDATE);
+    },
     filteredProjects() {
       if (this.selectedStatus === 'all') return this.projects;
       return this.projects.filter(project => project.status === this.selectedStatus);
