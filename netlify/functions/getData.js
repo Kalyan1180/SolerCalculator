@@ -1,47 +1,58 @@
-// netlify/functions/getData.js
-const admin = require("firebase-admin");
+const { getAdminServices, jsonResponse } = require('./_firebaseAdmin');
 
-// Initialize Firebase Admin SDK (ensure this happens only once)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      "type": process.env.FB_TYPE,
-      "project_id": process.env.FB_PROJECT_ID,
-      "private_key_id": process.env.FB_PRIVATE_KEY_ID,
-      "private_key": process.env.FB_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      "client_email": process.env.FB_CLIENT_EMAIL,
-      "client_id": process.env.FB_CLIENT_ID,
-      "auth_uri": process.env.FB_AUTH_URI,
-      "token_uri": process.env.FB_TOKEN_URI,
-      "auth_provider_x509_cert_url": process.env.FB_AUTH_PROVIDER_X509_CERT_URL,
-      "client_x509_cert_url": process.env.FB_CLIENT_X509_CERT_URL,
-    }),
-    // You don't need a databaseURL for Firestore unless you have a specific requirement.
-  });
+function numberValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
 }
 
-exports.handler = async function (event, context) {
+exports.handler = async event => {
+  if (event.httpMethod !== 'GET') {
+    return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'GET' });
+  }
+
   try {
-    const db = admin.firestore(); // Access Cloud Firestore
+    const { db } = getAdminServices();
+    const [inverterSnapshot, batterySnapshot] = await Promise.all([
+      db.collection('inverters').get(),
+      db.collection('batteries').get()
+    ]);
 
-    // Fetch inverter data from the "inverters" collection
-    const inverterSnapshot = await db.collection("inverters").get();
-    const inverters = inverterSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const inverters = inverterSnapshot.docs
+      .map(itemDoc => {
+        const data = itemDoc.data();
+        return {
+          id: itemDoc.id,
+          name: String(data.name || '').trim(),
+          peakLoad: numberValue(data.peakLoad),
+          maxPanels: numberValue(data.maxPanels),
+          batterySupported: numberValue(data.batterySupported),
+          cost: numberValue(data.cost)
+        };
+      })
+      .filter(item => item.name && item.peakLoad > 0 && item.maxPanels > 0)
+      .sort((a, b) => a.cost - b.cost || a.peakLoad - b.peakLoad);
 
+    const batteries = batterySnapshot.docs
+      .map(itemDoc => {
+        const data = itemDoc.data();
+        return {
+          id: itemDoc.id,
+          name: String(data.name || '').trim(),
+          energy: numberValue(data.energy),
+          capacity: numberValue(data.capacity),
+          price: numberValue(data.price)
+        };
+      })
+      .filter(item => item.name && item.energy > 0 && item.capacity > 0)
+      .sort((a, b) => a.price - b.price || a.capacity - b.capacity);
 
-    // Fetch battery data from the "batteries" collection
-    const batterySnapshot = await db.collection("batteries").get();
-    const batteries = batterySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ inverters, batteries }),
-    };
+    return jsonResponse(
+      200,
+      { inverters, batteries },
+      { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' }
+    );
   } catch (error) {
-    console.error("Error fetching data from Firestore:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Internal Server Error" }),
-    };
+    console.error('Error fetching calculator data:', error);
+    return jsonResponse(500, { error: 'Unable to load calculator equipment data' });
   }
 };
