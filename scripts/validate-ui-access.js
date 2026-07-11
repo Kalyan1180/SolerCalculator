@@ -63,10 +63,12 @@ if (!navbarSource.includes('v-if="canOpenDashboard"')) {
   fail('public account navigation does not hide the administration link');
 }
 
+// Object data such as `user.role === 'admin'` may be used for reporting counts.
+// Access decisions must not use standalone role/currentRole/userRole comparisons.
 const forbiddenRoleChecks = [
   /\buserRole\s*={2,3}\s*['"]admin['"]/,
   /\bcurrentRole\s*={2,3}\s*['"]admin['"]/,
-  /\brole\s*={2,3}\s*['"]admin['"]/
+  /(?:^|[^.])\brole\s*={2,3}\s*['"]admin['"]/m
 ];
 for (const file of vueFiles(componentsDir)) {
   const source = fs.readFileSync(file, 'utf8');
