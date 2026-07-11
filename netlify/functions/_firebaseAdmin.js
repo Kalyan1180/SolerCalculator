@@ -91,7 +91,7 @@ function validateDecodedSession(decodedToken, profile, role) {
   }
 
   const tokensValidAfterSeconds = Number(profile.tokensValidAfterSeconds || 0);
-  if (Number.isFinite(tokensValidAfterSeconds) && tokensValidAfterSeconds > 0 && authTime < tokensValidAfterSeconds) {
+  if (Number.isFinite(tokensValidAfterSeconds) && tokensValidAfterSeconds > 0 && authTime <= tokensValidAfterSeconds) {
     return {
       code: 'SESSION_REVOKED',
       error: 'This session has been revoked. Please sign in again.'
