@@ -75,14 +75,20 @@ exports.handler = async event => {
       });
     });
 
-    // Claims are a defence-in-depth copy of the role. Authorization still reads
-    // Firestore so a role change takes effect immediately without trusting stale tokens.
-    const existingClaims = targetUser.customClaims || {};
-    await auth.setCustomUserClaims(uid, {
-      ...existingClaims,
-      role: requestedRole,
-      rbacVersion: rbacConfig.version
-    });
+    // Claims are a defence-in-depth copy. Firestore remains authoritative, so a
+    // claim-sync problem must not roll back or misreport a completed role change.
+    let claimSyncWarning = null;
+    try {
+      const existingClaims = targetUser.customClaims || {};
+      await auth.setCustomUserClaims(uid, {
+        ...existingClaims,
+        role: requestedRole,
+        rbacVersion: rbacConfig.version
+      });
+    } catch (claimError) {
+      claimSyncWarning = 'The role was updated, but Firebase custom claims could not be synchronized.';
+      console.error('Custom claim synchronization failed:', claimError);
+    }
 
     const roleDefinition = getRoleDefinition(requestedRole);
     return jsonResponse(200, {
@@ -91,7 +97,8 @@ exports.handler = async event => {
       previousRole,
       role: requestedRole,
       roleLabel: roleDefinition.label,
-      auditId: auditRef.id
+      auditId: auditRef.id,
+      warning: claimSyncWarning
     });
   } catch (error) {
     console.error('Error updating user role:', error);
