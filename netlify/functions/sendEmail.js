@@ -1,122 +1,127 @@
-// netlify/functions/sendEmail.js
-// Email service using SendGrid or Node Mailer
+// Admin-only transactional email delivery using the Resend HTTP API.
+const {
+  HttpError,
+  json,
+  parseJsonBody,
+  requireUser,
+  toPublicError
+} = require('../lib/firebaseAdmin');
 
-const nodemailer = require('nodemailer');
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
-// Configure email service
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: process.env.EMAIL_PORT || 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  }
-});
+function currency(value) {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(number)
+    : '0';
+}
 
-const emailTemplates = {
+const templates = {
   'project-update': (data) => ({
-    subject: `Update on your Solar Project #${data.projectId.substring(0, 12)}`,
+    subject: `Update on your Solar Project #${String(data.projectId || '').slice(0, 12)}`,
     html: `
       <h2>Project Update</h2>
-      <p>Dear ${data.customerName},</p>
-      <p>${data.statusMessage}</p>
-      <p><strong>Project ID:</strong> ${data.projectId}</p>
-      <p><strong>Status:</strong> ${data.status}</p>
-      <p><strong>Quoted Price:</strong> ₹${data.quotedPrice}</p>
-      <p><strong>Advance Amount:</strong> ₹${data.advanceAmount || 0}</p>
-      <p><strong>Balance Amount:</strong> ₹${data.balanceAmount || 0}</p>
-      <p>Thank you for choosing ANT Solar!</p>
+      <p>Dear ${escapeHtml(data.customerName)},</p>
+      <p>${escapeHtml(data.statusMessage)}</p>
+      <p><strong>Project ID:</strong> ${escapeHtml(data.projectId)}</p>
+      <p><strong>Status:</strong> ${escapeHtml(data.status)}</p>
+      <p><strong>Quoted Price:</strong> INR ${currency(data.quotedPrice)}</p>
+      <p><strong>Advance Amount:</strong> INR ${currency(data.advanceAmount)}</p>
+      <p><strong>Balance Amount:</strong> INR ${currency(data.balanceAmount)}</p>
+      <p>Thank you for choosing ANT Solar.</p>
       <p>Best Regards,<br>ANT Solar Team</p>
     `
   }),
   'payment-reminder': (data) => ({
-    subject: `Payment Reminder: ${data.milestone} Payment Due`,
+    subject: `Payment Reminder: ${String(data.milestone || 'Project')} Payment Due`,
     html: `
       <h2>Payment Reminder</h2>
-      <p>Dear ${data.customerName},</p>
-      <p>This is a friendly reminder that your <strong>${data.milestone}</strong> payment of <strong>₹${data.amount}</strong> is due for your solar project.</p>
-      <p><strong>Project ID:</strong> ${data.projectId}</p>
-      <p><strong>Due Date:</strong> ${data.dueDate}</p>
+      <p>Dear ${escapeHtml(data.customerName)},</p>
+      <p>Your <strong>${escapeHtml(data.milestone)}</strong> payment of
+      <strong>INR ${currency(data.amount)}</strong> is due for your solar project.</p>
+      <p><strong>Project ID:</strong> ${escapeHtml(data.projectId)}</p>
+      <p><strong>Due Date:</strong> ${escapeHtml(data.dueDate)}</p>
       <p>Please contact us for payment details.</p>
       <p>Thank you,<br>ANT Solar Team</p>
     `
   }),
   'project-completion': (data) => ({
-    subject: `Your Solar Project is Complete! #${data.projectId.substring(0, 12)}`,
+    subject: `Your Solar Project is Complete! #${String(data.projectId || '').slice(0, 12)}`,
     html: `
       <h2>Project Completion</h2>
-      <p>Dear ${data.customerName},</p>
-      <p>Great news! Your solar installation is complete and ready for use.</p>
-      <p><strong>Project Details:</strong></p>
+      <p>Dear ${escapeHtml(data.customerName)},</p>
+      <p>Your solar installation is complete and ready for use.</p>
       <ul>
-        <li>Completion Date: ${data.completionDate}</li>
-        <li>Solar Panels: ${data.panelCount}</li>
-        <li>Inverter: ${data.inverter}</li>
-        <li>Battery: ${data.battery}</li>
+        <li>Completion Date: ${escapeHtml(data.completionDate)}</li>
+        <li>Solar Panels: ${escapeHtml(data.panelCount)}</li>
+        <li>Inverter: ${escapeHtml(data.inverter)}</li>
+        <li>Battery: ${escapeHtml(data.battery)}</li>
       </ul>
-      <p>For any service support or maintenance, please don't hesitate to contact us.</p>
-      <p>Thank you for choosing ANT Solar!</p>
-      <p>Best Regards,<br>ANT Solar Team</p>
+      <p>For service support or maintenance, please contact the ANT Solar team.</p>
+      <p>Thank you for choosing ANT Solar.</p>
     `
   })
 };
 
-exports.handler = async (event) => {
+exports.handler = async function handler(event) {
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return json(405, { error: 'Method not allowed.' }, { Allow: 'POST' });
   }
 
   try {
-    const { to, template, data } = JSON.parse(event.body);
+    await requireUser(event, { roles: ['admin'] });
+    const request = parseJsonBody(event, 50000);
+    const to = typeof request.to === 'string' ? request.to.trim().toLowerCase() : '';
+    const templateName = typeof request.template === 'string' ? request.template : '';
+    const template = templates[templateName];
 
-    if (!to || !template || !data) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing required fields: to, template, data' })
-      };
+    if (!/^\S+@\S+\.\S+$/.test(to)) {
+      throw new HttpError(400, 'A valid recipient email address is required.');
+    }
+    if (!template || !request.data || typeof request.data !== 'object') {
+      throw new HttpError(400, 'A supported email template and data are required.');
     }
 
-    const emailTemplate = emailTemplates[template];
-    if (!emailTemplate) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: `Unknown template: ${template}` })
-      };
+    const apiKey = process.env.RESEND_API_KEY;
+    const from = process.env.EMAIL_FROM;
+    if (!apiKey || !from) {
+      throw new HttpError(503, 'Email delivery is not configured. Set RESEND_API_KEY and EMAIL_FROM.');
     }
 
-    const emailContent = emailTemplate(data);
-
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || 'noreply@antsolar.com',
-      to: to,
-      subject: emailContent.subject,
-      html: emailContent.html
-    };
-
-    const result = await transporter.sendMail(mailOptions);
-
-    console.log('Email sent:', result.response);
-
-    return {
-      statusCode: 200,
+    const content = template(request.data);
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
-        success: true,
-        message: 'Email sent successfully',
-        messageId: result.messageId
+        from,
+        to: [to],
+        subject: content.subject,
+        html: content.html
       })
-    };
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('Email provider error:', result);
+      throw new HttpError(502, 'The email provider rejected the request.');
+    }
+
+    return json(200, {
+      success: true,
+      message: 'Email sent successfully.',
+      messageId: result.id || null
+    });
   } catch (error) {
-    console.error('Error sending email:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: error.message
-      })
-    };
+    return toPublicError(error);
   }
 };

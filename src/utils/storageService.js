@@ -1,6 +1,4 @@
 // src/utils/storageService.js
-// Firebase Storage integration for photo uploads
-
 import { storage } from '@/firebase';
 import {
   ref,
@@ -10,26 +8,42 @@ import {
   listAll
 } from 'firebase/storage';
 
-/**
- * Upload photo to Firebase Storage
- */
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+function safeSegment(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 120);
+}
+
+function validateFile(file) {
+  if (!file) throw new Error('A file is required.');
+  if (!ALLOWED_TYPES.has(file.type)) throw new Error('Only JPEG, PNG and WebP images are supported.');
+  if (file.size > MAX_FILE_SIZE) throw new Error('Image must be 5 MB or smaller.');
+}
+
 export async function uploadProjectPhoto(projectId, file) {
   try {
-    const fileName = `${projectId}_${Date.now()}_${file.name}`;
-    const storageRef = ref(storage, `project-photos/${projectId}/${fileName}`);
+    const safeProjectId = safeSegment(projectId);
+    if (!safeProjectId) throw new Error('A valid project ID is required.');
+    validateFile(file);
 
-    // Upload file
-    const snapshot = await uploadBytes(storageRef, file);
-    console.log('Photo uploaded:', snapshot.metadata.name);
-
-    // Get download URL
+    const fileName = `${Date.now()}_${safeSegment(file.name) || 'photo'}`;
+    const path = `project-photos/${safeProjectId}/${fileName}`;
+    const storageRef = ref(storage, path);
+    const snapshot = await uploadBytes(storageRef, file, {
+      contentType: file.type,
+      customMetadata: { projectId: safeProjectId }
+    });
     const downloadURL = await getDownloadURL(snapshot.ref);
-    console.log('Download URL:', downloadURL);
 
     return {
       success: true,
-      fileName: fileName,
-      downloadURL: downloadURL,
+      fileName,
+      path: snapshot.ref.fullPath,
+      downloadURL,
       uploadedAt: new Date().toISOString()
     };
   } catch (error) {
@@ -38,24 +52,17 @@ export async function uploadProjectPhoto(projectId, file) {
   }
 }
 
-/**
- * Get all photos for a project
- */
 export async function getProjectPhotos(projectId) {
   try {
-    const folderRef = ref(storage, `project-photos/${projectId}`);
+    const safeProjectId = safeSegment(projectId);
+    if (!safeProjectId) throw new Error('A valid project ID is required.');
+    const folderRef = ref(storage, `project-photos/${safeProjectId}`);
     const result = await listAll(folderRef);
-
-    const photos = [];
-    for (const item of result.items) {
-      const url = await getDownloadURL(item);
-      photos.push({
-        name: item.name,
-        url: url,
-        path: item.fullPath
-      });
-    }
-
+    const photos = await Promise.all(result.items.map(async (item) => ({
+      name: item.name,
+      url: await getDownloadURL(item),
+      path: item.fullPath
+    })));
     return { success: true, photos };
   } catch (error) {
     console.error('Error fetching project photos:', error);
@@ -63,14 +70,12 @@ export async function getProjectPhotos(projectId) {
   }
 }
 
-/**
- * Delete a photo from Firebase Storage
- */
 export async function deleteProjectPhoto(photoPath) {
   try {
-    const photoRef = ref(storage, photoPath);
-    await deleteObject(photoRef);
-    console.log('Photo deleted:', photoPath);
+    if (!String(photoPath || '').startsWith('project-photos/')) {
+      throw new Error('Invalid project photo path.');
+    }
+    await deleteObject(ref(storage, photoPath));
     return { success: true };
   } catch (error) {
     console.error('Error deleting photo:', error);
@@ -78,23 +83,25 @@ export async function deleteProjectPhoto(photoPath) {
   }
 }
 
-/**
- * Upload multiple photos
- */
 export async function uploadMultiplePhotos(projectId, files) {
-  try {
-    const uploadResults = [];
+  const uploads = [];
+  const failures = [];
 
-    for (const file of files) {
-      const result = await uploadProjectPhoto(projectId, file);
-      if (result.success) {
-        uploadResults.push(result);
-      }
+  for (const file of Array.from(files || [])) {
+    const result = await uploadProjectPhoto(projectId, file);
+    if (result.success) {
+      uploads.push(result);
+    } else {
+      failures.push({ fileName: file.name, error: result.error });
     }
-
-    return { success: true, uploads: uploadResults };
-  } catch (error) {
-    console.error('Error uploading multiple photos:', error);
-    return { success: false, error: error.message };
   }
+
+  return {
+    success: uploads.length > 0 || failures.length === 0,
+    uploads,
+    failures,
+    error: uploads.length === 0 && failures.length
+      ? failures.map((failure) => `${failure.fileName}: ${failure.error}`).join('; ')
+      : null
+  };
 }

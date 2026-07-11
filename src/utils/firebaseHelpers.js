@@ -1,40 +1,38 @@
 // src/utils/firebaseHelpers.js
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/firebase';
 
-export async function createUserWithRole(user, role = 'user') {
-  try {
-    const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-      // Create the document only if it doesn't exist.
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || "",
-        role: role
-      });
-      console.log("User role set successfully!");
-    } else {
-      console.log("User already exists. Not updating role.");
-    }
-  } catch (error) {
-    console.error("Error setting user role:", error);
+const DEFAULT_ROLE = 'user';
+
+export async function createUserWithRole(user, role = DEFAULT_ROLE) {
+  if (!user?.uid) throw new Error('A valid authenticated user is required.');
+
+  const safeRole = role === DEFAULT_ROLE ? DEFAULT_ROLE : DEFAULT_ROLE;
+  const userRef = doc(db, 'users', user.uid);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      uid: user.uid,
+      email: user.email || '',
+      displayName: user.displayName || '',
+      role: safeRole,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
   }
+
+  return { success: true };
 }
 
 export async function getUserRole(uid) {
+  if (!uid) return null;
+
   try {
-    const userRef = doc(db, "users", uid);
-    const userSnap = await getDoc(userRef);
-    if (userSnap.exists()) {
-      return userSnap.data().role;
-    } else {
-      console.error("No user role found for UID:", uid);
-      return null;
-    }
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    return userSnap.exists() ? (userSnap.data().role || DEFAULT_ROLE) : null;
   } catch (error) {
-    console.error("Error fetching user role:", error);
+    console.error('Error fetching user role:', error);
     return null;
   }
 }

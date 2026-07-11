@@ -1,120 +1,58 @@
 // src/utils/emailService.js
-// Email notification service
+import { authorizedFetch } from '@/utils/apiClient';
 
-/**
- * Send project status update email to customer
- */
-export async function sendProjectUpdateEmail(project, statusMessage) {
+async function sendEmail(template, project, data) {
+  if (!project?.customerEmail) {
+    return { success: false, error: 'Customer email is missing.' };
+  }
+
   try {
-    const emailData = {
-      to: project.customerEmail,
-      subject: `Update on your Solar Project #${project.projectId.substring(0, 12)}`,
-      template: 'project-update',
-      data: {
-        customerName: project.customerName,
-        projectId: project.projectId,
-        status: project.status,
-        statusMessage,
-        quotedPrice: project.quotedPrice,
-        advanceAmount: project.advanceAmount,
-        balanceAmount: project.balanceAmount,
-        paymentStatus: project.paymentStatus
-      }
-    };
-
-    // Call backend email service (Netlify function)
-    const response = await fetch('/.netlify/functions/sendEmail', {
+    const result = await authorizedFetch('/.netlify/functions/sendEmail', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(emailData)
+      body: JSON.stringify({
+        to: project.customerEmail,
+        template,
+        data
+      })
     });
-
-    if (!response.ok) {
-      throw new Error('Failed to send email');
-    }
-
-    console.log('Email sent successfully');
-    return { success: true };
+    return { success: true, data: result };
   } catch (error) {
     console.error('Error sending email:', error);
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Send payment reminder email
- */
-export async function sendPaymentReminderEmail(project, milestone = 'advance') {
-  try {
-    const amount = milestone === 'advance' ? project.advanceAmount : project.balanceAmount;
-    const emailData = {
-      to: project.customerEmail,
-      subject: `Payment Reminder: ${milestone === 'advance' ? 'Advance' : 'Balance'} Payment Due`,
-      template: 'payment-reminder',
-      data: {
-        customerName: project.customerName,
-        projectId: project.projectId,
-        milestone: milestone === 'advance' ? 'Advance (50%)' : 'Balance (50%)',
-        amount,
-        dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')
-      }
-    };
-
-    const response = await fetch('/.netlify/functions/sendEmail', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(emailData)
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to send email');
-    }
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error sending payment reminder:', error);
-    return { success: false, error: error.message };
-  }
+export function sendProjectUpdateEmail(project, statusMessage) {
+  return sendEmail('project-update', project, {
+    customerName: project.customerName,
+    projectId: project.projectId,
+    status: project.status,
+    statusMessage,
+    quotedPrice: project.finalPrice || project.quotedPrice,
+    advanceAmount: project.advanceAmount,
+    balanceAmount: project.balanceAmount,
+    paymentStatus: project.paymentStatus
+  });
 }
 
-/**
- * Send project completion confirmation email
- */
-export async function sendCompletionEmail(project) {
-  try {
-    const emailData = {
-      to: project.customerEmail,
-      subject: `Your Solar Project is Complete! #${project.projectId.substring(0, 12)}`,
-      template: 'project-completion',
-      data: {
-        customerName: project.customerName,
-        projectId: project.projectId,
-        completionDate: new Date().toLocaleDateString('en-IN'),
-        panelCount: project.panelCount,
-        inverter: project.inverter?.name,
-        battery: project.battery?.selectedBattery?.name
-      }
-    };
+export function sendPaymentReminderEmail(project, milestone = 'advance') {
+  const isAdvance = milestone === 'advance';
+  return sendEmail('payment-reminder', project, {
+    customerName: project.customerName,
+    projectId: project.projectId,
+    milestone: isAdvance ? 'Advance (50%)' : 'Balance (50%)',
+    amount: isAdvance ? project.advanceAmount : project.balanceAmount,
+    dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')
+  });
+}
 
-    const response = await fetch('/.netlify/functions/sendEmail', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(emailData)
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to send email');
-    }
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error sending completion email:', error);
-    return { success: false, error: error.message };
-  }
+export function sendCompletionEmail(project) {
+  return sendEmail('project-completion', project, {
+    customerName: project.customerName,
+    projectId: project.projectId,
+    completionDate: new Date().toLocaleDateString('en-IN'),
+    panelCount: project.panelCount,
+    inverter: project.inverter?.name || 'N/A',
+    battery: project.battery?.selectedBattery?.name || 'N/A'
+  });
 }
