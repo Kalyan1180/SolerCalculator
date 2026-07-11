@@ -1,243 +1,178 @@
 <template>
   <div class="project-approval container-fluid py-4">
-    <div class="row">
-      <!-- Left Column: Project Details -->
+    <div v-if="loading" class="text-center my-5" role="status">
+      <div class="spinner-border text-primary"></div>
+      <p class="mt-2">Loading project...</p>
+    </div>
+
+    <div v-if="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ error }}
+      <button type="button" class="btn-close" aria-label="Close" @click="error = ''"></button>
+    </div>
+    <div v-if="successMessage" class="alert alert-success" role="status">{{ successMessage }}</div>
+
+    <div v-if="!loading && project" class="row g-4">
       <div class="col-lg-8">
-        <div class="card mb-4" v-if="project">
-          <div class="card-header bg-primary text-white">
-            <div class="d-flex justify-content-between align-items-center">
-              <h4 class="mb-0">Project #{{ project.projectId.substring(0, 12) }}</h4>
-              <span class="badge" :style="{ backgroundColor: getStatusColor(project.status) }}">{{ getStatusLabel(project.status) }}</span>
-            </div>
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Project #{{ shortProjectId }}</h4>
+            <span class="badge" :style="{ backgroundColor: getStatusColor(project.status) }">
+              {{ getStatusLabel(project.status) }}
+            </span>
           </div>
           <div class="card-body">
-            <!-- Customer Information -->
-            <h5 class="mb-3">Customer Information</h5>
+            <h5>Customer Information</h5>
             <div class="row mb-4">
               <div class="col-md-6">
-                <p><strong>Name:</strong> {{ project.customerName }}</p>
-                <p><strong>Email:</strong> <a :href="`mailto:${project.customerEmail}`">{{ project.customerEmail }}</a></p>
-                <p><strong>Phone:</strong> <a :href="`tel:${project.customerPhone}`">{{ project.customerPhone }}</a></p>
+                <p><strong>Name:</strong> {{ project.customerName || 'N/A' }}</p>
+                <p><strong>Email:</strong> <a :href="`mailto:${project.customerEmail}`">{{ project.customerEmail || 'N/A' }}</a></p>
+                <p><strong>Phone:</strong> <a :href="`tel:${project.customerPhone}`">{{ project.customerPhone || 'N/A' }}</a></p>
               </div>
               <div class="col-md-6">
-                <p><strong>Address:</strong> {{ project.address }}</p>
-                <p><strong>Project Created:</strong> {{ formatDate(project.createdAt) }}</p>
+                <p><strong>Address:</strong> {{ project.address || 'N/A' }}</p>
+                <p><strong>Created:</strong> {{ formatDate(project.createdAt) }}</p>
               </div>
             </div>
 
-            <hr>
-
-            <!-- Solar Specifications -->
-            <h5 class="mb-3">Solar Specifications</h5>
-            <div class="row mb-4">
+            <hr />
+            <h5>Solar Specifications</h5>
+            <div class="row g-3 mb-4">
               <div class="col-md-4">
-                <div class="spec-card">
-                  <p class="text-muted">Solar Panels</p>
-                  <h3>{{ project.panelCount }}</h3>
-                  <small>@ ₹15,000 each</small>
+                <div class="spec-card h-100">
+                  <div class="text-muted">Panels</div>
+                  <h3>{{ numberValue(project.panelCount) }}</h3>
                 </div>
               </div>
               <div class="col-md-4">
-                <div class="spec-card">
-                  <p class="text-muted">Inverter</p>
-                  <h4>{{ project.inverter?.name }}</h4>
-                  <small>{{ project.inverter?.peakLoad }} KVA</small>
+                <div class="spec-card h-100">
+                  <div class="text-muted">Inverter</div>
+                  <h5>{{ project.inverter?.name || 'N/A' }}</h5>
+                  <small>{{ numberValue(project.inverter?.peakLoad) }} KVA</small>
                 </div>
               </div>
               <div class="col-md-4">
-                <div class="spec-card">
-                  <p class="text-muted">Battery</p>
-                  <h4>{{ project.battery?.selectedBattery?.name }}</h4>
-                  <small>{{ project.battery?.quantity }} units ({{ project.battery?.selectedBattery?.capacity }} AH)</small>
+                <div class="spec-card h-100">
+                  <div class="text-muted">Battery</div>
+                  <h5>{{ project.battery?.selectedBattery?.name || 'Not required' }}</h5>
+                  <small v-if="project.battery?.selectedBattery">{{ numberValue(project.battery?.quantity) }} unit(s)</small>
                 </div>
               </div>
             </div>
 
-            <hr>
-
-            <!-- Cost Breakdown -->
-            <h5 class="mb-3">Cost Breakdown</h5>
+            <hr />
+            <h5>Cost Breakdown</h5>
             <table class="table table-borderless">
               <tbody>
-                <tr>
-                  <td>Material Cost</td>
-                  <td class="text-end fw-bold">₹{{ formatCurrency(project.materialCost) }}</td>
-                </tr>
-                <tr>
-                  <td>Labor Cost</td>
-                  <td class="text-end fw-bold">₹{{ formatCurrency(project.laborCost) }}</td>
-                </tr>
-                <tr class="table-active">
-                  <td><strong>Total Cost</strong></td>
-                  <td class="text-end fw-bold"><strong>₹{{ formatCurrency(project.materialCost + project.laborCost) }}</strong></td>
-                </tr>
-                <tr>
-                  <td>Markup/Profit</td>
-                  <td class="text-end fw-bold text-success">₹{{ formatCurrency(project.quotedPrice - project.materialCost - project.laborCost) }}</td>
-                </tr>
-                <tr class="table-primary">
-                  <td><strong>Quoted Price</strong></td>
-                  <td class="text-end fw-bold"><strong>₹{{ formatCurrency(project.quotedPrice) }}</strong></td>
-                </tr>
+                <tr><td>Equipment/material</td><td class="text-end">Rs {{ formatCurrency(project.materialCost) }}</td></tr>
+                <tr><td>Installation/labour</td><td class="text-end">Rs {{ formatCurrency(project.laborCost) }}</td></tr>
+                <tr><td>Cost before profit</td><td class="text-end">Rs {{ formatCurrency(project.totalCostWithoutMarkup) }}</td></tr>
+                <tr class="table-primary"><th>Quoted price</th><th class="text-end">Rs {{ formatCurrency(project.quotedPrice) }}</th></tr>
               </tbody>
             </table>
 
-            <hr>
-
-            <!-- Admin Notes -->
-            <h5 class="mb-3">Notes</h5>
-            <div class="form-group mb-3">
-              <textarea v-model="project.adminNotes" class="form-control" rows="3" placeholder="Add admin notes here"></textarea>
+            <div class="mb-3">
+              <label for="adminNotes" class="form-label fw-bold">Admin Notes</label>
+              <textarea id="adminNotes" v-model.trim="adminNotes" class="form-control" rows="3" maxlength="2000"></textarea>
             </div>
+            <button class="btn btn-outline-primary" :disabled="busyAction" @click="saveNotes">Save Notes</button>
           </div>
         </div>
 
-        <!-- Document Upload Section -->
-        <div class="card mb-4">
-          <div class="card-header bg-info text-white">
-            <h5 class="mb-0">📸 Site Documents & Photos</h5>
-          </div>
+        <div class="card">
+          <div class="card-header bg-info text-white"><h5 class="mb-0">Site Photos</h5></div>
           <div class="card-body">
-            <div class="upload-area border-2 border-dashed p-4 rounded text-center">
-              <input type="file" @change="handleFileUpload" multiple accept="image/*" class="d-none" ref="fileInput" />
-              <button class="btn btn-outline-info" @click="$refs.fileInput.click()">
-                <i class="fas fa-cloud-upload-alt me-2"></i>Upload Photos
-              </button>
-              <p class="text-muted mt-2 mb-0">Before/After installation photos</p>
-            </div>
-            <div v-if="project.sitePhotos && project.sitePhotos.length" class="mt-3">
-              <p class="fw-bold">Uploaded Photos:</p>
-              <div class="row">
-                <div v-for="(photo, idx) in project.sitePhotos" :key="idx" class="col-md-3 mb-2">
-                  <div class="photo-thumbnail">
-                    <img :src="photo" alt="Site photo" class="img-fluid rounded">
-                  </div>
-                </div>
+            <input
+              ref="fileInput"
+              class="form-control"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              :disabled="busyAction"
+              @change="handleFileUpload"
+            />
+            <small class="text-muted">JPEG, PNG or WebP; maximum 8 MB per image.</small>
+
+            <div v-if="project.sitePhotos?.length" class="row g-3 mt-2">
+              <div v-for="(photo, index) in project.sitePhotos" :key="`${photo}-${index}`" class="col-6 col-md-3">
+                <a :href="photo" target="_blank" rel="noopener noreferrer">
+                  <img :src="photo" class="img-fluid rounded photo-thumbnail" alt="Solar installation site" />
+                </a>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Right Column: Actions & Payment -->
       <div class="col-lg-4">
-        <!-- Payment Status Card -->
-        <div class="card mb-4 sticky-top">
-          <div class="card-header bg-success text-white">
-            <h5 class="mb-0">💳 Payment Status</h5>
-          </div>
+        <div class="card mb-4">
+          <div class="card-header bg-success text-white"><h5 class="mb-0">Payment Status</h5></div>
           <div class="card-body">
             <div class="payment-milestone mb-3">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span>Advance (50%)</span>
-                <span class="badge" :class="project.paymentStatus === 'advance_paid' || project.paymentStatus === 'balance_paid' ? 'bg-success' : 'bg-warning'">{{ project.paymentStatus === 'advance_paid' || project.paymentStatus === 'balance_paid' ? '✓ Paid' : 'Pending' }}</span>
+              <div class="d-flex justify-content-between">
+                <span>Advance</span>
+                <span class="badge" :class="advancePaid ? 'bg-success' : 'bg-warning text-dark'">{{ advancePaid ? 'Paid' : 'Pending' }}</span>
               </div>
-              <h5 class="text-primary">₹{{ formatCurrency(project.advanceAmount || 0) }}</h5>
+              <strong>Rs {{ formatCurrency(project.advanceAmount) }}</strong>
             </div>
             <div class="payment-milestone">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span>Balance (50%)</span>
-                <span class="badge" :class="project.paymentStatus === 'balance_paid' ? 'bg-success' : 'bg-secondary'">{{ project.paymentStatus === 'balance_paid' ? '✓ Paid' : 'Pending' }}</span>
+              <div class="d-flex justify-content-between">
+                <span>Balance</span>
+                <span class="badge" :class="balancePaid ? 'bg-success' : 'bg-secondary'">{{ balancePaid ? 'Paid' : 'Pending' }}</span>
               </div>
-              <h5 class="text-primary">₹{{ formatCurrency(project.balanceAmount || 0) }}</h5>
-            </div>
-            <hr>
-            <p class="text-muted mb-0">Total: <strong>₹{{ formatCurrency(project.quotedPrice) }}</strong></p>
-          </div>
-        </div>
-
-        <!-- Status Update Actions -->
-        <div class="card mb-4">
-          <div class="card-header bg-warning text-white">
-            <h5 class="mb-0">⚙️ Update Status</h5>
-          </div>
-          <div class="card-body">
-            <div class="btn-group-vertical w-100 gap-2 d-flex">
-              <button
-                v-if="project.status === 'quote_pending'"
-                @click="updateStatus('quote_sent')"
-                class="btn btn-sm btn-outline-primary"
-              >
-                📧 Send Quote
-              </button>
-              <button
-                v-if="project.status === 'quote_sent'"
-                @click="updateStatus('approved')"
-                class="btn btn-sm btn-success"
-              >
-                ✅ Approve Quote
-              </button>
-              <button
-                v-if="project.status === 'approved'"
-                @click="updateStatus('installation_scheduled')"
-                class="btn btn-sm btn-info"
-              >
-                📅 Schedule Installation
-              </button>
-              <button
-                v-if="project.status === 'installation_scheduled'"
-                @click="updateStatus('in_progress')"
-                class="btn btn-sm btn-warning"
-              >
-                🔧 Start Installation
-              </button>
-              <button
-                v-if="project.status === 'in_progress'"
-                @click="updateStatus('completed')"
-                class="btn btn-sm btn-success"
-              >
-                ✨ Mark Complete
-              </button>
+              <strong>Rs {{ formatCurrency(project.balanceAmount) }}</strong>
             </div>
           </div>
         </div>
 
-        <!-- Payment Recording -->
         <div class="card mb-4">
-          <div class="card-header bg-info text-white">
-            <h5 class="mb-0">💰 Record Payment</h5>
+          <div class="card-header bg-warning"><h5 class="mb-0">Update Status</h5></div>
+          <div class="card-body d-grid gap-2">
+            <button
+              v-for="action in availableStatusActions"
+              :key="action.status"
+              class="btn"
+              :class="action.className"
+              :disabled="busyAction"
+              @click="updateStatus(action.status)"
+            >
+              {{ action.label }}
+            </button>
+            <span v-if="!availableStatusActions.length" class="text-muted">No further status action is available.</span>
           </div>
+        </div>
+
+        <div class="card mb-4">
+          <div class="card-header bg-info text-white"><h5 class="mb-0">Record Payment</h5></div>
           <div class="card-body">
-            <div class="form-group mb-3">
-              <label class="form-label">Payment Type</label>
-              <select v-model="paymentType" class="form-select">
-                <option value="advance">Advance (50%)</option>
-                <option value="balance">Balance (50%)</option>
+            <div class="mb-3">
+              <label for="paymentType" class="form-label">Payment</label>
+              <select id="paymentType" v-model="paymentType" class="form-select" :disabled="busyAction || !paymentReady">
+                <option value="advance">Advance</option>
+                <option value="balance" :disabled="!advancePaid">Balance</option>
               </select>
             </div>
-            <div class="form-group mb-3">
-              <label class="form-label">Amount</label>
-              <input type="number" class="form-control" :value="paymentType === 'advance' ? project.advanceAmount : project.balanceAmount" disabled />
-            </div>
-            <div class="form-group mb-3">
-              <label class="form-label">Payment Method</label>
-              <select v-model="paymentMethod" class="form-select">
+            <div class="mb-3">
+              <label for="paymentMethod" class="form-label">Method</label>
+              <select id="paymentMethod" v-model="paymentMethod" class="form-select" :disabled="busyAction || !paymentReady">
                 <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank Transfer</option>
+                <option value="bank_transfer">Bank transfer</option>
                 <option value="cheque">Cheque</option>
+                <option value="upi">UPI</option>
               </select>
             </div>
-            <button @click="recordPayment" class="btn btn-success w-100">
-              <i class="fas fa-check me-2"></i>Record Payment
+            <button class="btn btn-success w-100" :disabled="!canRecordPayment || busyAction" @click="recordPayment">
+              Record {{ paymentType }} payment
             </button>
+            <small v-if="!paymentReady" class="d-block text-muted mt-2">Approve the quotation before recording payment.</small>
           </div>
         </div>
 
-        <!-- Document Downloads -->
         <div class="card">
-          <div class="card-header bg-secondary text-white">
-            <h5 class="mb-0">📄 Documents</h5>
-          </div>
+          <div class="card-header bg-secondary text-white"><h5 class="mb-0">Documents & Notifications</h5></div>
           <div class="list-group list-group-flush">
-            <button @click="downloadQuotation" class="list-group-item list-group-item-action">
-              <i class="fas fa-file-pdf text-danger me-2"></i>Download Quotation
-            </button>
-            <button @click="downloadInvoice" class="list-group-item list-group-item-action">
-              <i class="fas fa-file-invoice-dollar text-primary me-2"></i>Download Invoice
-            </button>
-            <button @click="sendEmailUpdate" class="list-group-item list-group-item-action">
-              <i class="fas fa-envelope text-info me-2"></i>Send Email Update
-            </button>
+            <button class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadQuotation">Download quotation PDF</button>
+            <button class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadInvoice">Download invoice PDF</button>
+            <button class="list-group-item list-group-item-action" :disabled="busyAction" @click="sendEmailUpdate">Send email update</button>
           </div>
         </div>
       </div>
@@ -246,199 +181,209 @@
 </template>
 
 <script>
-import { getProject, updateProjectStatus, updatePaymentStatus } from '@/models/projectModel';
-import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from '@/constants/businessConstants';
-import { generateQuotationData, generateInvoiceData } from '@/utils/invoiceGenerator';
-import { sendProjectUpdateEmail, sendPaymentReminderEmail, sendCompletionEmail } from '@/utils/emailService';
+import {
+  getProject,
+  updatePaymentStatus,
+  updateProjectFields,
+  updateProjectStatus
+} from '@/models/projectModel';
+import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/constants/businessConstants';
+import { sendCompletionEmail, sendProjectUpdateEmail } from '@/utils/emailService';
+import { downloadInvoicePDF, downloadQuotationPDF } from '@/utils/pdfGenerator';
+import { uploadMultiplePhotos } from '@/utils/storageService';
 
 export default {
   name: 'ProjectApproval',
   props: {
-    projectId: {
-      type: String,
-      required: true
-    }
+    projectId: { type: String, required: true }
   },
   data() {
     return {
       project: null,
+      adminNotes: '',
       loading: false,
+      busyAction: false,
       error: '',
       successMessage: '',
       paymentType: 'advance',
       paymentMethod: 'bank_transfer'
     };
   },
+  computed: {
+    shortProjectId() {
+      return String(this.project?.projectId || this.projectId).slice(0, 16);
+    },
+    advancePaid() {
+      return ['advance_paid', 'balance_paid'].includes(this.project?.paymentStatus);
+    },
+    balancePaid() {
+      return this.project?.paymentStatus === 'balance_paid';
+    },
+    paymentReady() {
+      return Boolean(this.project?.approvalDate && this.project?.advanceAmount != null);
+    },
+    canRecordPayment() {
+      if (!this.paymentReady) return false;
+      if (this.paymentType === 'advance') return !this.advancePaid;
+      return this.advancePaid && !this.balancePaid;
+    },
+    availableStatusActions() {
+      const actions = {
+        quote_pending: [{ status: 'quote_sent', label: 'Send Quote', className: 'btn-outline-primary' }],
+        quote_sent: [{ status: 'approved', label: 'Approve Quote', className: 'btn-success' }],
+        approved: [{ status: 'installation_scheduled', label: 'Schedule Installation', className: 'btn-info' }],
+        installation_scheduled: [{ status: 'in_progress', label: 'Start Installation', className: 'btn-warning' }],
+        in_progress: [{ status: 'completed', label: 'Mark Complete', className: 'btn-success' }]
+      };
+      return actions[this.project?.status] || [];
+    }
+  },
   created() {
     this.loadProject();
   },
   methods: {
+    numberValue(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number : 0;
+    },
     async loadProject() {
       this.loading = true;
       this.error = '';
       try {
         const result = await getProject(this.projectId);
-        if (result.success) {
-          this.project = result.project;
-        } else {
-          this.error = result.error || 'Project not found';
-        }
+        if (!result.success) throw new Error(result.error || 'Project not found');
+        this.project = result.project;
+        this.adminNotes = result.project.adminNotes || '';
+        if (this.balancePaid) this.paymentType = 'balance';
       } catch (error) {
-        console.error('Error loading project:', error);
-        this.error = 'Error loading project';
+        this.project = null;
+        this.error = error.message || 'Unable to load project.';
       } finally {
         this.loading = false;
       }
     },
+    showSuccess(message) {
+      this.successMessage = message;
+      window.setTimeout(() => { this.successMessage = ''; }, 3500);
+    },
     async updateStatus(newStatus) {
+      this.busyAction = true;
+      this.error = '';
       try {
-        const result = await updateProjectStatus(this.projectId, newStatus, `Status updated to ${this.getStatusLabel(newStatus)}`);
-        if (result.success) {
-          this.successMessage = `Project status updated to ${this.getStatusLabel(newStatus)}`;
-          await this.loadProject();
-          
-          // Send email notification
-          if (newStatus === 'quote_sent') {
-            await sendProjectUpdateEmail(this.project, 'Your quotation has been sent. Please review and confirm.');
-          } else if (newStatus === 'approved') {
-            await sendProjectUpdateEmail(this.project, 'Your project has been approved! Installation will commence soon.');
-          } else if (newStatus === 'completed') {
-            await sendCompletionEmail(this.project);
-          }
-          
-          setTimeout(() => this.successMessage = '', 3000);
-        } else {
-          this.error = result.error || 'Failed to update status';
+        const result = await updateProjectStatus(this.projectId, newStatus, this.adminNotes);
+        if (!result.success) throw new Error(result.error || 'Unable to update project status');
+        await this.loadProject();
+        this.showSuccess(`Status updated to ${this.getStatusLabel(newStatus)}.`);
+
+        let emailResult = { success: true };
+        if (newStatus === 'completed') emailResult = await sendCompletionEmail(this.project);
+        else if (['quote_sent', 'approved'].includes(newStatus)) {
+          emailResult = await sendProjectUpdateEmail(this.project, `Your project status is now ${this.getStatusLabel(newStatus)}.`);
         }
+        if (!emailResult.success) this.error = `Status saved, but the email could not be sent: ${emailResult.error}`;
       } catch (error) {
-        console.error('Error updating status:', error);
-        this.error = 'Error updating project status';
+        this.error = error.message || 'Unable to update project status.';
+      } finally {
+        this.busyAction = false;
+      }
+    },
+    async saveNotes() {
+      this.busyAction = true;
+      this.error = '';
+      try {
+        const result = await updateProjectFields(this.projectId, { adminNotes: this.adminNotes });
+        if (!result.success) throw new Error(result.error || 'Unable to save notes');
+        this.showSuccess('Notes saved.');
+      } catch (error) {
+        this.error = error.message;
+      } finally {
+        this.busyAction = false;
       }
     },
     async recordPayment() {
+      this.busyAction = true;
+      this.error = '';
       try {
-        const newPaymentStatus = this.paymentType === 'advance' ? 'advance_paid' : 'balance_paid';
+        const paymentStatus = this.paymentType === 'advance' ? 'advance_paid' : 'balance_paid';
         const result = await updatePaymentStatus(
           this.projectId,
-          newPaymentStatus,
-          `${this.paymentType} payment received via ${this.paymentMethod}`
+          paymentStatus,
+          `${this.paymentType} payment received`,
+          this.paymentMethod
         );
-        if (result.success) {
-          this.successMessage = 'Payment recorded successfully!';
-          await this.loadProject();
-          setTimeout(() => this.successMessage = '', 3000);
-        } else {
-          this.error = result.error || 'Failed to record payment';
-        }
+        if (!result.success) throw new Error(result.error || 'Unable to record payment');
+        await this.loadProject();
+        this.showSuccess('Payment recorded successfully.');
       } catch (error) {
-        console.error('Error recording payment:', error);
-        this.error = 'Error recording payment';
+        this.error = error.message;
+      } finally {
+        this.busyAction = false;
       }
     },
-    downloadQuotation() {
-      const data = generateQuotationData(this.project);
-      console.log('Quotation data:', data);
-      alert('PDF download feature - integrate with a PDF library like jsPDF or html2pdf');
+    async downloadQuotation() {
+      const result = await downloadQuotationPDF(this.project);
+      if (!result.success) this.error = result.error || 'Unable to generate quotation PDF.';
     },
-    downloadInvoice() {
-      const data = generateInvoiceData(this.project);
-      console.log('Invoice data:', data);
-      alert('PDF download feature - integrate with a PDF library like jsPDF or html2pdf');
+    async downloadInvoice() {
+      const result = await downloadInvoicePDF(this.project);
+      if (!result.success) this.error = result.error || 'Unable to generate invoice PDF.';
     },
     async sendEmailUpdate() {
+      this.busyAction = true;
+      this.error = '';
       try {
-        const result = await sendProjectUpdateEmail(this.project, 'Please find the updated details of your solar project.');
-        if (result.success) {
-          this.successMessage = 'Email sent successfully!';
-          setTimeout(() => this.successMessage = '', 3000);
-        } else {
-          this.error = result.error || 'Failed to send email';
-        }
+        const result = await sendProjectUpdateEmail(this.project, 'Please find the latest update for your solar project.');
+        if (!result.success) throw new Error(result.error || 'Unable to send email');
+        this.showSuccess('Email sent successfully.');
       } catch (error) {
-        console.error('Error sending email:', error);
-        this.error = 'Error sending email';
+        this.error = error.message;
+      } finally {
+        this.busyAction = false;
       }
     },
-    handleFileUpload(event) {
-      const files = event.target.files;
-      if (files) {
-        // In production, upload to Firebase Storage
-        for (let file of files) {
-          console.log('File to upload:', file.name);
-        }
-        this.successMessage = `${files.length} file(s) uploaded successfully!`;
-        setTimeout(() => this.successMessage = '', 3000);
+    async handleFileUpload(event) {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+      this.busyAction = true;
+      this.error = '';
+      try {
+        const result = await uploadMultiplePhotos(this.projectId, files);
+        if (!result.success) throw new Error(result.error || 'Unable to upload photos');
+        const newUrls = result.uploads.map(item => item.downloadURL);
+        const sitePhotos = [...(this.project.sitePhotos || []), ...newUrls];
+        const updateResult = await updateProjectFields(this.projectId, { sitePhotos });
+        if (!updateResult.success) throw new Error(updateResult.error || 'Photos uploaded but project could not be updated');
+        await this.loadProject();
+        this.showSuccess(`${newUrls.length} photo(s) uploaded.`);
+      } catch (error) {
+        this.error = error.message;
+      } finally {
+        this.busyAction = false;
+        if (this.$refs.fileInput) this.$refs.fileInput.value = '';
       }
     },
     getStatusLabel(status) {
-      return PROJECT_STATUS_LABELS[status] || status;
+      return PROJECT_STATUS_LABELS[status] || status || 'Unknown';
     },
     getStatusColor(status) {
-      return PROJECT_STATUS_COLORS[status] || '#999';
+      return PROJECT_STATUS_COLORS[status] || '#6c757d';
     },
     formatCurrency(value) {
-      return new Intl.NumberFormat('en-IN', {
-        style: 'decimal',
-        maximumFractionDigits: 0
-      }).format(value);
+      return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(this.numberValue(value));
     },
     formatDate(timestamp) {
       if (!timestamp) return 'N/A';
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return new Intl.DateTimeFormat('en-IN').format(date);
+      const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp);
+      return Number.isNaN(date.getTime()) ? 'N/A' : new Intl.DateTimeFormat('en-IN').format(date);
     }
   }
 };
 </script>
 
 <style scoped>
-.project-approval {
-  background-color: #f8f9fa;
-}
-
-.card {
-  border: none;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.spec-card {
-  padding: 1.5rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #007bff;
-}
-
-.payment-milestone {
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #28a745;
-}
-
-.upload-area {
-  background-color: #f8f9fa;
-  transition: all 0.3s;
-}
-
-.upload-area:hover {
-  background-color: #e9ecef;
-  cursor: pointer;
-}
-
-.photo-thumbnail {
-  overflow: hidden;
-  border-radius: 8px;
-}
-
-.btn-group-vertical {
-  gap: 0.5rem !important;
-}
-
-@media (max-width: 991px) {
-  .sticky-top {
-    position: relative;
-    top: 0;
-  }
-}
+.project-approval { background: #f8f9fa; min-height: 100vh; }
+.card { border: 0; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
+.spec-card, .payment-milestone { padding: 1rem; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #0d6efd; }
+.payment-milestone { border-left-color: #198754; }
+.photo-thumbnail { width: 100%; aspect-ratio: 1; object-fit: cover; }
 </style>
