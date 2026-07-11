@@ -18,6 +18,7 @@ export const PERMISSIONS = Object.freeze({
   ANALYTICS_READ: 'analytics.read',
   USERS_READ: 'users.read',
   USERS_ROLES_WRITE: 'users.roles.write',
+  USERS_SESSIONS_REVOKE: 'users.sessions.revoke',
   AUDIT_READ: 'audit.read'
 });
 
