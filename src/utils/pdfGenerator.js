@@ -219,6 +219,10 @@ export async function downloadQuotationPDF(project) {
 export async function downloadInvoicePDF(project) {
   try {
     if (!project?.projectId) throw new Error('Project data is missing');
+    if (!project.approvalDate || numberValue(project.quotedPrice) <= 0) {
+      throw new Error('Approve the quotation before generating an invoice');
+    }
+
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     let yPosition = drawHeader(doc, 'INVOICE');
 
@@ -230,17 +234,15 @@ export async function downloadInvoicePDF(project) {
     yPosition = drawLabelValue(doc, 'Address', project.address, yPosition);
 
     const panelCount = numberValue(project.panelCount);
+    const inverterName = project.inverter?.name || 'Inverter';
+    const batteryName = project.battery?.selectedBattery?.name;
     const batteryQuantity = numberValue(project.battery?.quantity);
-    const batteryUnitPrice = numberValue(project.battery?.selectedBattery?.price);
+    const equipmentDescription = batteryName
+      ? `${panelCount} solar panel(s), ${inverterName}, ${batteryQuantity} x ${batteryName}`
+      : `${panelCount} solar panel(s) and ${inverterName}`;
     const rows = [
-      ['Solar panels', panelCount, `Rs. ${formatCurrency(panelCount ? numberValue(project.materialCost) / panelCount : 0)}`, `Rs. ${formatCurrency(project.materialCost)}`],
-      [project.inverter?.name || 'Inverter', 1, 'Included', 'Included'],
-      [
-        project.battery?.selectedBattery?.name || 'Battery',
-        batteryQuantity,
-        batteryQuantity ? `Rs. ${formatCurrency(batteryUnitPrice)}` : 'N/A',
-        batteryQuantity ? `Rs. ${formatCurrency(batteryQuantity * batteryUnitPrice)}` : 'N/A'
-      ],
+      ['Solar equipment/material package', 1, `Rs. ${formatCurrency(project.materialCost)}`, `Rs. ${formatCurrency(project.materialCost)}`],
+      [equipmentDescription, 1, 'Included', 'Included'],
       ['Installation and labour', 1, `Rs. ${formatCurrency(project.laborCost)}`, `Rs. ${formatCurrency(project.laborCost)}`]
     ];
 
