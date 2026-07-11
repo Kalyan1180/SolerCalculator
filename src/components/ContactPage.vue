@@ -37,33 +37,48 @@
 
                 <div v-if="submitted" class="alert alert-success" role="status">
                   <i class="fas fa-circle-check me-2" aria-hidden="true"></i>
-                  Thank you. Your message has been submitted.
+                  Thank you. Your enquiry was received successfully.
+                </div>
+                <div v-if="submitError" class="alert alert-danger" role="alert">
+                  <i class="fas fa-circle-exclamation me-2" aria-hidden="true"></i>{{ submitError }}
                 </div>
 
-                <form @submit.prevent="submitForm">
+                <form
+                  name="ant-solar-contact"
+                  method="POST"
+                  data-netlify="true"
+                  netlify-honeypot="bot-field"
+                  @submit.prevent="submitForm"
+                >
+                  <input type="hidden" name="form-name" value="ant-solar-contact" />
+                  <div class="visually-hidden" aria-hidden="true">
+                    <label>Do not complete this field <input v-model="form.botField" name="bot-field" tabindex="-1" autocomplete="off" /></label>
+                  </div>
+
                   <div class="row g-3">
                     <div class="col-md-6">
                       <label for="contactName" class="form-label">Name *</label>
-                      <input v-model.trim="form.name" type="text" id="contactName" class="form-control" autocomplete="name" maxlength="100" required />
+                      <input v-model.trim="form.name" name="name" type="text" id="contactName" class="form-control" autocomplete="name" maxlength="100" required />
                     </div>
                     <div class="col-md-6">
                       <label for="contactEmail" class="form-label">Email *</label>
-                      <input v-model.trim="form.email" type="email" id="contactEmail" class="form-control" autocomplete="email" maxlength="160" required />
+                      <input v-model.trim="form.email" name="email" type="email" id="contactEmail" class="form-control" autocomplete="email" maxlength="160" required />
                     </div>
                     <div class="col-12">
                       <label for="contactPhone" class="form-label">Phone</label>
-                      <input v-model.trim="form.phone" type="tel" id="contactPhone" class="form-control" autocomplete="tel" maxlength="20" />
+                      <input v-model.trim="form.phone" name="phone" type="tel" id="contactPhone" class="form-control" autocomplete="tel" maxlength="20" />
                     </div>
                     <div class="col-12">
                       <label for="contactMessage" class="form-label">How can we help? *</label>
-                      <textarea v-model.trim="form.message" id="contactMessage" class="form-control" rows="5" maxlength="1500" required></textarea>
+                      <textarea v-model.trim="form.message" name="message" id="contactMessage" class="form-control" rows="5" maxlength="1500" required></textarea>
                       <div class="form-text text-end">{{ form.message.length }}/1500</div>
                     </div>
                   </div>
                   <button type="submit" class="btn btn-primary w-100 mt-3" :disabled="submitting">
                     <span v-if="submitting" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-                    {{ submitting ? 'Submitting…' : 'Send enquiry' }}
+                    {{ submitting ? 'Sending enquiry…' : 'Send enquiry' }}
                   </button>
+                  <small class="d-block text-muted mt-3">Your enquiry is submitted securely to the ANT Solar Netlify site forms dashboard.</small>
                 </form>
               </div>
             </section>
@@ -75,29 +90,50 @@
 </template>
 
 <script>
+function emptyForm() {
+  return { name: '', email: '', phone: '', message: '', botField: '' };
+}
+
 export default {
   name: 'ContactPage',
   data() {
     return {
-      form: {
-        name: '',
-        email: '',
-        phone: '',
-        message: ''
-      },
+      form: emptyForm(),
       submitting: false,
-      submitted: false
+      submitted: false,
+      submitError: ''
     };
   },
   methods: {
-    submitForm() {
+    async submitForm() {
       this.submitting = true;
       this.submitted = false;
-      window.setTimeout(() => {
-        this.submitting = false;
+      this.submitError = '';
+
+      try {
+        const body = new URLSearchParams({
+          'form-name': 'ant-solar-contact',
+          'bot-field': this.form.botField,
+          name: this.form.name,
+          email: this.form.email,
+          phone: this.form.phone,
+          message: this.form.message
+        });
+        const response = await fetch('/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString()
+        });
+        if (!response.ok) throw new Error(`Form submission failed with status ${response.status}`);
+
         this.submitted = true;
-        this.form = { name: '', email: '', phone: '', message: '' };
-      }, 450);
+        this.form = emptyForm();
+      } catch (error) {
+        console.error('Contact form submission failed:', error);
+        this.submitError = 'The enquiry could not be submitted. Please check your connection and try again.';
+      } finally {
+        this.submitting = false;
+      }
     }
   }
 };
