@@ -1,73 +1,83 @@
 <template>
   <div class="signup-container container my-5">
     <h2 class="text-center mb-4">Sign Up</h2>
-    
-    <!-- Email/Password Sign Up Form -->
-    <form @submit.prevent="signUpWithEmail" class="mb-4 border p-3 rounded">
+
+    <form @submit.prevent="signUpWithEmail" class="mb-4">
+      <div class="mb-3">
+        <label for="displayName" class="form-label">Name</label>
+        <input v-model.trim="displayName" type="text" id="displayName" class="form-control" maxlength="100" autocomplete="name" />
+      </div>
       <div class="mb-3">
         <label for="email" class="form-label">Email Address</label>
-        <input v-model="email" type="email" id="email" class="form-control" placeholder="Enter your email" required />
+        <input v-model.trim="email" type="email" id="email" class="form-control" autocomplete="email" required />
       </div>
       <div class="mb-3">
         <label for="password" class="form-label">Password</label>
-        <input v-model="password" type="password" id="password" class="form-control" placeholder="Enter a strong password" required />
+        <input v-model="password" type="password" id="password" class="form-control" minlength="8" autocomplete="new-password" required />
+        <small class="text-muted">Use at least 8 characters.</small>
       </div>
-      <button type="submit" class="btn btn-primary w-100">Sign Up with Email</button>
-    </form>
-    
-    <!-- Google Sign Up -->
-    <div class="text-center mb-3">
-      <button class="btn btn-outline-danger w-100" @click="signUpWithGoogle">
-        Sign Up with Google
+      <button type="submit" class="btn btn-primary w-100" :disabled="loading">
+        {{ loading ? 'Creating account...' : 'Sign Up with Email' }}
       </button>
-    </div>
-    
-    <div v-if="error" class="alert alert-danger mt-3">{{ error }}</div>
+    </form>
+
+    <button class="btn btn-outline-danger w-100" :disabled="loading" @click="signUpWithGoogle">
+      Sign Up with Google
+    </button>
+
+    <div v-if="error" class="alert alert-danger mt-3" role="alert">{{ error }}</div>
   </div>
 </template>
 
 <script>
-import { getAuth, createUserWithEmailAndPassword, signInWithPopup, getIdTokenResult } from "firebase/auth";
-import { googleProvider } from "@/firebase";
-import { createUserWithRole } from "@/utils/firebaseHelpers";
+import {
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  updateProfile
+} from 'firebase/auth';
+import { auth, googleProvider } from '@/firebase';
+import { createUserWithRole } from '@/utils/firebaseHelpers';
 
 export default {
-  name: "SignUpPage",
+  name: 'SignUpPage',
   data() {
-    return {
-      email: "",
-      password: "",
-      error: ""
-    };
+    return { displayName: '', email: '', password: '', error: '', loading: false };
   },
   methods: {
+    async completeSignup(user) {
+      await createUserWithRole(user);
+      this.$router.replace('/');
+    },
     async signUpWithEmail() {
+      this.error = '';
+      if (this.password.length < 8) {
+        this.error = 'Password must contain at least 8 characters.';
+        return;
+      }
+
+      this.loading = true;
       try {
-        const authInstance = getAuth();
-        const result = await createUserWithEmailAndPassword(authInstance, this.email, this.password);
-        // Create user document with default role 'user'
-        await createUserWithRole(result.user, "user");
-        this.$router.push("/");
-      } catch (err) {
-        console.error("Email sign-up error:", err);
-        this.error = err.message;
+        const result = await createUserWithEmailAndPassword(auth, this.email, this.password);
+        if (this.displayName) await updateProfile(result.user, { displayName: this.displayName });
+        await this.completeSignup(result.user);
+      } catch (error) {
+        console.error('Email signup error:', error);
+        this.error = 'Unable to create the account. The email may already be registered.';
+      } finally {
+        this.loading = false;
       }
     },
     async signUpWithGoogle() {
+      this.loading = true;
+      this.error = '';
       try {
-        const authInstance = getAuth();
-        const result = await signInWithPopup(authInstance, googleProvider);
-        const user = result.user;
-        // Query Firestore for existing user with same email
-        // If none exists, create one with default role 'user'
-        const { createUserWithRole } = await import('@/utils/firebaseHelpers');
-        await createUserWithRole(user, "user");
-        const tokenResult = await getIdTokenResult(user);
-        console.log("User token claims:", tokenResult.claims);
-        this.$router.push("/");
-      } catch (err) {
-        console.error("Google sign-up error:", err);
-        this.error = err.message;
+        const result = await signInWithPopup(auth, googleProvider);
+        await this.completeSignup(result.user);
+      } catch (error) {
+        console.error('Google signup error:', error);
+        this.error = 'Unable to sign up with Google. Please try again.';
+      } finally {
+        this.loading = false;
       }
     }
   }
@@ -76,11 +86,10 @@ export default {
 
 <style scoped>
 .signup-container {
-  max-width: 400px;
-  margin: auto;
-  padding: 20px;
+  max-width: 420px;
+  padding: 24px;
   border: 1px solid #eee;
   border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 </style>
