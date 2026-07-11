@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 const { jsonResponse, requireAdmin } = require('./_firebaseAdmin');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const REQUIRED_EMAIL_VARIABLES = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASSWORD'];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -67,18 +68,76 @@ const emailTemplates = {
   })
 };
 
+function configurationError(message) {
+  const error = new Error(message);
+  error.code = 'EMAIL_CONFIG_MISSING';
+  return error;
+}
+
 function getTransporter() {
-  const host = process.env.EMAIL_HOST;
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASSWORD;
-  if (!host || !user || !pass) throw new Error('Email service is not configured');
+  const missingVariables = REQUIRED_EMAIL_VARIABLES.filter(name => !String(process.env[name] || '').trim());
+  if (missingVariables.length) {
+    throw configurationError(`Missing Netlify environment variables: ${missingVariables.join(', ')}`);
+  }
+
+  const host = process.env.EMAIL_HOST.trim();
+  const user = process.env.EMAIL_USER.trim();
+  let pass = process.env.EMAIL_PASSWORD;
   const port = Number(process.env.EMAIL_PORT || 587);
+
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw configurationError('EMAIL_PORT must be a valid TCP port number');
+  }
+
+  // Google displays app passwords in groups separated by spaces. Removing those
+  // spaces prevents an otherwise valid Gmail app password from being rejected.
+  if (host.toLowerCase().includes('gmail.com')) pass = pass.replace(/\s+/g, '');
+
   return nodemailer.createTransport({
     host,
     port,
     secure: port === 465,
-    auth: { user, pass }
+    auth: { user, pass },
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+    tls: { minVersion: 'TLSv1.2' }
   });
+}
+
+function publicEmailError(error) {
+  if (error?.code === 'EMAIL_CONFIG_MISSING') {
+    return {
+      status: 503,
+      message: `${error.message}. Add the values in Netlify Site configuration > Environment variables, then redeploy.`
+    };
+  }
+
+  if (error?.code === 'EAUTH' || error?.responseCode === 535) {
+    return {
+      status: 502,
+      message: 'The email provider rejected the login. For Gmail, use a Google App Password in EMAIL_PASSWORD instead of the normal account password.'
+    };
+  }
+
+  if (error?.code === 'EENVELOPE' || error?.responseCode === 550 || error?.responseCode === 553) {
+    return {
+      status: 400,
+      message: 'The email provider rejected the sender or recipient address. Check EMAIL_FROM, EMAIL_USER and the customer email.'
+    };
+  }
+
+  if (['ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'ECONNREFUSED'].includes(error?.code)) {
+    return {
+      status: 502,
+      message: 'Unable to connect to the email provider. Check EMAIL_HOST and EMAIL_PORT in Netlify.'
+    };
+  }
+
+  return {
+    status: 500,
+    message: 'The email provider returned an unexpected error. Check the sendEmail function log in Netlify.'
+  };
 }
 
 exports.handler = async event => {
@@ -103,7 +162,7 @@ exports.handler = async event => {
 
     const content = emailTemplates[template](data);
     const result = await getTransporter().sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      from: String(process.env.EMAIL_FROM || process.env.EMAIL_USER).trim(),
       to,
       subject: content.subject,
       html: content.html
@@ -115,8 +174,16 @@ exports.handler = async event => {
       messageId: result.messageId
     });
   } catch (error) {
-    console.error('Error sending email:', error);
     if (error instanceof SyntaxError) return jsonResponse(400, { error: 'Invalid JSON request body' });
-    return jsonResponse(500, { success: false, error: 'Unable to send email' });
+
+    console.error('Error sending email:', {
+      code: error?.code,
+      command: error?.command,
+      responseCode: error?.responseCode,
+      message: error?.message
+    });
+
+    const publicError = publicEmailError(error);
+    return jsonResponse(publicError.status, { success: false, error: publicError.message });
   }
 };
