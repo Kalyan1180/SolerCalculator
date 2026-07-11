@@ -1,20 +1,25 @@
 <template>
   <div v-if="warning" class="session-warning" role="alert" aria-live="assertive">
-    <div>
-      <strong>{{ title }}</strong>
-      <div class="small">{{ message }}</div>
+    <span class="session-warning__icon"><i class="fas fa-hourglass-half" aria-hidden="true"></i></span>
+    <div class="session-warning__content">
+      <div class="d-flex justify-content-between align-items-center gap-2">
+        <strong>{{ title }}</strong>
+        <span class="session-warning__timer">{{ countdown }}</span>
+      </div>
+      <p class="small mb-0">{{ message }}</p>
     </div>
-    <div class="d-flex flex-wrap gap-2">
+    <div class="session-warning__actions">
       <button
         v-if="warning.reason === 'idle-timeout'"
         type="button"
-        class="btn btn-sm btn-dark"
+        class="btn btn-sm btn-primary"
         :disabled="busy"
         @click="staySignedIn"
       >
-        {{ busy ? 'Refreshing...' : 'Stay signed in' }}
+        <span v-if="busy" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+        {{ busy ? 'Refreshing…' : 'Stay signed in' }}
       </button>
-      <button type="button" class="btn btn-sm btn-outline-dark" :disabled="busy" @click="signOutNow">
+      <button type="button" class="btn btn-sm btn-outline-secondary" :disabled="busy" @click="signOutNow">
         Sign out
       </button>
     </div>
@@ -52,13 +57,13 @@ export default {
     },
     title() {
       return this.warning?.reason === 'absolute-timeout'
-        ? `Sign in again in ${this.countdown}`
-        : `Session expires in ${this.countdown}`;
+        ? 'Secure session ending'
+        : 'Session inactivity warning';
     },
     message() {
       return this.warning?.reason === 'absolute-timeout'
-        ? 'The maximum secure session duration is ending. Save your work and sign in again.'
-        : 'You have been inactive. Continue the session or sign out now.';
+        ? 'Save your work. The maximum secure session duration requires a new sign-in.'
+        : 'Your session will end because of inactivity unless you continue.';
     }
   },
   mounted() {
@@ -123,22 +128,30 @@ export default {
   right: 1rem;
   bottom: 1rem;
   z-index: 1080;
-  width: min(460px, calc(100vw - 2rem));
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.9rem;
+  width: min(620px, calc(100vw - 2rem));
   padding: 1rem;
-  border: 1px solid #f0ad4e;
-  border-radius: 12px;
-  background: #fff3cd;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  border: 1px solid #fedf89;
+  border-radius: 14px;
+  color: var(--ant-slate-800);
+  background: rgba(255, 250, 235, 0.98);
+  box-shadow: var(--ant-shadow-lg);
+  backdrop-filter: blur(14px);
 }
-
+.session-warning__icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 11px; color: #fff; background: var(--ant-amber-600); }
+.session-warning__content { min-width: 0; }
+.session-warning__content p { color: var(--ant-slate-600); }
+.session-warning__timer { padding: 0.25rem 0.48rem; border-radius: 7px; color: #93370d; background: #fef0c7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; font-weight: 800; }
+.session-warning__actions { display: flex; gap: 0.45rem; }
+@media (max-width: 767.98px) {
+  .session-warning { grid-template-columns: auto minmax(0, 1fr); }
+  .session-warning__actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
 @media (max-width: 575.98px) {
-  .session-warning {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+  .session-warning { right: 0.65rem; bottom: 0.65rem; width: calc(100vw - 1.3rem); }
+  .session-warning__actions { display: grid; grid-template-columns: repeat(2, 1fr); }
 }
 </style>
