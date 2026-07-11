@@ -1,58 +1,96 @@
 <template>
-  <div class="home-content container my-4">
-    <section class="hero text-center my-4">
-      <h1 class="display-4">Welcome to Ant Soler</h1>
-      <p class="lead">
-        Harness the power of the sun to lower your energy bills and protect the environment.
-      </p>
-      <div class="d-flex justify-content-center gap-2">
-        <router-link class="btn btn-outline-primary btn-sm" to="/contact">
-          Contact Us
-        </router-link>
-        <router-link class="btn btn-outline-secondary btn-sm" to="/solercalc">
-          Get a Quote
-        </router-link>
-      </div>
-    </section>
-    
-    <section class="benefits my-5">
-      <div class="row align-items-center">
-        <div class="col-md-6">
-          <img src="https://via.placeholder.com/500x300?text=Solar+Benefits" class="img-fluid" alt="Solar Benefits" />
-        </div>
-        <div class="col-md-6">
-          <h2>Solar Benefits</h2>
-          <p>
-            Solar energy is renewable, cost-effective, and improves your property value while promoting sustainability.
-          </p>
-        </div>
-      </div>
-    </section>
-    
-    <section class="environmental my-5">
-      <div class="row align-items-center flex-md-row-reverse">
-        <div class="col-md-6">
-          <img src="https://via.placeholder.com/500x300?text=Environmental+Impact" class="img-fluid" alt="Environmental Impact" />
-        </div>
-        <div class="col-md-6">
-          <h2>Environmental Impact</h2>
-          <p>
-            Reduce your carbon footprint and help fight climate change by switching to clean, renewable solar energy.
-          </p>
+  <div class="marketing-page">
+    <section class="marketing-hero">
+      <div class="marketing-container">
+        <div class="row align-items-center g-5">
+          <div class="col-lg-7">
+            <span class="marketing-eyebrow"><i class="fas fa-sun" aria-hidden="true"></i>Practical solar planning</span>
+            <h1 class="marketing-title mb-4">Make confident solar decisions with clear system sizing.</h1>
+            <p class="marketing-lead mb-4">
+              Estimate panels, inverter capacity, battery requirements and project cost from your electricity use or household appliances.
+            </p>
+            <div class="d-flex flex-wrap gap-3">
+              <router-link class="btn btn-primary btn-lg" to="/solercalc">
+                Calculate my system <i class="fas fa-arrow-right ms-2" aria-hidden="true"></i>
+              </router-link>
+              <router-link class="btn btn-outline-secondary btn-lg" to="/contact">Talk to ANT Solar</router-link>
+            </div>
+            <div class="d-flex flex-wrap gap-4 mt-4 text-muted small">
+              <span><i class="fas fa-check-circle text-success me-1"></i>Transparent estimate</span>
+              <span><i class="fas fa-check-circle text-success me-1"></i>Equipment matched</span>
+              <span><i class="fas fa-check-circle text-success me-1"></i>Project tracking</span>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="solar-visual" aria-label="Solar system planning illustration">
+              <span class="solar-visual__orb"></span>
+              <span class="solar-visual__panel"></span>
+              <span class="solar-visual__stat solar-visual__stat--one"><small>Planning</small><strong>Usage → System</strong></span>
+              <span class="solar-visual__stat solar-visual__stat--two"><small>One workflow</small><strong>Quote to install</strong></span>
+            </div>
+          </div>
         </div>
       </div>
     </section>
-    
-    <section class="future my-5">
-      <div class="row align-items-center">
-        <div class="col-md-6">
-          <img src="https://via.placeholder.com/500x300?text=Solar+Future" class="img-fluid" alt="Solar Future" />
+
+    <section class="marketing-section">
+      <div class="marketing-container">
+        <div class="text-center mx-auto mb-5" style="max-width: 700px;">
+          <span class="marketing-eyebrow">A simpler solar journey</span>
+          <h2 class="display-6">From monthly bill to managed project</h2>
+          <p class="text-muted">A consistent workflow helps customers understand the recommendation and helps the ANT Solar team deliver it.</p>
         </div>
-        <div class="col-md-6">
-          <h2>Solar Future</h2>
-          <p>
-            Discover innovative solar technologies that maximize energy output and lead us toward a sustainable future.
-          </p>
+        <div class="row g-4">
+          <div class="col-md-4">
+            <article class="feature-card">
+              <span class="feature-icon"><i class="fas fa-calculator" aria-hidden="true"></i></span>
+              <h3 class="h5">Calculate</h3>
+              <p class="text-muted mb-0">Enter monthly units, bill information or appliance usage to estimate daily energy demand.</p>
+            </article>
+          </div>
+          <div class="col-md-4">
+            <article class="feature-card">
+              <span class="feature-icon"><i class="fas fa-sliders" aria-hidden="true"></i></span>
+              <h3 class="h5">Match equipment</h3>
+              <p class="text-muted mb-0">The calculator chooses suitable panel quantity, inverter capacity and optional battery storage.</p>
+            </article>
+          </div>
+          <div class="col-md-4">
+            <article class="feature-card">
+              <span class="feature-icon"><i class="fas fa-list-check" aria-hidden="true"></i></span>
+              <h3 class="h5">Track delivery</h3>
+              <p class="text-muted mb-0">Signed-in customers can follow quotation, approval, installation and completion progress in one place.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="marketing-section bg-white border-top border-bottom">
+      <div class="marketing-container">
+        <div class="row align-items-center g-5">
+          <div class="col-lg-5">
+            <span class="marketing-eyebrow">Built for real decisions</span>
+            <h2 class="display-6">Clear assumptions. Visible costs. Better conversations.</h2>
+          </div>
+          <div class="col-lg-7">
+            <div class="row g-3">
+              <div class="col-sm-6"><div class="feature-card"><strong class="d-block mb-1">System recommendation</strong><span class="text-muted">Panels, inverter and battery are presented together.</span></div></div>
+              <div class="col-sm-6"><div class="feature-card"><strong class="d-block mb-1">Cost breakdown</strong><span class="text-muted">Material, labour and offer price remain understandable.</span></div></div>
+              <div class="col-sm-6"><div class="feature-card"><strong class="d-block mb-1">Customer workspace</strong><span class="text-muted">Project progress and payment milestones stay visible.</span></div></div>
+              <div class="col-sm-6"><div class="feature-card"><strong class="d-block mb-1">Secure operations</strong><span class="text-muted">Staff access is limited by role and permission.</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="marketing-section">
+      <div class="marketing-container">
+        <div class="dashboard-hero text-center">
+          <h2 class="display-6 mb-3">Ready to estimate your solar requirement?</h2>
+          <p class="mx-auto mb-4 opacity-75" style="max-width: 650px;">Start with your electricity usage. You can review the recommendation before creating a quotation request.</p>
+          <router-link class="btn btn-light btn-lg" to="/solercalc">Open Solar Calculator</router-link>
         </div>
       </div>
     </section>
@@ -61,33 +99,6 @@
 
 <script>
 export default {
-  name: "HomePage"
+  name: 'HomePage'
 };
 </script>
-
-<style scoped>
-.home-content {
-  padding: 20px;
-}
-.hero {
-  background: #f1f1f1;
-  padding: 40px 20px;
-  border-radius: 8px;
-  margin-bottom: 40px;
-}
-.hero h1 {
-  font-weight: bold;
-  margin-bottom: 20px;
-}
-.hero p {
-  font-size: 1.2rem;
-  margin-bottom: 20px;
-}
-section {
-  margin-bottom: 40px;
-}
-section h2 {
-  margin-bottom: 20px;
-  color: #007bff;
-}
-</style>
