@@ -1,44 +1,50 @@
-// netlify/functions/addInverter.js
-const admin = require('firebase-admin');
+const { jsonResponse, requireAdmin } = require('./_firebaseAdmin');
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      "type": process.env.FB_TYPE,
-      "project_id": process.env.FB_PROJECT_ID,
-      "private_key_id": process.env.FB_PRIVATE_KEY_ID,
-      "private_key": process.env.FB_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      "client_email": process.env.FB_CLIENT_EMAIL,
-      "client_id": process.env.FB_CLIENT_ID,
-      "auth_uri": process.env.FB_AUTH_URI,
-      "token_uri": process.env.FB_TOKEN_URI,
-      "auth_provider_x509_cert_url": process.env.FB_AUTH_PROVIDER_X509_CERT_URL,
-      "client_x509_cert_url": process.env.FB_CLIENT_X509_CERT_URL,
-    }),
-    // You don't need a databaseURL for Firestore unless you have a specific requirement.
-  });
+function positiveNumber(value, field) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) throw new Error(`${field} must be greater than zero`);
+  return number;
 }
 
-exports.handler = async (event, context) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
-  }
+function nonNegativeNumber(value, field) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) throw new Error(`${field} cannot be negative`);
+  return number;
+}
+
+exports.handler = async event => {
+  if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'POST' });
+  const authorization = await requireAdmin(event);
+  if (!authorization.authorized) return authorization.response;
+
   try {
-    const data = JSON.parse(event.body);
-    if (!data.name || data.peakLoad == null || data.maxPanels == null || data.batterySupported == null || data.cost == null) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields' }) };
+    const data = JSON.parse(event.body || '{}');
+    const name = String(data.name || '').trim();
+    if (!name || name.length > 120) return jsonResponse(400, { error: 'Inverter name is required and must be under 120 characters' });
+
+    const peakLoad = positiveNumber(data.peakLoad, 'Peak load');
+    const maxPanels = positiveNumber(data.maxPanels, 'Maximum panels');
+    const batterySupported = nonNegativeNumber(data.batterySupported, 'Battery voltage');
+    const cost = nonNegativeNumber(data.cost, 'Cost');
+    if (!Number.isInteger(maxPanels)) return jsonResponse(400, { error: 'Maximum panels must be a whole number' });
+    if (!Number.isInteger(batterySupported) || (batterySupported !== 0 && batterySupported % 12 !== 0)) {
+      return jsonResponse(400, { error: 'Battery voltage must be 0 or a multiple of 12' });
     }
-    const db = admin.firestore();
-    const docRef = await db.collection('inverters').add({
-      name: data.name,
-      peakLoad: Number(data.peakLoad),
-      maxPanels: Number(data.maxPanels),
-      batterySupported: Number(data.batterySupported),
-      cost: Number(data.cost)
+
+    const docRef = await authorization.db.collection('inverters').add({
+      name,
+      peakLoad,
+      maxPanels,
+      batterySupported,
+      cost,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
-    return { statusCode: 200, body: JSON.stringify({ message: 'Inverter added successfully', id: docRef.id }) };
+    return jsonResponse(201, { message: 'Inverter added successfully', id: docRef.id });
   } catch (error) {
     console.error('Error adding inverter:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to add inverter' }) };
+    if (error instanceof SyntaxError) return jsonResponse(400, { error: 'Invalid JSON request body' });
+    if (/must|cannot/i.test(error.message)) return jsonResponse(400, { error: error.message });
+    return jsonResponse(500, { error: 'Failed to add inverter' });
   }
 };
