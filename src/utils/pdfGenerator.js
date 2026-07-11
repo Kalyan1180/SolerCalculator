@@ -1,138 +1,214 @@
 // src/utils/pdfGenerator.js
-// PDF export functionality for quotations and invoices
-
 import jsPDF from 'jspdf';
-import html2pdf from 'html2pdf.js';
 
-/**
- * Generate and download quotation PDF
- */
+const PAGE_MARGIN = 18;
+const LINE_HEIGHT = 6;
+
+function numberValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(numberValue(value));
+}
+
+function textValue(value, fallback = 'N/A') {
+  if (value === null || value === undefined || value === '') return fallback;
+  return String(value);
+}
+
+function safeFilePart(value) {
+  return textValue(value, 'project').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+}
+
+function addPageIfNeeded(doc, yPosition, requiredHeight = 20) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if (yPosition + requiredHeight <= pageHeight - PAGE_MARGIN) return yPosition;
+  doc.addPage();
+  return PAGE_MARGIN;
+}
+
+function drawHeader(doc, title) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let yPosition = PAGE_MARGIN;
+  doc.setTextColor(0);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.text('ANT SOLAR', pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 8;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(90);
+  doc.text('Professional Solar Solutions', pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 10;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(0);
+  doc.text(title, pageWidth / 2, yPosition, { align: 'center' });
+  return yPosition + 10;
+}
+
+function drawLabelValue(doc, label, value, yPosition) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  yPosition = addPageIfNeeded(doc, yPosition, LINE_HEIGHT + 2);
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(label, PAGE_MARGIN, yPosition);
+  doc.setFont('helvetica', 'normal');
+  const availableWidth = pageWidth - (PAGE_MARGIN * 2) - 48;
+  const lines = doc.splitTextToSize(textValue(value), availableWidth);
+  doc.text(lines, PAGE_MARGIN + 48, yPosition);
+  return yPosition + Math.max(1, lines.length) * LINE_HEIGHT;
+}
+
+function drawSectionTitle(doc, title, yPosition) {
+  yPosition = addPageIfNeeded(doc, yPosition, 12);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(title, PAGE_MARGIN, yPosition);
+  doc.setDrawColor(190);
+  doc.line(PAGE_MARGIN, yPosition + 2, doc.internal.pageSize.getWidth() - PAGE_MARGIN, yPosition + 2);
+  return yPosition + 8;
+}
+
+function drawTwoColumnTable(doc, rows, yPosition) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const tableWidth = pageWidth - (PAGE_MARGIN * 2);
+  const amountWidth = 55;
+  const descriptionWidth = tableWidth - amountWidth;
+  const rowHeight = 8;
+
+  rows.forEach((row, index) => {
+    yPosition = addPageIfNeeded(doc, yPosition, rowHeight + 2);
+    const isTotal = index === rows.length - 1;
+    doc.setFillColor(isTotal ? 230 : (index % 2 === 0 ? 248 : 255));
+    doc.rect(PAGE_MARGIN, yPosition - 5.5, tableWidth, rowHeight, 'F');
+    doc.setDrawColor(220);
+    doc.rect(PAGE_MARGIN, yPosition - 5.5, tableWidth, rowHeight);
+    doc.line(PAGE_MARGIN + descriptionWidth, yPosition - 5.5, PAGE_MARGIN + descriptionWidth, yPosition + 2.5);
+    doc.setFont('helvetica', isTotal ? 'bold' : 'normal');
+    doc.setFontSize(9);
+    doc.text(textValue(row[0]), PAGE_MARGIN + 2, yPosition);
+    doc.text(textValue(row[1]), pageWidth - PAGE_MARGIN - 2, yPosition, { align: 'right' });
+    yPosition += rowHeight;
+  });
+
+  return yPosition + 3;
+}
+
+function drawFourColumnTable(doc, rows, yPosition) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const tableWidth = pageWidth - (PAGE_MARGIN * 2);
+  const widths = [86, 20, 31, tableWidth - 137];
+  const headers = ['Description', 'Qty', 'Unit Price', 'Total'];
+  const rowHeight = 9;
+
+  const drawRow = (values, header = false) => {
+    yPosition = addPageIfNeeded(doc, yPosition, rowHeight + 2);
+    doc.setFillColor(header ? 225 : 250);
+    doc.rect(PAGE_MARGIN, yPosition - 6, tableWidth, rowHeight, 'F');
+    doc.setDrawColor(210);
+    doc.rect(PAGE_MARGIN, yPosition - 6, tableWidth, rowHeight);
+
+    let x = PAGE_MARGIN;
+    values.forEach((value, index) => {
+      if (index > 0) doc.line(x, yPosition - 6, x, yPosition + 3);
+      doc.setFont('helvetica', header ? 'bold' : 'normal');
+      doc.setFontSize(8.5);
+      const align = index === 0 ? 'left' : 'right';
+      const textX = align === 'left' ? x + 2 : x + widths[index] - 2;
+      doc.text(textValue(value), textX, yPosition, { align });
+      x += widths[index];
+    });
+    yPosition += rowHeight;
+  };
+
+  drawRow(headers, true);
+  rows.forEach(row => drawRow(row));
+  return yPosition + 3;
+}
+
+function addPageNumbers(doc) {
+  const pageCount = doc.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(130);
+    doc.text(`Page ${page} of ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+  }
+}
+
 export async function downloadQuotationPDF(project) {
   try {
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
+    if (!project?.projectId) throw new Error('Project data is missing');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    let yPosition = drawHeader(doc, 'QUOTATION');
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 20;
+    yPosition = drawLabelValue(doc, 'Quotation No.', project.projectId, yPosition);
+    yPosition = drawLabelValue(doc, 'Date', new Date().toLocaleDateString('en-IN'), yPosition);
+    yPosition = drawLabelValue(
+      doc,
+      'Valid Until',
+      new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toLocaleDateString('en-IN'),
+      yPosition
+    );
 
-    // Header
-    doc.setFontSize(24);
-    doc.text('ANT SOLAR', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 10;
+    yPosition = drawSectionTitle(doc, 'CUSTOMER DETAILS', yPosition + 3);
+    yPosition = drawLabelValue(doc, 'Name', project.customerName, yPosition);
+    yPosition = drawLabelValue(doc, 'Email', project.customerEmail, yPosition);
+    yPosition = drawLabelValue(doc, 'Phone', project.customerPhone, yPosition);
+    yPosition = drawLabelValue(doc, 'Address', project.address, yPosition);
 
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text('Professional Solar Solutions', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 8;
+    yPosition = drawSectionTitle(doc, 'SYSTEM DETAILS', yPosition + 3);
+    yPosition = drawLabelValue(doc, 'Solar Panels', `${numberValue(project.panelCount)} unit(s)`, yPosition);
+    yPosition = drawLabelValue(doc, 'Inverter', project.inverter?.name, yPosition);
+    yPosition = drawLabelValue(
+      doc,
+      'Battery',
+      project.battery?.selectedBattery
+        ? `${project.battery.selectedBattery.name} - ${numberValue(project.battery.quantity)} unit(s)`
+        : 'Not required',
+      yPosition
+    );
 
-    // Title
-    doc.setFontSize(16);
-    doc.setTextColor(0);
-    doc.text('QUOTATION', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 12;
+    yPosition = drawSectionTitle(doc, 'COST BREAKDOWN', yPosition + 3);
+    yPosition = drawTwoColumnTable(doc, [
+      ['Equipment/material', `Rs. ${formatCurrency(project.materialCost)}`],
+      ['Installation/labour', `Rs. ${formatCurrency(project.laborCost)}`],
+      ['Cost before profit', `Rs. ${formatCurrency(project.totalCostWithoutMarkup)}`],
+      ['QUOTED PRICE', `Rs. ${formatCurrency(project.quotedPrice)}`]
+    ], yPosition);
 
-    // Quotation Details
-    doc.setFontSize(10);
-    doc.text(`Quotation #: ${project.projectId}`, 20, yPosition);
-    yPosition += 7;
-    doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`, 20, yPosition);
-    yPosition += 7;
-    doc.text(`Valid Till: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}`, 20, yPosition);
-    yPosition += 12;
-
-    // Customer Details
-    doc.setFontSize(11);
-    doc.text('CUSTOMER DETAILS:', 20, yPosition);
-    yPosition += 7;
-    doc.setFontSize(10);
-    doc.text(`Name: ${project.customerName}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Email: ${project.customerEmail}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Phone: ${project.customerPhone}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Address: ${project.address}`, 20, yPosition);
-    yPosition += 12;
-
-    // Solar Specifications
-    doc.setFontSize(11);
-    doc.text('SOLAR SPECIFICATIONS:', 20, yPosition);
-    yPosition += 7;
-    doc.setFontSize(10);
-    doc.text(`Solar Panels: ${project.panelCount} pieces @ ₹15,000 each`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Inverter: ${project.inverter?.name || 'N/A'}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Battery: ${project.battery?.selectedBattery?.name || 'N/A'} (${project.battery?.quantity || 0} units)`, 20, yPosition);
-    yPosition += 12;
-
-    // Cost Breakdown Table
-    doc.setFontSize(11);
-    doc.text('COST BREAKDOWN:', 20, yPosition);
-    yPosition += 8;
-
-    const columns = ['Description', 'Amount'];
-    const rows = [
-      ['Material Cost', `₹${formatCurrency(project.materialCost)}`],
-      ['Labor Cost', `₹${formatCurrency(project.laborCost)}`],
-      ['Total Cost', `₹${formatCurrency(project.materialCost + project.laborCost)}`],
-      ['Markup/Profit', `₹${formatCurrency(project.quotedPrice - project.materialCost - project.laborCost)}`],
-      ['QUOTED PRICE', `₹${formatCurrency(project.quotedPrice)}`]
+    yPosition = drawSectionTitle(doc, 'TERMS AND CONDITIONS', yPosition + 3);
+    const terms = [
+      'This quotation is valid for seven days from the date shown above.',
+      'A 50% advance payment is required before installation scheduling.',
+      'The final specification and price remain subject to site-survey confirmation.'
     ];
-
-    doc.autoTable({
-      head: [columns],
-      body: rows,
-      startY: yPosition,
-      columnStyles: {
-        0: { cellWidth: 100 },
-        1: { cellWidth: 60, halign: 'right' }
-      },
-      didDrawPage: function (data) {
-        // Footer
-        const pageCount = doc.internal.getPages().length;
-        const pageSize = doc.internal.pageSize;
-        const pageHeight = pageSize.getHeight();
-        const pageWidth = pageSize.getWidth();
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(
-          `Page ${data.pageNumber} of ${pageCount}`,
-          pageWidth / 2,
-          pageHeight - 10,
-          { align: 'center' }
-        );
-      }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    terms.forEach((term, index) => {
+      yPosition = addPageIfNeeded(doc, yPosition, 8);
+      const lines = doc.splitTextToSize(`${index + 1}. ${term}`, doc.internal.pageSize.getWidth() - (PAGE_MARGIN * 2));
+      doc.text(lines, PAGE_MARGIN, yPosition);
+      yPosition += lines.length * LINE_HEIGHT;
     });
 
-    yPosition = doc.lastAutoTable.finalY + 15;
-
-    // Terms & Conditions
-    doc.setFontSize(10);
-    doc.text('TERMS & CONDITIONS:', 20, yPosition);
-    yPosition += 7;
-    doc.setFontSize(9);
-    const termsText = 'This quotation is valid for 7 days. Advance payment of 50% is required to confirm the order. Installation will commence after advance payment receipt.';
-    const wrappedTerms = doc.splitTextToSize(termsText, pageWidth - 40);
-    doc.text(wrappedTerms, 20, yPosition);
-    yPosition += wrappedTerms.length * 5 + 5;
-
-    // Notes
     if (project.adminNotes) {
-      doc.setFontSize(10);
-      doc.text('NOTES:', 20, yPosition);
-      yPosition += 7;
+      yPosition = drawSectionTitle(doc, 'NOTES', yPosition + 3);
+      const lines = doc.splitTextToSize(textValue(project.adminNotes), doc.internal.pageSize.getWidth() - (PAGE_MARGIN * 2));
+      yPosition = addPageIfNeeded(doc, yPosition, lines.length * LINE_HEIGHT);
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      const wrappedNotes = doc.splitTextToSize(project.adminNotes, pageWidth - 40);
-      doc.text(wrappedNotes, 20, yPosition);
+      doc.text(lines, PAGE_MARGIN, yPosition);
     }
 
-    // Save the PDF
-    doc.save(`Quotation_${project.projectId}.pdf`);
+    addPageNumbers(doc);
+    doc.save(`Quotation_${safeFilePart(project.projectId)}.pdf`);
     return { success: true };
   } catch (error) {
     console.error('Error generating quotation PDF:', error);
@@ -140,122 +216,48 @@ export async function downloadQuotationPDF(project) {
   }
 }
 
-/**
- * Generate and download invoice PDF
- */
 export async function downloadInvoicePDF(project) {
   try {
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
+    if (!project?.projectId) throw new Error('Project data is missing');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    let yPosition = drawHeader(doc, 'INVOICE');
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let yPosition = 20;
+    yPosition = drawLabelValue(doc, 'Invoice No.', `INV-${project.projectId}`, yPosition);
+    yPosition = drawLabelValue(doc, 'Date', new Date().toLocaleDateString('en-IN'), yPosition);
+    yPosition = drawLabelValue(doc, 'Customer', project.customerName, yPosition);
+    yPosition = drawLabelValue(doc, 'Email', project.customerEmail, yPosition);
+    yPosition = drawLabelValue(doc, 'Phone', project.customerPhone, yPosition);
+    yPosition = drawLabelValue(doc, 'Address', project.address, yPosition);
 
-    // Header
-    doc.setFontSize(24);
-    doc.text('ANT SOLAR', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 10;
-
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text('Professional Solar Solutions', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 8;
-
-    // Title
-    doc.setFontSize(16);
-    doc.setTextColor(0);
-    doc.text('INVOICE', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 12;
-
-    // Invoice Details
-    doc.setFontSize(10);
-    doc.text(`Invoice #: INV-${project.projectId}`, 20, yPosition);
-    yPosition += 7;
-    doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`, 20, yPosition);
-    yPosition += 7;
-    doc.text(`Due Date: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}`, 20, yPosition);
-    yPosition += 12;
-
-    // Customer Details
-    doc.setFontSize(11);
-    doc.text('BILL TO:', 20, yPosition);
-    yPosition += 7;
-    doc.setFontSize(10);
-    doc.text(`${project.customerName}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`${project.customerEmail}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`${project.customerPhone}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`${project.address}`, 20, yPosition);
-    yPosition += 12;
-
-    // Invoice Items Table
-    const columns = ['Description', 'Qty', 'Unit Price', 'Total'];
+    const panelCount = numberValue(project.panelCount);
+    const batteryQuantity = numberValue(project.battery?.quantity);
+    const batteryUnitPrice = numberValue(project.battery?.selectedBattery?.price);
     const rows = [
-      ['Solar Panels Installation', project.panelCount, '₹15,000', `₹${formatCurrency(project.panelCount * 15000)}`],
-      [project.inverter?.name || 'Inverter', '1', `₹${formatCurrency(project.inverter?.cost || 0)}`, `₹${formatCurrency(project.inverter?.cost || 0)}`],
-      [project.battery?.selectedBattery?.name || 'Battery', project.battery?.quantity || 1, `₹${formatCurrency(project.battery?.selectedBattery?.price || 0)}`, `₹${formatCurrency((project.battery?.quantity || 1) * (project.battery?.selectedBattery?.price || 0))}`],
-      ['Installation & Labor', '1', `₹${formatCurrency(project.laborCost || 0)}`, `₹${formatCurrency(project.laborCost || 0)}`]
+      ['Solar panels', panelCount, `Rs. ${formatCurrency(panelCount ? numberValue(project.materialCost) / panelCount : 0)}`, `Rs. ${formatCurrency(project.materialCost)}`],
+      [project.inverter?.name || 'Inverter', 1, 'Included', 'Included'],
+      [
+        project.battery?.selectedBattery?.name || 'Battery',
+        batteryQuantity,
+        batteryQuantity ? `Rs. ${formatCurrency(batteryUnitPrice)}` : 'N/A',
+        batteryQuantity ? `Rs. ${formatCurrency(batteryQuantity * batteryUnitPrice)}` : 'N/A'
+      ],
+      ['Installation and labour', 1, `Rs. ${formatCurrency(project.laborCost)}`, `Rs. ${formatCurrency(project.laborCost)}`]
     ];
 
-    doc.autoTable({
-      head: [columns],
-      body: rows,
-      startY: yPosition,
-      columnStyles: {
-        0: { cellWidth: 80 },
-        1: { cellWidth: 20, halign: 'center' },
-        2: { cellWidth: 30, halign: 'right' },
-        3: { cellWidth: 30, halign: 'right' }
-      }
-    });
+    yPosition = drawSectionTitle(doc, 'INVOICE ITEMS', yPosition + 3);
+    yPosition = drawFourColumnTable(doc, rows, yPosition);
+    yPosition = drawSectionTitle(doc, 'PAYMENT SUMMARY', yPosition + 3);
+    drawTwoColumnTable(doc, [
+      ['Total invoice amount', `Rs. ${formatCurrency(project.quotedPrice)}`],
+      ['Advance amount', `Rs. ${formatCurrency(project.advanceAmount)}`],
+      ['Balance amount', `Rs. ${formatCurrency(project.balanceAmount)}`]
+    ], yPosition);
 
-    yPosition = doc.lastAutoTable.finalY + 10;
-
-    // Summary
-    doc.setFontSize(11);
-    doc.text('SUMMARY:', 20, yPosition);
-    yPosition += 8;
-
-    const summary = [
-      [`Subtotal:`, `₹${formatCurrency(project.materialCost + project.laborCost)}`],
-      [`Total:`, `₹${formatCurrency(project.quotedPrice)}`],
-      [`Advance Paid:`, `₹${formatCurrency(project.advanceAmount || 0)}`],
-      [`Balance Due:`, `₹${formatCurrency(project.balanceAmount || 0)}`]
-    ];
-
-    doc.setFontSize(10);
-    summary.forEach((row, index) => {
-      const isBold = index === 1 || index === 3;
-      if (isBold) doc.setFont(undefined, 'bold');
-      doc.text(row[0], 20, yPosition);
-      doc.text(row[1], pageWidth - 30, yPosition, { align: 'right' });
-      doc.setFont(undefined, 'normal');
-      yPosition += 7;
-    });
-
-    yPosition += 5;
-    doc.text('Thank you for your business!', pageWidth / 2, yPosition, { align: 'center' });
-
-    // Save the PDF
-    doc.save(`Invoice_${project.projectId}.pdf`);
+    addPageNumbers(doc);
+    doc.save(`Invoice_${safeFilePart(project.projectId)}.pdf`);
     return { success: true };
   } catch (error) {
     console.error('Error generating invoice PDF:', error);
     return { success: false, error: error.message };
   }
-}
-
-/**
- * Format currency helper
- */
-function formatCurrency(value) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'decimal',
-    maximumFractionDigits: 0
-  }).format(value);
 }
