@@ -61,6 +61,51 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function validNewProject(projectId) {
+      return projectId == request.resource.data.projectId
+        && request.resource.data.status == 'quote_pending'
+        && request.resource.data.paymentStatus == 'not_started'
+        && request.resource.data.panelCount is number
+        && request.resource.data.panelCount > 0
+        && request.resource.data.quotedPrice is number
+        && request.resource.data.quotedPrice > 0;
+    }
+
+    function projectIdentityUnchanged() {
+      return request.resource.data.projectId == resource.data.projectId
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function operationalProjectFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status',
+        'updatedAt',
+        'adminNotes',
+        'technicalNotes',
+        'sitePhotos',
+        'techniciansAssigned',
+        'customerSignoff',
+        'completionNotes',
+        'finalPrice',
+        'quoteSentDate',
+        'approvalDate',
+        'advanceAmount',
+        'balanceAmount',
+        'installationScheduledDate',
+        'installationStartDate',
+        'completionDate'
+      ]);
+    }
+
+    function paymentProjectFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'paymentStatus',
+        'paymentHistory',
+        'updatedAt'
+      ]);
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || hasPermission('users.read');
       allow create: if isOwner(userId)
@@ -82,19 +127,21 @@ service cloud.firestore {
       allow read: if hasPermission('projects.read') || (
         signedIn() && resource.data.customerId == request.auth.uid
       );
-      allow create: if hasPermission('projects.create') || (
-        signedIn()
-        && projectId == request.resource.data.projectId
-        && request.resource.data.customerId == request.auth.uid
-        && request.resource.data.status == 'quote_pending'
-        && request.resource.data.paymentStatus == 'not_started'
-        && request.resource.data.panelCount is number
-        && request.resource.data.panelCount > 0
-        && request.resource.data.quotedPrice is number
-        && request.resource.data.quotedPrice > 0
+      allow create: if validNewProject(projectId) && (
+        hasPermission('projects.create') || (
+          signedIn() && request.resource.data.customerId == request.auth.uid
+        )
       );
-      allow update: if hasPermission('projects.update')
-        || hasPermission('projects.payments');
+      allow update: if projectIdentityUnchanged() && (
+        (
+          hasPermission('projects.update')
+          && operationalProjectFieldsOnly()
+        )
+        || (
+          hasPermission('projects.payments')
+          && paymentProjectFieldsOnly()
+        )
+      );
       allow delete: if hasPermission('projects.delete');
     }
 
