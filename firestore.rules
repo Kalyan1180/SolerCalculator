@@ -11,16 +11,46 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
+    function currentUserProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function currentRole() {
+      return userExists() ? currentUserProfile().role : 'customer';
+    }
+
+    function tokenHasAuthTime() {
+      return signedIn() && request.auth.token.auth_time is int;
+    }
+
+    function hasRevocationBoundary() {
       return userExists()
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-        : 'customer';
+        && 'tokensValidAfterSeconds' in currentUserProfile()
+        && currentUserProfile().tokensValidAfterSeconds is int;
+    }
+
+    function unrevokedSession() {
+      return tokenHasAuthTime() && (
+        !hasRevocationBoundary()
+        || request.auth.token.auth_time > currentUserProfile().tokensValidAfterSeconds
+      );
+    }
+
+    function privilegedRole() {
+      return currentRole() in ['admin', 'analyst', 'inventory_manager', 'project_manager'];
+    }
+
+    function activeSession() {
+      return unrevokedSession() && (
+        !privilegedRole()
+        || request.time.toMillis() - (request.auth.token.auth_time * 1000) < 28800000
+      );
     }
 
     // Keep this matrix synchronized with config/rbac.json. CI validates the JSON
     // source; Firestore remains the final authorization boundary for browser calls.
     function hasPermission(permission) {
-      return signedIn() && (
+      return activeSession() && (
         currentRole() == 'admin'
         || (
           currentRole() == 'analyst'
@@ -58,7 +88,7 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return signedIn() && request.auth.uid == userId;
+      return activeSession() && request.auth.uid == userId;
     }
 
     function validNewProject(projectId) {
@@ -118,18 +148,18 @@ service cloud.firestore {
           'email', 'displayName', 'updatedAt'
         ]);
 
-      // Role administration uses the authenticated Netlify function. Firebase
-      // Admin bypasses these rules and writes an audit record atomically.
+      // Role and session administration uses authenticated Netlify functions.
+      // Firebase Admin bypasses these rules and writes an audit record.
       allow delete: if false;
     }
 
     match /projects/{projectId} {
       allow read: if hasPermission('projects.read') || (
-        signedIn() && resource.data.customerId == request.auth.uid
+        activeSession() && resource.data.customerId == request.auth.uid
       );
       allow create: if validNewProject(projectId) && (
         hasPermission('projects.create') || (
-          signedIn() && request.resource.data.customerId == request.auth.uid
+          activeSession() && request.resource.data.customerId == request.auth.uid
         )
       );
       allow update: if projectIdentityUnchanged() && (

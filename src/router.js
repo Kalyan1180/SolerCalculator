@@ -12,6 +12,7 @@ import AccessDenied from '@/components/AccessDenied.vue';
 import AuditLog from '@/components/AuditLog.vue';
 import { auth } from '@/firebase';
 import { getUserAccess, hasEveryPermission } from '@/utils/accessControl';
+import { ensureActiveSession } from '@/utils/sessionManager';
 import { PERMISSIONS } from '@/constants/rbac';
 import SubmitQuotation from '@/components/SubmitQuotation.vue';
 import ManageInventory from '@/components/ManageInventory.vue';
@@ -148,6 +149,32 @@ router.beforeEach(async to => {
       name: 'LoginPage',
       query: { redirect: to.fullPath }
     };
+  }
+
+  if (to.meta.requiresAuth && currentUser) {
+    const session = await ensureActiveSession({
+      serverCheck: Boolean(to.meta.requiredPermission)
+    });
+
+    if (!session.active) {
+      if (session.reason === 'session-validation-unavailable') {
+        return {
+          name: 'AccessDenied',
+          query: {
+            reason: session.reason,
+            from: to.fullPath
+          }
+        };
+      }
+
+      return {
+        name: 'LoginPage',
+        query: {
+          reason: session.reason || 'session-expired',
+          redirect: to.fullPath
+        }
+      };
+    }
   }
 
   if (to.meta.requiredPermission) {

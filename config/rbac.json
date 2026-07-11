@@ -16,7 +16,8 @@
     "analytics.read": "View business analytics",
     "users.read": "View registered users and assigned roles",
     "users.roles.write": "Assign and change user roles",
-    "audit.read": "View security and role-change audit records"
+    "users.sessions.revoke": "Revoke all active sessions for a user",
+    "audit.read": "View security, role-change and session-revocation audit records"
   },
   "roles": {
     "customer": {

@@ -54,15 +54,15 @@
 </template>
 
 <script>
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/firebase';
 import {
-  clearUserAccessCache,
   customerAccess,
   getUserAccess,
   hasPermission
 } from '@/utils/accessControl';
 import { PERMISSIONS } from '@/constants/rbac';
+import { endSession } from '@/utils/sessionManager';
 
 export default {
   name: 'NavbarComponent',
@@ -102,10 +102,7 @@ export default {
     async signOutUser() {
       this.signingOut = true;
       try {
-        const uid = this.currentUser?.uid;
-        await signOut(auth);
-        clearUserAccessCache(uid);
-        await this.$router.replace('/');
+        await endSession('manual', { redirect: '/' });
       } catch (error) {
         console.error('Sign-out error:', error);
       } finally {

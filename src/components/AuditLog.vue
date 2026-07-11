@@ -3,7 +3,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
       <div>
         <h2 class="mb-1">Security Audit Log</h2>
-        <p class="text-muted mb-0">Review administrator role-assignment activity.</p>
+        <p class="text-muted mb-0">Review administrator role and session-security activity.</p>
       </div>
       <button class="btn btn-outline-secondary" :disabled="loading" @click="loadAuditLogs">
         <i class="fas fa-sync-alt me-1"></i> Refresh
@@ -20,7 +20,7 @@
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
-            <tr><th>Time</th><th>Actor</th><th>Target</th><th>Change</th><th>Action</th></tr>
+            <tr><th>Time</th><th>Actor</th><th>Target</th><th>Security Change</th><th>Action</th></tr>
           </thead>
           <tbody>
             <tr v-for="entry in entries" :key="entry.id">
@@ -34,14 +34,20 @@
                 <small><code>{{ entry.targetUid || 'N/A' }}</code></small>
               </td>
               <td>
-                <span class="badge bg-secondary">{{ roleLabelFor(entry.previousRole) }}</span>
-                <i class="fas fa-arrow-right mx-2 text-muted" aria-hidden="true"></i>
-                <span class="badge bg-primary">{{ roleLabelFor(entry.newRole) }}</span>
+                <template v-if="entry.action === 'user.role.updated'">
+                  <span class="badge bg-secondary">{{ roleLabelFor(entry.previousRole) }}</span>
+                  <i class="fas fa-arrow-right mx-2 text-muted" aria-hidden="true"></i>
+                  <span class="badge bg-primary">{{ roleLabelFor(entry.newRole) }}</span>
+                </template>
+                <span v-else-if="entry.action === 'user.sessions.revoked'" class="badge bg-danger">
+                  All active sessions revoked
+                </span>
+                <span v-else class="text-muted">No display details</span>
               </td>
               <td><code>{{ entry.action || 'unknown' }}</code></td>
             </tr>
             <tr v-if="!entries.length">
-              <td colspan="5" class="text-center text-muted py-4">No role-change audit entries are available.</td>
+              <td colspan="5" class="text-center text-muted py-4">No security audit entries are available.</td>
             </tr>
           </tbody>
         </table>

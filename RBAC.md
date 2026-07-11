@@ -11,11 +11,13 @@ The administration area uses least-privilege role-based access control (RBAC). A
 
 Frontend visibility is a usability feature, not the security boundary. Firestore Rules and Netlify functions remain authoritative.
 
+Authentication and session lifetime controls are documented separately in `SESSION_SECURITY.md`.
+
 ## Roles
 
 | Role | Intended user | Access |
 |---|---|---|
-| `admin` | Business owner or trusted system administrator | Full operational and security administration |
+| `admin` | Business owner or trusted system administrator | Full operational, user, role, session and security administration |
 | `project_manager` | Sales/project operations staff | Quotations, projects, status, payments, documents and customer notifications |
 | `inventory_manager` | Procurement/store staff | Stock inventory and calculator equipment management |
 | `analyst` | Accountant, auditor or reporting user | Read-only projects, inventory, equipment and analytics |
@@ -23,10 +25,10 @@ Frontend visibility is a usability feature, not the security boundary. Firestore
 
 ## Separation of duties
 
-- Project managers cannot manage inventory, equipment, users or roles.
-- Inventory managers cannot change projects, payments, users or roles.
+- Project managers cannot manage inventory, equipment, users, roles or sessions.
+- Inventory managers cannot change projects, payments, users, roles or sessions.
 - Analysts cannot perform write operations.
-- Only administrators can list users, assign roles or read the security audit log.
+- Only administrators can list users, assign roles, revoke sessions or read the security audit log.
 - Public registration always creates a `customer` role.
 
 The canonical policy is stored in `config/rbac.json`. Do not duplicate or invent role names in components or functions.
@@ -40,7 +42,18 @@ Role changes are performed by `netlify/functions/updateUserRole.js` and include 
 - the last administrator cannot be demoted;
 - the user document and audit entry are written in one Firestore transaction;
 - every successful role change is recorded in the append-only `auditLogs` collection;
-- Firebase custom claims receive a defence-in-depth copy of the role, while Firestore remains authoritative for immediate revocation.
+- Firebase custom claims receive a defence-in-depth copy of the role, while Firestore remains authoritative for immediate authorization changes.
+
+## Session administration safeguards
+
+Session revocation is performed by `netlify/functions/revokeUserSessions.js`:
+
+- the caller must have `users.sessions.revoke`;
+- the user's Firestore revocation boundary is updated;
+- Firebase refresh tokens are revoked;
+- the operation is written to the append-only audit log;
+- old JWTs are rejected by Netlify functions and Firestore Rules;
+- administrators can revoke their own sessions and are then signed out.
 
 ## Existing administrator
 
@@ -50,23 +63,24 @@ Existing user documents containing:
 role: admin
 ```
 
-continue to receive full access. No migration is required for the current administrator account.
+continue to receive full access. No role migration is required for the current administrator account.
 
 All unrecognized or missing roles are treated as `customer` by the application and server functions. Firestore Rules fail closed for unsupported role values.
 
-## Assigning a role
+## Assigning a role or revoking sessions
 
 1. Sign in as an administrator.
-2. Open **Administration Dashboard → Users & Roles**.
+2. Open **Administration Dashboard → Users, Roles & Sessions**.
 3. Select the least-privilege role needed by the user.
-4. Select **Save** and confirm the assignment.
-5. Review **Administration Dashboard → Security Audit Log** when an audit check is required.
+4. Select **Save Role** and confirm the assignment.
+5. Use **Revoke Sessions** when an account, browser or device may be compromised.
+6. Review **Administration Dashboard → Security Audit Log** when an audit check is required.
 
-The backend and Firestore permissions change immediately. The affected user should refresh the application or sign out and sign back in to refresh visible navigation and Firebase custom claims.
+Role permissions change immediately. The affected user's existing JWT is also checked against the current Firestore role on every protected server request.
 
 ## Firestore deployment
 
-Updating the website on Netlify does not deploy Firestore Security Rules. After merging an RBAC change, deploy the rules to the `ant-soler` Firebase project:
+Updating the website on Netlify does not deploy Firestore Security Rules. After merging an RBAC or session-policy change, deploy the rules to the `ant-soler` Firebase project:
 
 ```bash
 npx firebase-tools login
@@ -75,7 +89,7 @@ npx firebase-tools deploy --only firestore:rules
 
 The repository `.firebaserc` maps the default project to `ant-soler`.
 
-The RBAC application code and new role assignments should not be used in production until the matching `firestore.rules` version has been published.
+The RBAC and session application code should not be used in production until the matching `firestore.rules` version has been published.
 
 ## Validation
 
@@ -83,6 +97,7 @@ Run locally:
 
 ```bash
 npm run validate:rbac
+npm run validate:session
 npm run lint
 npm run build
 ```
@@ -94,8 +109,9 @@ npm run build
 - administrator wildcard policy;
 - read-only analyst restrictions;
 - separation of project and inventory duties;
-- administrator-only security permissions;
-- representation of configured roles and permissions in `firestore.rules`.
+- administrator-only role and session security permissions;
+- representation of configured browser permissions in `firestore.rules`;
+- role and session administration functions use their required permission.
 
 GitHub Actions runs these checks on pull requests and pushes to `master` or `agent/**` branches.
 

@@ -29,6 +29,9 @@ jobs:
       - name: Validate RBAC policy
         run: npm run validate:rbac
 
+      - name: Validate session policy
+        run: npm run validate:session
+
       - name: Lint
         run: npm run lint
 
