@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "tokenRefreshWindowMinutes": 5,
+  "warningMinutes": 2,
+  "activityWriteThrottleSeconds": 15,
+  "serverValidationCacheSeconds": 60,
+  "privileged": {
+    "idleMinutes": 30,
+    "absoluteHours": 8
+  },
+  "customer": {
+    "idleMinutes": 120,
+    "sessionAbsoluteHours": 24,
+    "rememberedAbsoluteDays": 30
+  }
+}
