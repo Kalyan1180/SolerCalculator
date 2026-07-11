@@ -1,110 +1,74 @@
 <template>
-  <div class="admin-entry container my-5">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-      <div>
-        <h2 class="mb-1">Administration Dashboard</h2>
-        <p class="text-muted mb-0">Only modules permitted for your assigned role are displayed.</p>
+  <div class="admin-entry container-fluid py-4">
+    <section class="dashboard-hero mb-4">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+          <span class="marketing-eyebrow text-white mb-2">
+            <i class="fas fa-sparkles" aria-hidden="true"></i>Operations workspace
+          </span>
+          <h2 class="display-6 mb-2">Welcome to ANT Solar administration</h2>
+          <p class="mb-0 opacity-75">
+            Access only the operational modules assigned to your role. Navigation and actions are automatically filtered by permission.
+          </p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+          <span class="dashboard-role">
+            <i class="fas fa-shield" aria-hidden="true"></i>{{ userAccess.roleLabel }}
+          </span>
+          <p class="small mt-2 mb-0 opacity-75">{{ userAccess.roleDescription }}</p>
+        </div>
       </div>
-      <div class="text-md-end">
-        <span class="badge bg-primary fs-6">{{ userAccess.roleLabel }}</span>
-        <div class="small text-muted mt-1">{{ userAccess.roleDescription }}</div>
-      </div>
-    </div>
+    </section>
 
     <div v-if="accessLoading" class="text-center my-5" role="status">
       <div class="spinner-border text-primary"></div>
+      <p class="text-muted mt-3">Loading your workspace…</p>
     </div>
 
-    <div v-else-if="visibleDashboardItems.length" class="row g-4">
-      <div v-for="item in visibleDashboardItems" :key="item.route" class="col-md-6 col-xl-4">
-        <router-link :to="item.route" class="card h-100 text-center text-decoration-none">
-          <div class="card-body">
-            <i :class="[item.icon, 'fa-3x', 'mb-3']"></i>
-            <h5 class="card-title">{{ item.title }}</h5>
-            <p class="card-text text-muted">{{ item.description }}</p>
-          </div>
-        </router-link>
+    <template v-else-if="visibleDashboardItems.length">
+      <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+        <div>
+          <h3 class="h5 mb-1">Available modules</h3>
+          <p class="text-muted mb-0">Only modules authorized for {{ userAccess.roleLabel }} are shown.</p>
+        </div>
+        <span class="badge bg-light text-dark border">{{ visibleDashboardItems.length }} module{{ visibleDashboardItems.length === 1 ? '' : 's' }}</span>
       </div>
-    </div>
 
-    <div v-else class="alert alert-warning">
-      Your role can open the dashboard but has no module permissions. Ask an administrator to review the role assignment.
-    </div>
+      <div class="row g-3 g-xl-4">
+        <div v-for="item in visibleDashboardItems" :key="item.routeName" class="col-md-6 col-xl-4">
+          <router-link :to="{ name: item.routeName }" class="dashboard-module">
+            <span class="dashboard-module__icon"><i :class="item.fallbackIcon" aria-hidden="true"></i></span>
+            <h4 class="h5 mb-2">{{ item.title }}</h4>
+            <p class="text-muted mb-4">{{ item.description }}</p>
+            <span class="dashboard-module__arrow">
+              Open module <i class="fas fa-arrow-right ms-1" aria-hidden="true"></i>
+            </span>
+          </router-link>
+        </div>
+      </div>
+    </template>
+
+    <section v-else class="enterprise-empty-state card">
+      <div class="enterprise-empty-state__icon"><i class="fas fa-lock" aria-hidden="true"></i></div>
+      <h3 class="h5">No modules assigned</h3>
+      <p class="text-muted mb-0">Your role can open the administration workspace but currently has no module permissions.</p>
+    </section>
   </div>
 </template>
 
 <script>
 import rbacMixin from '@/mixins/rbacMixin';
-import { PERMISSIONS } from '@/constants/rbac';
+import { flattenedAdminNavigation } from '@/constants/adminNavigation';
 
 export default {
   name: 'AdminEntry',
   mixins: [rbacMixin],
-  data() {
-    return {
-      dashboardItems: [
-        {
-          route: '/admin/projects',
-          permission: PERMISSIONS.PROJECTS_READ,
-          icon: 'fas fa-tasks',
-          title: 'Project Management',
-          description: 'Review quotations, payments, installations, documents and customer updates.'
-        },
-        {
-          route: '/admin/inventory',
-          permission: PERMISSIONS.INVENTORY_READ,
-          icon: 'fas fa-boxes',
-          title: 'Stock Inventory',
-          description: 'Track costs, selling prices, suppliers and stock levels.'
-        },
-        {
-          route: '/admin/equipment',
-          permission: PERMISSIONS.EQUIPMENT_READ,
-          icon: 'fas fa-solar-panel',
-          title: 'Calculator Catalog',
-          description: 'View or manage inverter and battery options used by the calculator.'
-        },
-        {
-          route: '/admin/investigate',
-          permission: PERMISSIONS.ANALYTICS_READ,
-          icon: 'fas fa-chart-line',
-          title: 'Analytics',
-          description: 'Review business metrics, projects and inventory health.'
-        },
-        {
-          route: '/admin/users',
-          permission: PERMISSIONS.USERS_READ,
-          icon: 'fas fa-users-cog',
-          title: 'Users & Roles',
-          description: 'Review registered users and manage role assignments.'
-        },
-        {
-          route: '/admin/audit',
-          permission: PERMISSIONS.AUDIT_READ,
-          icon: 'fas fa-clipboard-list',
-          title: 'Security Audit Log',
-          description: 'Review append-only administrator role-change history.'
-        }
-      ]
-    };
-  },
   computed: {
     visibleDashboardItems() {
-      return this.dashboardItems.filter(item => this.can(item.permission));
+      return flattenedAdminNavigation()
+        .filter(item => item.routeName !== 'AdminControl')
+        .filter(item => this.can(item.permission));
     }
   }
 };
 </script>
-
-<style scoped>
-.card {
-  border: 0;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
-}
-.card-body i, .card-title { color: #0d6efd; }
-</style>
