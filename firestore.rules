@@ -6,10 +6,55 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
+    function userExists() {
       return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentRole() {
+      return userExists()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : 'customer';
+    }
+
+    // Keep this matrix synchronized with config/rbac.json. CI validates the JSON
+    // source; Firestore remains the final authorization boundary for browser calls.
+    function hasPermission(permission) {
+      return signedIn() && (
+        currentRole() == 'admin'
+        || (
+          currentRole() == 'analyst'
+          && permission in [
+            'dashboard.access',
+            'projects.read',
+            'inventory.read',
+            'equipment.read',
+            'analytics.read'
+          ]
+        )
+        || (
+          currentRole() == 'inventory_manager'
+          && permission in [
+            'dashboard.access',
+            'inventory.read',
+            'inventory.write',
+            'equipment.read',
+            'equipment.write'
+          ]
+        )
+        || (
+          currentRole() == 'project_manager'
+          && permission in [
+            'dashboard.access',
+            'projects.read',
+            'projects.create',
+            'projects.update',
+            'projects.payments',
+            'projects.documents',
+            'notifications.send'
+          ]
+        )
+      );
     }
 
     function isOwner(userId) {
@@ -17,26 +62,27 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || hasPermission('users.read');
       allow create: if isOwner(userId)
         && request.resource.data.uid == userId
         && request.resource.data.role == 'customer';
-      allow update: if isAdmin() || (
-        isOwner(userId)
+      allow update: if isOwner(userId)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'email', 'displayName', 'updatedAt'
-        ])
-      );
-      allow delete: if isAdmin();
+        ]);
+
+      // Role administration uses the authenticated Netlify function. Firebase
+      // Admin bypasses these rules and writes an audit record atomically.
+      allow delete: if false;
     }
 
     match /projects/{projectId} {
-      allow read: if isAdmin() || (
+      allow read: if hasPermission('projects.read') || (
         signedIn() && resource.data.customerId == request.auth.uid
       );
-      allow create: if isAdmin() || (
+      allow create: if hasPermission('projects.create') || (
         signedIn()
         && projectId == request.resource.data.projectId
         && request.resource.data.customerId == request.auth.uid
@@ -47,21 +93,29 @@ service cloud.firestore {
         && request.resource.data.quotedPrice is number
         && request.resource.data.quotedPrice > 0
       );
-      allow update, delete: if isAdmin();
+      allow update: if hasPermission('projects.update')
+        || hasPermission('projects.payments');
+      allow delete: if hasPermission('projects.delete');
     }
 
     match /inventory/{itemId} {
-      allow read, write: if isAdmin();
+      allow read: if hasPermission('inventory.read');
+      allow create, update, delete: if hasPermission('inventory.write');
     }
 
     match /inverters/{itemId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if hasPermission('equipment.write');
     }
 
     match /batteries/{itemId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if hasPermission('equipment.write');
+    }
+
+    match /auditLogs/{auditId} {
+      allow read: if hasPermission('audit.read');
+      allow create, update, delete: if false;
     }
 
     match /{document=**} {
