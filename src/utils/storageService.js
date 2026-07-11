@@ -103,10 +103,11 @@ export async function uploadMultiplePhotos(projectId, files) {
     const results = await Promise.all(fileList.map(file => uploadProjectPhoto(projectId, file)));
     const failures = results.filter(result => !result.success);
     if (failures.length) {
+      const successfulUploads = results.filter(result => result.success);
+      await Promise.allSettled(successfulUploads.map(upload => deleteObject(ref(storage, upload.path))));
       return {
         success: false,
-        error: failures.map(result => result.error).join('; '),
-        uploads: results.filter(result => result.success)
+        error: `Upload cancelled because one or more files failed: ${failures.map(result => result.error).join('; ')}`
       };
     }
     return { success: true, uploads: results };
