@@ -4,7 +4,7 @@
       <div class="row align-items-center g-4">
         <div class="col-lg-8">
           <span class="marketing-eyebrow text-white mb-2">
-            <i class="fas fa-sparkles" aria-hidden="true"></i>Operations workspace
+            <i class="fas fa-bolt" aria-hidden="true"></i>Operations workspace
           </span>
           <h2 class="display-6 mb-2">Welcome to ANT Solar administration</h2>
           <p class="mb-0 opacity-75">
