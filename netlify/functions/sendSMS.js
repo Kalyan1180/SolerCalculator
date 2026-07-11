@@ -1,5 +1,5 @@
 const twilio = require('twilio');
-const { jsonResponse, requireAdmin } = require('./_firebaseAdmin');
+const { jsonResponse, requirePermission } = require('./_firebaseAdmin');
 
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
 const ALLOWED_TYPES = new Set(['project-status', 'payment-reminder', 'project-completion']);
@@ -18,7 +18,7 @@ exports.handler = async event => {
     return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'POST' });
   }
 
-  const authorization = await requireAdmin(event);
+  const authorization = await requirePermission(event, 'notifications.send');
   if (!authorization.authorized) return authorization.response;
 
   try {
