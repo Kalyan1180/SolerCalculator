@@ -6,6 +6,13 @@ const {
   requirePermission
 } = require('./_firebaseAdmin');
 
+function timestampToISOString(value) {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate().toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
 exports.handler = async event => {
   if (event.httpMethod !== 'GET') return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'GET' });
   const authorization = await requirePermission(event, 'users.read');
@@ -31,7 +38,9 @@ exports.handler = async event => {
         disabled: user.disabled,
         emailVerified: user.emailVerified,
         createdAt: user.metadata.creationTime || null,
-        lastSignInAt: user.metadata.lastSignInTime || null
+        lastSignInAt: user.metadata.lastSignInTime || null,
+        sessionsRevokedAt: timestampToISOString(profile.sessionsRevokedAt),
+        tokensValidAfterSeconds: Number(profile.tokensValidAfterSeconds || 0) || null
       };
     });
     users.sort((a, b) => String(a.email || a.uid).localeCompare(String(b.email || b.uid)));
