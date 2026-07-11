@@ -2,7 +2,7 @@
   <div class="project-approval container-fluid py-4">
     <div v-if="loading" class="text-center my-5" role="status">
       <div class="spinner-border text-primary"></div>
-      <p class="mt-2">Loading project...</p>
+      <p class="mt-2 text-muted">Loading project…</p>
     </div>
 
     <div v-if="error" class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -10,15 +10,15 @@
       <button type="button" class="btn-close" aria-label="Close" @click="error = ''"></button>
     </div>
     <div v-if="successMessage" class="alert alert-success" role="status">{{ successMessage }}</div>
-    <div v-if="!accessLoading && !canUpdateProject" class="alert alert-info">
-      Read-only access: your role can view this project but cannot change its status, notes or payment records.
-    </div>
 
     <div v-if="!loading && project" class="row g-4">
       <div class="col-lg-8">
         <div class="card mb-4">
-          <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">Project #{{ shortProjectId }}</h4>
+          <div class="card-header bg-primary text-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+              <small class="text-white-50 d-block">Project workspace</small>
+              <h4 class="mb-0">#{{ shortProjectId }}</h4>
+            </div>
             <span class="badge" :style="{ backgroundColor: getStatusColor(project.status) }">
               {{ getStatusLabel(project.status) }}
             </span>
@@ -73,16 +73,16 @@
               </tbody>
             </table>
 
-            <div class="mb-3">
+            <div v-if="canUpdateProject" class="mt-4">
               <label for="adminNotes" class="form-label fw-bold">Internal Notes</label>
-              <textarea id="adminNotes" v-model.trim="adminNotes" class="form-control" rows="3" maxlength="2000" :readonly="!canUpdateProject"></textarea>
+              <textarea id="adminNotes" v-model.trim="adminNotes" class="form-control" rows="3" maxlength="2000"></textarea>
+              <button class="btn btn-outline-primary mt-3" :disabled="busyAction" @click="saveNotes">Save Notes</button>
             </div>
-            <button v-if="canUpdateProject" class="btn btn-outline-primary" :disabled="busyAction" @click="saveNotes">Save Notes</button>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-header bg-light"><h5 class="mb-0">Site Photos</h5></div>
+          <div class="card-header"><h5 class="mb-0">Site Photos</h5></div>
           <div class="card-body">
             <p class="mb-2">Photo upload is disabled so this application can operate without a paid Firebase Storage plan.</p>
             <small class="text-muted">Projects, quotations, payments, inventory and status updates are unaffected.</small>
@@ -119,7 +119,7 @@
           </div>
         </div>
 
-        <div class="card mb-4">
+        <div v-if="canUpdateProject" class="card mb-4">
           <div class="card-header bg-warning"><h5 class="mb-0">Update Status</h5></div>
           <div class="card-body d-grid gap-2">
             <button
@@ -132,47 +132,48 @@
             >
               {{ action.label }}
             </button>
-            <span v-if="!canUpdateProject" class="text-muted">Your role has read-only project access.</span>
-            <span v-else-if="!availableStatusActions.length" class="text-muted">No further status action is available.</span>
+            <span v-if="!availableStatusActions.length" class="text-muted">No further status action is available.</span>
           </div>
         </div>
 
-        <div class="card mb-4">
+        <div v-if="canManagePayments" class="card mb-4">
           <div class="card-header bg-info text-white"><h5 class="mb-0">Record Payment</h5></div>
           <div class="card-body">
-            <template v-if="canManagePayments">
-              <div class="mb-3">
-                <label for="paymentType" class="form-label">Payment</label>
-                <select id="paymentType" v-model="paymentType" class="form-select" :disabled="busyAction || !paymentReady">
-                  <option value="advance">Advance</option>
-                  <option value="balance" :disabled="!advancePaid">Balance</option>
-                </select>
-              </div>
-              <div class="mb-3">
-                <label for="paymentMethod" class="form-label">Method</label>
-                <select id="paymentMethod" v-model="paymentMethod" class="form-select" :disabled="busyAction || !paymentReady">
-                  <option value="cash">Cash</option>
-                  <option value="bank_transfer">Bank transfer</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="upi">UPI</option>
-                </select>
-              </div>
-              <button class="btn btn-success w-100" :disabled="!canRecordPayment || busyAction" @click="recordPayment">
-                Record {{ paymentType }} payment
-              </button>
-              <small v-if="!paymentReady" class="d-block text-muted mt-2">Approve the quotation before recording payment.</small>
-            </template>
-            <span v-else class="text-muted">Your role cannot record payments.</span>
+            <div class="mb-3">
+              <label for="paymentType" class="form-label">Payment</label>
+              <select id="paymentType" v-model="paymentType" class="form-select" :disabled="busyAction || !paymentReady">
+                <option value="advance">Advance</option>
+                <option value="balance" :disabled="!advancePaid">Balance</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="paymentMethod" class="form-label">Method</label>
+              <select id="paymentMethod" v-model="paymentMethod" class="form-select" :disabled="busyAction || !paymentReady">
+                <option value="cash">Cash</option>
+                <option value="bank_transfer">Bank transfer</option>
+                <option value="cheque">Cheque</option>
+                <option value="upi">UPI</option>
+              </select>
+            </div>
+            <button class="btn btn-success w-100" :disabled="!canRecordPayment || busyAction" @click="recordPayment">
+              Record {{ paymentType }} payment
+            </button>
+            <small v-if="!paymentReady" class="d-block text-muted mt-2">Approve the quotation before recording payment.</small>
           </div>
         </div>
 
-        <div class="card">
+        <div v-if="canGenerateDocuments || canSendNotifications" class="card">
           <div class="card-header bg-secondary text-white"><h5 class="mb-0">Documents & Notifications</h5></div>
           <div class="list-group list-group-flush">
-            <button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadQuotation">Download quotation PDF</button>
-            <button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadInvoice">Download invoice PDF</button>
-            <button v-if="canSendNotifications" class="list-group-item list-group-item-action" :disabled="busyAction" @click="sendEmailUpdate">Send email update</button>
-            <div v-if="!canGenerateDocuments && !canSendNotifications" class="list-group-item text-muted">No document or notification permission is assigned to your role.</div>
+            <button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadQuotation">
+              <i class="fas fa-file-pdf me-2" aria-hidden="true"></i>Download quotation PDF
+            </button>
+            <button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadInvoice">
+              <i class="fas fa-file-invoice me-2" aria-hidden="true"></i>Download invoice PDF
+            </button>
+            <button v-if="canSendNotifications" class="list-group-item list-group-item-action" :disabled="busyAction" @click="sendEmailUpdate">
+              <i class="fas fa-envelope me-2" aria-hidden="true"></i>Send email update
+            </button>
           </div>
         </div>
       </div>
@@ -395,9 +396,15 @@ export default {
 </script>
 
 <style scoped>
-.project-approval { background: #f8f9fa; min-height: 100vh; }
-.card { border: 0; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
-.spec-card, .payment-milestone { padding: 1rem; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #0d6efd; }
-.payment-milestone { border-left-color: #198754; }
+.spec-card,
+.payment-milestone {
+  padding: 1rem;
+  border: 1px solid var(--ant-slate-200);
+  border-radius: 10px;
+  background: var(--ant-slate-50);
+}
+.spec-card { border-left: 4px solid var(--ant-blue-700); }
+.payment-milestone { border-left: 4px solid var(--ant-green-600); }
 .photo-thumbnail { width: 100%; aspect-ratio: 1; object-fit: cover; }
+.list-group-item-action { padding: 0.9rem 1rem; color: var(--ant-slate-700); }
 </style>
