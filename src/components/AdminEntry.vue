@@ -77,6 +77,13 @@ export default {
           icon: 'fas fa-users-cog',
           title: 'Users & Roles',
           description: 'Review registered users and manage role assignments.'
+        },
+        {
+          route: '/admin/audit',
+          permission: PERMISSIONS.AUDIT_READ,
+          icon: 'fas fa-clipboard-list',
+          title: 'Security Audit Log',
+          description: 'Review append-only administrator role-change history.'
         }
       ]
     };
