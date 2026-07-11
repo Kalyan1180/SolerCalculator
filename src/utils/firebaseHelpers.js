@@ -1,8 +1,9 @@
 // src/utils/firebaseHelpers.js
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '@/firebase';
+import { normalizeRole, ROLES } from '@/constants/rbac';
 
-const DEFAULT_ROLE = 'customer';
+const DEFAULT_ROLE = ROLES.CUSTOMER;
 
 /**
  * Ensure a signed-in user has a Firestore profile.
@@ -13,7 +14,7 @@ export async function createUserWithRole(user) {
 
   const userRef = doc(db, 'users', user.uid);
   const userSnap = await getDoc(userRef);
-  if (userSnap.exists()) return { created: false, role: userSnap.data().role || null };
+  if (userSnap.exists()) return { created: false, role: normalizeRole(userSnap.data().role) };
 
   await setDoc(userRef, {
     uid: user.uid,
@@ -26,12 +27,12 @@ export async function createUserWithRole(user) {
 }
 
 export async function getUserRole(uid) {
-  if (!uid) return null;
+  if (!uid) return DEFAULT_ROLE;
   try {
     const userSnap = await getDoc(doc(db, 'users', uid));
-    return userSnap.exists() ? userSnap.data().role || null : null;
+    return userSnap.exists() ? normalizeRole(userSnap.data().role) : DEFAULT_ROLE;
   } catch (error) {
     console.error('Error fetching user role:', error);
-    return null;
+    return DEFAULT_ROLE;
   }
 }
