@@ -16,6 +16,10 @@
         <input v-model="password" type="password" id="password" class="form-control" minlength="8" autocomplete="new-password" required />
         <small class="text-muted">Use at least 8 characters.</small>
       </div>
+      <div class="form-check mb-3">
+        <input v-model="rememberSession" class="form-check-input" type="checkbox" id="rememberSignupSession" />
+        <label class="form-check-label" for="rememberSignupSession">Keep me signed in on this device</label>
+      </div>
       <button type="submit" class="btn btn-primary w-100" :disabled="loading">
         {{ loading ? 'Creating account...' : 'Sign Up with Email' }}
       </button>
@@ -37,16 +41,30 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from '@/firebase';
 import { createUserWithRole } from '@/utils/firebaseHelpers';
+import {
+  configureSessionPersistence,
+  getRememberSessionPreference
+} from '@/utils/sessionManager';
 
 export default {
   name: 'SignUpPage',
   data() {
-    return { displayName: '', email: '', password: '', error: '', loading: false };
+    return {
+      displayName: '',
+      email: '',
+      password: '',
+      error: '',
+      loading: false,
+      rememberSession: getRememberSessionPreference()
+    };
   },
   methods: {
     async completeSignup(user) {
       await createUserWithRole(user);
       this.$router.replace('/');
+    },
+    async prepareSignup() {
+      await configureSessionPersistence(this.rememberSession);
     },
     async signUpWithEmail() {
       this.error = '';
@@ -57,6 +75,7 @@ export default {
 
       this.loading = true;
       try {
+        await this.prepareSignup();
         const result = await createUserWithEmailAndPassword(auth, this.email, this.password);
         if (this.displayName) await updateProfile(result.user, { displayName: this.displayName });
         await this.completeSignup(result.user);
@@ -71,6 +90,7 @@ export default {
       this.loading = true;
       this.error = '';
       try {
+        await this.prepareSignup();
         const result = await signInWithPopup(auth, googleProvider);
         await this.completeSignup(result.user);
       } catch (error) {
@@ -86,7 +106,7 @@ export default {
 
 <style scoped>
 .signup-container {
-  max-width: 420px;
+  max-width: 440px;
   padding: 24px;
   border: 1px solid #eee;
   border-radius: 8px;
