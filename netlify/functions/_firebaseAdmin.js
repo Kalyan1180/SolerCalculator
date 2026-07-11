@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const rbacConfig = require('../../config/rbac.json');
 
 function requireEnvironment(name) {
   const value = process.env[name];
@@ -29,7 +30,8 @@ function getAdminServices() {
   getAdminApp();
   return {
     auth: admin.auth(),
-    db: admin.firestore()
+    db: admin.firestore(),
+    fieldValue: admin.firestore.FieldValue
   };
 }
 
@@ -45,7 +47,33 @@ function jsonResponse(statusCode, payload, headers = {}) {
   };
 }
 
-async function requireAdmin(event) {
+function normalizeRole(role) {
+  const normalized = String(role || '').trim().toLowerCase();
+  return rbacConfig.roles[normalized] ? normalized : 'customer';
+}
+
+function getRoleDefinition(role) {
+  const normalizedRole = normalizeRole(role);
+  return {
+    role: normalizedRole,
+    ...rbacConfig.roles[normalizedRole]
+  };
+}
+
+function getRolePermissions(role) {
+  const definition = getRoleDefinition(role);
+  return definition.permissions.includes('*')
+    ? Object.keys(rbacConfig.permissions)
+    : [...definition.permissions];
+}
+
+function roleHasPermission(role, permission) {
+  if (!rbacConfig.permissions[permission]) return false;
+  const definition = getRoleDefinition(role);
+  return definition.permissions.includes('*') || definition.permissions.includes(permission);
+}
+
+async function authorize(event) {
   const authorization = event.headers?.authorization || event.headers?.Authorization || '';
   const match = authorization.match(/^Bearer\s+(.+)$/i);
   if (!match) {
@@ -56,19 +84,91 @@ async function requireAdmin(event) {
     const { auth, db } = getAdminServices();
     const decodedToken = await auth.verifyIdToken(match[1], true);
     const userSnapshot = await db.collection('users').doc(decodedToken.uid).get();
-    const role = userSnapshot.exists ? userSnapshot.data().role : null;
-    if (role !== 'admin') {
-      return { authorized: false, response: jsonResponse(403, { error: 'Administrator access required' }) };
-    }
-    return { authorized: true, user: decodedToken, db };
+    const profile = userSnapshot.exists ? userSnapshot.data() : {};
+    const role = normalizeRole(profile.role);
+    const roleDefinition = getRoleDefinition(role);
+
+    return {
+      authorized: true,
+      user: decodedToken,
+      db,
+      profile,
+      role,
+      roleLabel: roleDefinition.label,
+      permissions: getRolePermissions(role)
+    };
   } catch (error) {
     console.error('Authorization failed:', error.message);
-    return { authorized: false, response: jsonResponse(401, { error: 'Invalid or expired authentication token' }) };
+    return {
+      authorized: false,
+      response: jsonResponse(401, { error: 'Invalid or expired authentication token' })
+    };
   }
 }
 
+async function requirePermission(event, permission) {
+  if (!rbacConfig.permissions[permission]) {
+    console.error(`Unknown RBAC permission requested by function: ${permission}`);
+    return {
+      authorized: false,
+      response: jsonResponse(500, { error: 'Authorization policy is misconfigured' })
+    };
+  }
+
+  const authorization = await authorize(event);
+  if (!authorization.authorized) return authorization;
+  if (!roleHasPermission(authorization.role, permission)) {
+    return {
+      authorized: false,
+      response: jsonResponse(403, {
+        error: 'You do not have permission to perform this action',
+        requiredPermission: permission
+      })
+    };
+  }
+  return { ...authorization, requiredPermission: permission };
+}
+
+async function requireAnyPermission(event, permissions) {
+  const requestedPermissions = Array.isArray(permissions) ? permissions : [permissions];
+  const authorization = await authorize(event);
+  if (!authorization.authorized) return authorization;
+
+  const allowed = requestedPermissions.some(permission => roleHasPermission(authorization.role, permission));
+  if (!allowed) {
+    return {
+      authorized: false,
+      response: jsonResponse(403, {
+        error: 'You do not have permission to perform this action',
+        requiredPermissions: requestedPermissions
+      })
+    };
+  }
+  return { ...authorization, requiredPermissions: requestedPermissions };
+}
+
+async function requireAdmin(event) {
+  const authorization = await authorize(event);
+  if (!authorization.authorized) return authorization;
+  if (authorization.role !== 'admin') {
+    return {
+      authorized: false,
+      response: jsonResponse(403, { error: 'Administrator access required' })
+    };
+  }
+  return authorization;
+}
+
 module.exports = {
+  authorize,
   getAdminServices,
+  getRoleDefinition,
+  getRolePermissions,
   jsonResponse,
-  requireAdmin
+  normalizeRole,
+  requireAdmin,
+  requireAnyPermission,
+  requirePermission,
+  rbacConfig,
+  roleHasPermission
 };

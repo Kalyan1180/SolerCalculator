@@ -35,7 +35,7 @@
         <textarea v-model.trim="formData.additionalNotes" id="additionalNotes" class="form-control" rows="2" maxlength="1000"></textarea>
       </div>
 
-      <div class="mb-3" v-if="isAdmin">
+      <div class="mb-3" v-if="canCreateProjects">
         <label for="suggestedPrice" class="form-label">Final Quoted Price (Rs)</label>
         <input
           v-model.number="formData.suggestedPrice"
@@ -48,7 +48,7 @@
         />
       </div>
 
-      <div class="prefilled-fields border p-3 mb-3 rounded" v-if="isAdmin && hasCalculatorResults">
+      <div class="prefilled-fields border p-3 mb-3 rounded" v-if="canCreateProjects && hasCalculatorResults">
         <h4>Calculation Data</h4>
         <p><strong>Panels:</strong> {{ solerResults.panelCount }}</p>
         <p><strong>Estimated installed cost:</strong> Rs {{ formatMoney(solerResults.costWith) }}</p>
@@ -59,7 +59,7 @@
       </div>
 
       <button type="submit" class="btn btn-primary w-100" :disabled="loading || !hasCalculatorResults">
-        Submit Requirement
+        {{ canCreateProjects ? 'Create Project' : 'Submit Requirement' }}
       </button>
     </form>
   </div>
@@ -69,15 +69,16 @@
 import { mapGetters } from 'vuex';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/firebase';
-import { getUserRole } from '@/utils/firebaseHelpers';
 import { createProject } from '@/models/projectModel';
+import rbacMixin from '@/mixins/rbacMixin';
+import { PERMISSIONS } from '@/constants/rbac';
 
 export default {
   name: 'SubmitQuotation',
+  mixins: [rbacMixin],
   data() {
     return {
       currentUser: null,
-      userRole: null,
       unsubscribeAuth: null,
       formData: {
         name: '',
@@ -96,8 +97,8 @@ export default {
   },
   computed: {
     ...mapGetters(['solerResults']),
-    isAdmin() {
-      return this.userRole === 'admin';
+    canCreateProjects() {
+      return this.can(PERMISSIONS.PROJECTS_CREATE);
     },
     hasCalculatorResults() {
       return Number(this.solerResults?.panelCount) > 0 && Boolean(this.solerResults?.inverter);
@@ -108,9 +109,9 @@ export default {
       this.currentUser = user;
       if (!user) return;
 
+      await this.loadUserAccess(true);
       this.formData.email = user.email || '';
       this.formData.name = user.displayName || this.formData.name;
-      this.userRole = await getUserRole(user.uid);
       this.formData.suggestedPrice = Number(this.solerResults?.special) || 0;
     });
   },
@@ -129,7 +130,7 @@ export default {
       if (!this.formData.name || !this.formData.address || !this.formData.phone || !this.formData.email) {
         return 'Please complete all required customer fields.';
       }
-      if (this.isAdmin && Number(this.formData.suggestedPrice) <= 0) {
+      if (this.canCreateProjects && Number(this.formData.suggestedPrice) <= 0) {
         return 'Quoted price must be greater than zero.';
       }
       return null;
@@ -146,11 +147,12 @@ export default {
       try {
         const projectData = {
           ...this.formData,
-          suggestedPrice: this.isAdmin
+          suggestedPrice: this.canCreateProjects
             ? Number(this.formData.suggestedPrice)
             : Number(this.solerResults.special)
         };
-        const result = await createProject(this.currentUser.uid, projectData, this.solerResults);
+        const customerId = this.canCreateProjects ? null : this.currentUser.uid;
+        const result = await createProject(customerId, projectData, this.solerResults);
         if (!result.success) throw new Error(result.error || 'Unable to create project');
 
         this.message = `Project ${result.projectId} created successfully. Redirecting in ${this.redirectCountdown} seconds...`;
@@ -159,7 +161,7 @@ export default {
           if (this.redirectCountdown <= 0) {
             clearInterval(this.countdownInterval);
             this.countdownInterval = null;
-            this.$router.push(this.isAdmin ? '/admin/projects' : '/customer/my-projects');
+            this.$router.push(this.canCreateProjects ? '/admin/projects' : '/customer/my-projects');
             return;
           }
           this.message = `Project ${result.projectId} created successfully. Redirecting in ${this.redirectCountdown} seconds...`;
@@ -176,13 +178,8 @@ export default {
 </script>
 
 <style scoped>
-.quotation-container {
-  max-width: 650px;
-}
-.quotation-form,
-.prefilled-fields {
-  background-color: #f8f9fa;
-}
+.quotation-container { max-width: 650px; }
+.quotation-form, .prefilled-fields { background-color: #f8f9fa; }
 .loader-overlay {
   position: fixed;
   inset: 0;
@@ -192,8 +189,5 @@ export default {
   align-items: center;
   justify-content: center;
 }
-.loader {
-  font-size: 1.15rem;
-  color: #007bff;
-}
+.loader { font-size: 1.15rem; color: #007bff; }
 </style>

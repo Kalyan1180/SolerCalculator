@@ -1,4 +1,4 @@
-const { jsonResponse, requireAdmin } = require('./_firebaseAdmin');
+const { jsonResponse, requirePermission } = require('./_firebaseAdmin');
 
 function validId(value) {
   const id = String(value || '').trim();
@@ -7,7 +7,7 @@ function validId(value) {
 
 exports.handler = async event => {
   if (event.httpMethod !== 'DELETE') return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'DELETE' });
-  const authorization = await requireAdmin(event);
+  const authorization = await requirePermission(event, 'equipment.write');
   if (!authorization.authorized) return authorization.response;
 
   try {

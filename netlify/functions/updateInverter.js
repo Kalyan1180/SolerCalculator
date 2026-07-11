@@ -1,4 +1,4 @@
-const { jsonResponse, requireAdmin } = require('./_firebaseAdmin');
+const { jsonResponse, requirePermission } = require('./_firebaseAdmin');
 
 function validId(value) {
   const id = String(value || '').trim();
@@ -19,7 +19,7 @@ function nonNegativeNumber(value, field) {
 
 exports.handler = async event => {
   if (event.httpMethod !== 'PUT') return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'PUT' });
-  const authorization = await requireAdmin(event);
+  const authorization = await requirePermission(event, 'equipment.write');
   if (!authorization.authorized) return authorization.response;
 
   try {
@@ -44,7 +44,15 @@ exports.handler = async event => {
     const inverterRef = authorization.db.collection('inverters').doc(id);
     const snapshot = await inverterRef.get();
     if (!snapshot.exists) return jsonResponse(404, { error: 'Inverter not found' });
-    await inverterRef.update({ name, peakLoad, maxPanels, batterySupported, cost, updatedAt: new Date().toISOString() });
+    await inverterRef.update({
+      name,
+      peakLoad,
+      maxPanels,
+      batterySupported,
+      cost,
+      updatedAt: new Date().toISOString(),
+      updatedBy: authorization.user.uid
+    });
     return jsonResponse(200, { message: 'Inverter updated successfully' });
   } catch (error) {
     console.error('Error updating inverter:', error);

@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const { jsonResponse, requireAdmin } = require('./_firebaseAdmin');
+const { jsonResponse, requirePermission } = require('./_firebaseAdmin');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REQUIRED_EMAIL_VARIABLES = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASSWORD'];
@@ -145,7 +145,7 @@ exports.handler = async event => {
     return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'POST' });
   }
 
-  const authorization = await requireAdmin(event);
+  const authorization = await requirePermission(event, 'notifications.send');
   if (!authorization.authorized) return authorization.response;
 
   try {

@@ -8,8 +8,11 @@ import AboutPage from '@/components/AboutPage.vue';
 import ContactPage from '@/components/ContactPage.vue';
 import LoginPage from '@/components/LoginPage.vue';
 import SignUpPage from '@/components/SignUpPage.vue';
+import AccessDenied from '@/components/AccessDenied.vue';
+import AuditLog from '@/components/AuditLog.vue';
 import { auth } from '@/firebase';
-import { getUserRole } from '@/utils/firebaseHelpers';
+import { getUserAccess, hasEveryPermission } from '@/utils/accessControl';
+import { PERMISSIONS } from '@/constants/rbac';
 import SubmitQuotation from '@/components/SubmitQuotation.vue';
 import ManageInventory from '@/components/ManageInventory.vue';
 import EquipmentCatalog from '@/components/EquipmentCatalog.vue';
@@ -20,7 +23,9 @@ import ProjectApproval from '@/components/ProjectApproval.vue';
 import CustomerProjects from '@/components/CustomerProjects.vue';
 import CustomProjectForm from '@/components/CustomProjectForm.vue';
 
-const adminMeta = { requiresAuth: true, requiresRole: 'admin' };
+function protectedMeta(requiredPermission) {
+  return { requiresAuth: true, requiredPermission };
+}
 
 const routes = [
   { path: '/', name: 'Home', component: HomePage },
@@ -29,6 +34,7 @@ const routes = [
   { path: '/contact', name: 'ContactPage', component: ContactPage },
   { path: '/login', name: 'LoginPage', component: LoginPage, meta: { requiresGuest: true } },
   { path: '/signup', name: 'SignUpPage', component: SignUpPage, meta: { requiresGuest: true } },
+  { path: '/forbidden', name: 'AccessDenied', component: AccessDenied, meta: { requiresAuth: true } },
   {
     path: '/submit-quotation',
     alias: '/Submitquotation',
@@ -36,25 +42,66 @@ const routes = [
     component: SubmitQuotation,
     meta: { requiresAuth: true }
   },
-  { path: '/admin', name: 'AdminControl', component: AdminControl, meta: adminMeta },
-  { path: '/admin/inventory', name: 'ManageInventory', component: ManageInventory, meta: adminMeta },
-  { path: '/admin/equipment', name: 'EquipmentCatalog', component: EquipmentCatalog, meta: adminMeta },
-  { path: '/admin/projects', name: 'ProjectManagement', component: ProjectManagement, meta: adminMeta },
-  { path: '/admin/projects/new', name: 'AddCustomProject', component: CustomProjectForm, meta: adminMeta },
+  {
+    path: '/admin',
+    name: 'AdminControl',
+    component: AdminControl,
+    meta: protectedMeta(PERMISSIONS.DASHBOARD_ACCESS)
+  },
+  {
+    path: '/admin/inventory',
+    name: 'ManageInventory',
+    component: ManageInventory,
+    meta: protectedMeta(PERMISSIONS.INVENTORY_READ)
+  },
+  {
+    path: '/admin/equipment',
+    name: 'EquipmentCatalog',
+    component: EquipmentCatalog,
+    meta: protectedMeta(PERMISSIONS.EQUIPMENT_READ)
+  },
+  {
+    path: '/admin/projects',
+    name: 'ProjectManagement',
+    component: ProjectManagement,
+    meta: protectedMeta(PERMISSIONS.PROJECTS_READ)
+  },
+  {
+    path: '/admin/projects/new',
+    name: 'AddCustomProject',
+    component: CustomProjectForm,
+    meta: protectedMeta(PERMISSIONS.PROJECTS_CREATE)
+  },
   {
     path: '/admin/projects/:projectId',
     name: 'ProjectApproval',
     component: ProjectApproval,
     props: true,
-    meta: adminMeta
+    meta: protectedMeta(PERMISSIONS.PROJECTS_READ)
   },
   {
     path: '/admin/projects/:projectId/detail',
     redirect: to => ({ name: 'ProjectApproval', params: { projectId: to.params.projectId } }),
-    meta: adminMeta
+    meta: protectedMeta(PERMISSIONS.PROJECTS_READ)
   },
-  { path: '/admin/users', name: 'UserManagement', component: UserManagement, meta: adminMeta },
-  { path: '/admin/investigate', name: 'AdminInvestigate', component: AdminInvestigate, meta: adminMeta },
+  {
+    path: '/admin/users',
+    name: 'UserManagement',
+    component: UserManagement,
+    meta: protectedMeta(PERMISSIONS.USERS_READ)
+  },
+  {
+    path: '/admin/audit',
+    name: 'AuditLog',
+    component: AuditLog,
+    meta: protectedMeta(PERMISSIONS.AUDIT_READ)
+  },
+  {
+    path: '/admin/investigate',
+    name: 'AdminInvestigate',
+    component: AdminInvestigate,
+    meta: protectedMeta(PERMISSIONS.ANALYTICS_READ)
+  },
   {
     path: '/customer/my-projects',
     name: 'CustomerProjects',
@@ -94,9 +141,7 @@ async function getCurrentUser() {
 router.beforeEach(async to => {
   const currentUser = await getCurrentUser();
 
-  if (to.meta.requiresGuest && currentUser) {
-    return { name: 'Home' };
-  }
+  if (to.meta.requiresGuest && currentUser) return { name: 'Home' };
 
   if (to.meta.requiresAuth && !currentUser) {
     return {
@@ -105,14 +150,30 @@ router.beforeEach(async to => {
     };
   }
 
-  if (to.meta.requiresRole) {
-    const role = await getUserRole(currentUser.uid);
-    const allowedRoles = Array.isArray(to.meta.requiresRole)
-      ? to.meta.requiresRole
-      : [to.meta.requiresRole];
+  if (to.meta.requiredPermission) {
+    const requiredPermissions = Array.isArray(to.meta.requiredPermission)
+      ? to.meta.requiredPermission
+      : [to.meta.requiredPermission];
 
-    if (!allowedRoles.includes(role)) {
-      return { name: 'Home', query: { error: 'access-denied' } };
+    try {
+      // Protected navigation always re-reads the Firestore role. This makes
+      // privilege revocation effective immediately instead of waiting for cache expiry.
+      const access = await getUserAccess(currentUser.uid, { force: true });
+      if (!hasEveryPermission(access, requiredPermissions)) {
+        return {
+          name: 'AccessDenied',
+          query: {
+            permission: requiredPermissions.join(', '),
+            from: to.fullPath
+          }
+        };
+      }
+    } catch (error) {
+      console.error('Route authorization failed:', error);
+      return {
+        name: 'AccessDenied',
+        query: { permission: requiredPermissions.join(', '), reason: 'access-check-failed' }
+      };
     }
   }
 

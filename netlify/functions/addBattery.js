@@ -1,4 +1,4 @@
-const { jsonResponse, requireAdmin } = require('./_firebaseAdmin');
+const { jsonResponse, requirePermission } = require('./_firebaseAdmin');
 
 function positiveNumber(value, field) {
   const number = Number(value);
@@ -14,7 +14,7 @@ function nonNegativeNumber(value, field) {
 
 exports.handler = async event => {
   if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'POST' });
-  const authorization = await requireAdmin(event);
+  const authorization = await requirePermission(event, 'equipment.write');
   if (!authorization.authorized) return authorization.response;
 
   try {
@@ -31,7 +31,8 @@ exports.handler = async event => {
       energy,
       price,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      updatedBy: authorization.user.uid
     });
     return jsonResponse(201, { message: 'Battery added successfully', id: docRef.id });
   } catch (error) {

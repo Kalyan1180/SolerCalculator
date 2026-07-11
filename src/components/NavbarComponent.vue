@@ -36,8 +36,13 @@
               {{ currentUser.displayName || currentUser.email || 'Account' }}
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
+              <li class="px-3 py-2">
+                <div class="small fw-semibold">{{ userAccess.roleLabel }}</div>
+                <div class="small text-muted role-description">{{ userAccess.roleDescription }}</div>
+              </li>
+              <li><hr class="dropdown-divider" /></li>
               <li><router-link class="dropdown-item" to="/customer/my-projects">My Projects</router-link></li>
-              <li v-if="userRole === 'admin'"><router-link class="dropdown-item" to="/admin">Admin Dashboard</router-link></li>
+              <li v-if="canOpenDashboard"><router-link class="dropdown-item" to="/admin">Administration Dashboard</router-link></li>
               <li><hr class="dropdown-divider" /></li>
               <li><button class="dropdown-item" type="button" :disabled="signingOut" @click="signOutUser">{{ signingOut ? 'Signing out...' : 'Sign Out' }}</button></li>
             </ul>
@@ -51,22 +56,43 @@
 <script>
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/firebase';
-import { getUserRole } from '@/utils/firebaseHelpers';
+import {
+  clearUserAccessCache,
+  customerAccess,
+  getUserAccess,
+  hasPermission
+} from '@/utils/accessControl';
+import { PERMISSIONS } from '@/constants/rbac';
 
 export default {
   name: 'NavbarComponent',
   data() {
     return {
       currentUser: null,
-      userRole: null,
+      userAccess: customerAccess(),
       unsubscribeAuth: null,
       signingOut: false
     };
   },
+  computed: {
+    canOpenDashboard() {
+      return hasPermission(this.userAccess, PERMISSIONS.DASHBOARD_ACCESS);
+    }
+  },
   created() {
     this.unsubscribeAuth = onAuthStateChanged(auth, async user => {
       this.currentUser = user;
-      this.userRole = user ? await getUserRole(user.uid) : null;
+      if (!user) {
+        this.userAccess = customerAccess();
+        return;
+      }
+
+      try {
+        this.userAccess = await getUserAccess(user.uid, { force: true });
+      } catch (error) {
+        console.error('Unable to load navigation access:', error);
+        this.userAccess = customerAccess(user.uid);
+      }
     });
   },
   beforeUnmount() {
@@ -76,7 +102,9 @@ export default {
     async signOutUser() {
       this.signingOut = true;
       try {
+        const uid = this.currentUser?.uid;
         await signOut(auth);
+        clearUserAccessCache(uid);
         await this.$router.replace('/');
       } catch (error) {
         console.error('Sign-out error:', error);
@@ -93,4 +121,5 @@ export default {
 .logo { width: 40px; height: auto; margin-right: 10px; }
 .profile-icon { width: 30px; height: 30px; border-radius: 50%; margin-right: 5px; object-fit: cover; }
 .btn-link { text-decoration: none; }
+.role-description { max-width: 260px; white-space: normal; }
 </style>
