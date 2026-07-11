@@ -12,6 +12,7 @@ import { auth } from '@/firebase';
 import { getUserRole } from '@/utils/firebaseHelpers';
 import SubmitQuotation from '@/components/SubmitQuotation.vue';
 import ManageInventory from '@/components/ManageInventory.vue';
+import EquipmentCatalog from '@/components/EquipmentCatalog.vue';
 import ProjectManagement from '@/components/ProjectManagement.vue';
 import UserManagement from '@/components/UserManagement.vue';
 import AdminInvestigate from '@/components/AdminInvestigate.vue';
@@ -37,6 +38,7 @@ const routes = [
   },
   { path: '/admin', name: 'AdminControl', component: AdminControl, meta: adminMeta },
   { path: '/admin/inventory', name: 'ManageInventory', component: ManageInventory, meta: adminMeta },
+  { path: '/admin/equipment', name: 'EquipmentCatalog', component: EquipmentCatalog, meta: adminMeta },
   { path: '/admin/projects', name: 'ProjectManagement', component: ProjectManagement, meta: adminMeta },
   { path: '/admin/projects/new', name: 'AddCustomProject', component: CustomProjectForm, meta: adminMeta },
   {
