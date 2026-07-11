@@ -4,6 +4,7 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const configPath = path.join(root, 'config', 'rbac.json');
 const rulesPath = path.join(root, 'firestore.rules');
+const roleFunctionPath = path.join(root, 'netlify', 'functions', 'updateUserRole.js');
 
 function fail(message) {
   throw new Error(`RBAC validation failed: ${message}`);
@@ -19,6 +20,7 @@ function includesAny(values, candidates) {
 
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const firestoreRules = fs.readFileSync(rulesPath, 'utf8');
+const roleFunction = fs.readFileSync(roleFunctionPath, 'utf8');
 
 if (!Number.isInteger(config.version) || config.version < 1) {
   fail('version must be a positive integer');
@@ -126,8 +128,7 @@ if (includesAny(config.roles.inventory_manager.permissions, inventoryManagerForb
   fail('inventory manager violates separation of duties');
 }
 
-// The rules file intentionally mirrors the shared JSON matrix. Verify that every
-// configured non-admin role and permission is represented before deployment.
+// The rules file intentionally mirrors roles that access Firestore from the browser.
 for (const role of requiredRoles.filter(role => !['customer', 'admin'].includes(role))) {
   if (!firestoreRules.includes(`currentRole() == '${role}'`)) {
     fail(`Firestore rules are missing role ${role}`);
@@ -139,11 +140,15 @@ for (const role of requiredRoles.filter(role => !['customer', 'admin'].includes(
   }
 }
 
-for (const permission of ['users.roles.write', 'audit.read']) {
-  if (!permissionSet.has(permission)) fail(`required security permission is missing: ${permission}`);
-  if (!firestoreRules.includes(`'${permission}'`)) {
-    fail(`Firestore rules do not reference required security permission ${permission}`);
-  }
+if (!permissionSet.has('users.roles.write')) fail('required server security permission users.roles.write is missing');
+if (!roleFunction.includes("requirePermission(event, 'users.roles.write')")) {
+  fail('role administration function does not enforce users.roles.write');
+}
+if (!firestoreRules.includes("hasPermission('audit.read')")) {
+  fail('Firestore rules do not enforce audit.read for audit log access');
+}
+if (!firestoreRules.includes('allow create, update, delete: if false;')) {
+  fail('audit logs are not append-only from browser clients');
 }
 
 console.log(`RBAC policy v${config.version} is valid: ${Object.keys(config.roles).length} roles, ${permissionNames.length} permissions.`);
