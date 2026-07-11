@@ -1,80 +1,113 @@
-// netlify/functions/updateProject.js
+// Admin-only project updates for legacy callers. New UI writes through projectModel.js.
+const {
+  admin,
+  HttpError,
+  getDb,
+  json,
+  parseJsonBody,
+  requireUser,
+  toPublicError
+} = require('../lib/firebaseAdmin');
 
-const admin = require("firebase-admin");
+const ALLOWED_FIELDS = new Set([
+  'customerPhone',
+  'phone',
+  'percentCompletion',
+  'customerNotes',
+  'adminNotes',
+  'technicalNotes',
+  'completionNotes',
+  'advancePrice',
+  'finalPrice',
+  'customerSignoff'
+]);
 
-// Initialize Firebase Admin SDK if not already initialized
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      type: process.env.FB_TYPE,
-      project_id: process.env.FB_PROJECT_ID,
-      private_key_id: process.env.FB_PRIVATE_KEY_ID,
-      private_key: process.env.FB_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      client_email: process.env.FB_CLIENT_EMAIL,
-      client_id: process.env.FB_CLIENT_ID,
-      auth_uri: process.env.FB_AUTH_URI,
-      token_uri: process.env.FB_TOKEN_URI,
-      auth_provider_x509_cert_url: process.env.FB_AUTH_PROVIDER_X509_CERT_URL,
-      client_x509_cert_url: process.env.FB_CLIENT_X509_CERT_URL,
-    }),
-  });
+function sanitizeUpdates(updateData) {
+  if (!updateData || typeof updateData !== 'object' || Array.isArray(updateData)) {
+    throw new HttpError(400, 'updateData must be an object.');
+  }
+
+  const updates = {};
+  for (const [key, value] of Object.entries(updateData)) {
+    if (!ALLOWED_FIELDS.has(key)) {
+      continue;
+    }
+
+    if (['percentCompletion', 'advancePrice', 'finalPrice'].includes(key)) {
+      const numericValue = Number(value);
+      const maximum = key === 'percentCompletion' ? 100 : Number.MAX_SAFE_INTEGER;
+      if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > maximum) {
+        throw new HttpError(400, `${key} has an invalid value.`);
+      }
+      updates[key] = numericValue;
+    } else if (key === 'customerSignoff') {
+      updates[key] = Boolean(value);
+    } else {
+      const text = typeof value === 'string' ? value.trim() : '';
+      if (text.length > 2000) {
+        throw new HttpError(400, `${key} is too long.`);
+      }
+      updates[key] = text;
+    }
+  }
+
+  if (!Object.keys(updates).length) {
+    throw new HttpError(400, 'No supported fields were supplied for update.');
+  }
+
+  updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+  return updates;
 }
 
-const db = admin.firestore();
+async function findProjectReference(db, projectId) {
+  const directReference = db.collection('projects').doc(projectId);
+  const directSnapshot = await directReference.get();
+  if (directSnapshot.exists) {
+    return directReference;
+  }
 
-exports.handler = async (event, context) => {
-  if (event.httpMethod !== "PUT") {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "Method not allowed. Use PUT." }),
-    };
+  const possibleValues = [projectId];
+  if (!Number.isNaN(Number(projectId))) {
+    possibleValues.push(Number(projectId));
+  }
+
+  for (const value of possibleValues) {
+    const snapshot = await db.collection('projects').where('projectId', '==', value).limit(1).get();
+    if (!snapshot.empty) {
+      return snapshot.docs[0].ref;
+    }
+  }
+
+  return null;
+}
+
+exports.handler = async function handler(event) {
+  if (event.httpMethod !== 'PUT') {
+    return json(405, { error: 'Method not allowed.' }, { Allow: 'PUT' });
   }
 
   try {
-    const data = JSON.parse(event.body);
-    let { projectId, updateData } = data;
+    await requireUser(event, { roles: ['admin'] });
+    const data = parseJsonBody(event);
+    const projectId = typeof data.projectId === 'string' || typeof data.projectId === 'number'
+      ? String(data.projectId).trim()
+      : '';
 
-    if (!projectId || !updateData) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Missing projectId or updateData in request body." }),
-      };
+    if (!projectId || projectId.length > 128) {
+      throw new HttpError(400, 'A valid projectId is required.');
     }
 
-    // 🔧 Convert projectId to number if possible (to match Firestore type)
-    if (!isNaN(projectId)) {
-      projectId = Number(projectId);
+    const db = getDb();
+    const projectReference = await findProjectReference(db, projectId);
+    if (!projectReference) {
+      throw new HttpError(404, 'Project not found.');
     }
 
-    // Query for documents where 'projectId' field matches
-    const snapshot = await db.collection("projects")
-      .where("projectId", "==", projectId)
-      .get();
+    const updates = sanitizeUpdates(data.updateData);
+    await projectReference.update(updates);
 
-    if (snapshot.empty) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: `No projects found with projectId ${projectId}.` }),
-      };
-    }
-
-    // Update each matching document
-    const updatePromises = [];
-    snapshot.forEach((doc) => {
-      updatePromises.push(doc.ref.update(updateData));
-    });
-
-    await Promise.all(updatePromises);
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: `Updated ${updatePromises.length} project(s) successfully.` }),
-    };
+    return json(200, { message: 'Project updated successfully.' });
   } catch (error) {
-    console.error("Error updating project(s):", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+    return toPublicError(error);
   }
 };
