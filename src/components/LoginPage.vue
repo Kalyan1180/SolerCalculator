@@ -1,81 +1,73 @@
 <template>
   <div class="login-container container my-5">
     <h2 class="text-center mb-4">Log In</h2>
-    <!-- Google Log In -->
-    <div class="text-center mb-3">
-      <button class="btn btn-outline-danger w-100" @click="logInWithGoogle">
-        Log In with Google
-      </button>
-    </div>
-    <!-- Email/Password Log In Form -->
+
+    <button class="btn btn-outline-danger w-100 mb-3" :disabled="loading" @click="logInWithGoogle">
+      Log In with Google
+    </button>
+
     <form @submit.prevent="logInWithEmail">
-      <div class="form-group mb-3">
+      <div class="mb-3">
         <label for="email" class="form-label">Email</label>
-        <input v-model="email" type="email" id="email" class="form-control" placeholder="Enter your email" required />
+        <input v-model.trim="email" type="email" id="email" class="form-control" autocomplete="email" required />
       </div>
-      <div class="form-group mb-3">
+      <div class="mb-3">
         <label for="password" class="form-label">Password</label>
-        <input v-model="password" type="password" id="password" class="form-control" placeholder="Enter your password" required />
+        <input v-model="password" type="password" id="password" class="form-control" autocomplete="current-password" required />
       </div>
-      <button type="submit" class="btn btn-primary w-100">Log In</button>
+      <button type="submit" class="btn btn-primary w-100" :disabled="loading">
+        {{ loading ? 'Signing in...' : 'Log In' }}
+      </button>
     </form>
-    <div v-if="error" class="alert alert-danger mt-3">{{ error }}</div>
+
+    <div v-if="error" class="alert alert-danger mt-3" role="alert">{{ error }}</div>
   </div>
 </template>
 
 <script>
-import { getAuth, signInWithPopup, signInWithEmailAndPassword, getIdTokenResult } from "firebase/auth";
-import { googleProvider } from "@/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/firebase";
-import { createUserWithRole } from "@/utils/firebaseHelpers";
+import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '@/firebase';
+import { createUserWithRole } from '@/utils/firebaseHelpers';
 
 export default {
-  name: "LoginPage",
+  name: 'LoginPage',
   data() {
-    return {
-      email: "",
-      password: "",
-      error: ""
-    };
+    return { email: '', password: '', error: '', loading: false };
   },
   methods: {
+    redirectAfterLogin() {
+      const requested = String(this.$route.query.redirect || '');
+      const destination = requested.startsWith('/') && !requested.startsWith('//') ? requested : '/';
+      this.$router.replace(destination);
+    },
+    async completeLogin(user) {
+      await createUserWithRole(user);
+      this.redirectAfterLogin();
+    },
     async logInWithGoogle() {
+      this.loading = true;
+      this.error = '';
       try {
-        const authInstance = getAuth();
-        const result = await signInWithPopup(authInstance, googleProvider);
-        const user = result.user;
-        // Query Firestore for a document with the same email
-        const q = query(collection(db, "users"), where("email", "==", user.email));
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) {
-          // If no document exists, create one with default role 'user'
-          await createUserWithRole(user, "user");
-        } else {
-          console.log("User already exists in Firestore.");
-        }
-        const tokenResult = await getIdTokenResult(user);
-        console.log("User token claims:", tokenResult.claims);
-        this.$router.push("/");
-      } catch (err) {
-        console.error("Google log-in error:", err);
-        this.error = err.message;
+        const result = await signInWithPopup(auth, googleProvider);
+        await this.completeLogin(result.user);
+      } catch (error) {
+        console.error('Google login error:', error);
+        this.error = 'Unable to sign in with Google. Please try again.';
+      } finally {
+        this.loading = false;
       }
     },
     async logInWithEmail() {
-      if (!this.email || !this.password) {
-        this.error = "Please enter both email and password.";
-        return;
-      }
+      this.loading = true;
+      this.error = '';
       try {
-        const authInstance = getAuth();
-        const result = await signInWithEmailAndPassword(authInstance, this.email, this.password);
-        const tokenResult = await getIdTokenResult(result.user);
-        console.log("User token claims:", tokenResult.claims);
-        this.$router.push("/");
-      } catch (err) {
-        console.error("Email log-in error:", err);
-        this.error = err.message;
+        const result = await signInWithEmailAndPassword(auth, this.email, this.password);
+        await this.completeLogin(result.user);
+      } catch (error) {
+        console.error('Email login error:', error);
+        this.error = 'Incorrect email/password or the account is unavailable.';
+      } finally {
+        this.loading = false;
       }
     }
   }
@@ -84,11 +76,10 @@ export default {
 
 <style scoped>
 .login-container {
-  max-width: 400px;
-  margin: auto;
-  padding: 20px;
+  max-width: 420px;
+  padding: 24px;
   border: 1px solid #eee;
   border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 </style>
