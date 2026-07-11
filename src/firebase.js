@@ -2,7 +2,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 
 // Firebase web configuration is intentionally public and is included in the
 // browser bundle. Environment variables can override these values for another
@@ -12,7 +11,6 @@ const defaultFirebaseConfig = {
   apiKey: 'AIzaSyBTBcdZb5FMZpf2kbUx6eWhC2hQXrPb9hU',
   authDomain: 'ant-soler.firebaseapp.com',
   projectId: 'ant-soler',
-  storageBucket: 'ant-soler.firebasestorage.app',
   messagingSenderId: '859294648883',
   appId: '1:859294648883:web:944270286ecf293614f146',
   measurementId: 'G-VSNNLEK1KG'
@@ -30,7 +28,6 @@ const firebaseConfig = {
   apiKey: configuredValue(process.env.VUE_APP_FIREBASE_API_KEY, defaultFirebaseConfig.apiKey),
   authDomain: configuredValue(process.env.VUE_APP_FIREBASE_AUTH_DOMAIN, defaultFirebaseConfig.authDomain),
   projectId: configuredValue(process.env.VUE_APP_FIREBASE_PROJECT_ID, defaultFirebaseConfig.projectId),
-  storageBucket: configuredValue(process.env.VUE_APP_FIREBASE_STORAGE_BUCKET, defaultFirebaseConfig.storageBucket),
   messagingSenderId: configuredValue(
     process.env.VUE_APP_FIREBASE_MESSAGING_SENDER_ID,
     defaultFirebaseConfig.messagingSenderId
@@ -46,6 +43,5 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
-const storage = getStorage(app);
 
-export { app, auth, googleProvider, db, storage };
+export { app, auth, googleProvider, db };
