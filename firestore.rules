@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.role == 'customer';
+      allow update: if isAdmin() || (
+        isOwner(userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'email', 'displayName', 'updatedAt'
+        ])
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /projects/{projectId} {
+      allow read: if isAdmin() || (
+        signedIn() && resource.data.customerId == request.auth.uid
+      );
+      allow create: if isAdmin() || (
+        signedIn()
+        && projectId == request.resource.data.projectId
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.status == 'quote_pending'
+        && request.resource.data.paymentStatus == 'not_started'
+        && request.resource.data.panelCount is number
+        && request.resource.data.panelCount > 0
+        && request.resource.data.quotedPrice is number
+        && request.resource.data.quotedPrice > 0
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    match /inventory/{itemId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /inverters/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /batteries/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
