@@ -1,79 +1,84 @@
-// netlify/functions/getProjects.js
+// Read projects with role- and ownership-based access control.
+const {
+  HttpError,
+  getDb,
+  json,
+  requireUser,
+  toPublicError
+} = require('../lib/firebaseAdmin');
 
-const admin = require("firebase-admin");
-
-// Initialize the Firebase Admin SDK if not already initialized.
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      "type": process.env.FB_TYPE,
-      "project_id": process.env.FB_PROJECT_ID,
-      "private_key_id": process.env.FB_PRIVATE_KEY_ID,
-      // Replace escaped newline characters with actual newline characters.
-      "private_key": process.env.FB_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      "client_email": process.env.FB_CLIENT_EMAIL,
-      "client_id": process.env.FB_CLIENT_ID,
-      "auth_uri": process.env.FB_AUTH_URI,
-      "token_uri": process.env.FB_TOKEN_URI,
-      "auth_provider_x509_cert_url": process.env.FB_AUTH_PROVIDER_X509_CERT_URL,
-      "client_x509_cert_url": process.env.FB_CLIENT_X509_CERT_URL,
-    }),
-    // Optional: databaseURL if needed
-  });
+function canReadProject(user, project) {
+  return user.role === 'admin' || project.customerId === user.uid || project.createdBy === user.uid;
 }
 
-const db = admin.firestore();
+async function findProject(db, projectId) {
+  const directSnapshot = await db.collection('projects').doc(projectId).get();
+  if (directSnapshot.exists) {
+    return { id: directSnapshot.id, ...directSnapshot.data() };
+  }
 
-exports.handler = async (event, context) => {
-  // Only GET requests are allowed.
-  if (event.httpMethod !== "GET") {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "Method not allowed. Only GET requests are accepted." }),
-    };
+  const stringMatch = await db.collection('projects').where('projectId', '==', projectId).limit(1).get();
+  if (!stringMatch.empty) {
+    const document = stringMatch.docs[0];
+    return { id: document.id, ...document.data() };
+  }
+
+  if (!Number.isNaN(Number(projectId))) {
+    const numberMatch = await db.collection('projects').where('projectId', '==', Number(projectId)).limit(1).get();
+    if (!numberMatch.empty) {
+      const document = numberMatch.docs[0];
+      return { id: document.id, ...document.data() };
+    }
+  }
+
+  return null;
+}
+
+exports.handler = async function handler(event) {
+  if (event.httpMethod !== 'GET') {
+    return json(405, { error: 'Method not allowed.' }, { Allow: 'GET' });
   }
 
   try {
-    const qs = event.queryStringParameters || {};
+    const user = await requireUser(event);
+    const db = getDb();
+    const queryParameters = event.queryStringParameters || {};
 
-    // If projectId query parameter exists, fetch a single project.
-    if (qs.projectId) {
-      const projectId = Number(qs.projectId);
-      // Query Firestore for a document where the 'projectId' field matches.
-      const snapshot = await db.collection("projects").where("projectId", "==", projectId).get();
-      if (snapshot.empty) {
-        return {
-          statusCode: 404,
-          body: JSON.stringify({ error: "Project not found" }),
-        };
+    if (queryParameters.projectId) {
+      const projectId = String(queryParameters.projectId).trim();
+      if (!projectId || projectId.length > 128) {
+        throw new HttpError(400, 'A valid projectId is required.');
       }
-      // Assuming projectId is unique, get the first matching document.
-      let project = null;
-      snapshot.forEach(doc => {
-        project = { id: doc.id, ...doc.data() };
+
+      const project = await findProject(db, projectId);
+      if (!project) {
+        throw new HttpError(404, 'Project not found.');
+      }
+      if (!canReadProject(user, project)) {
+        throw new HttpError(403, 'You do not have permission to view this project.');
+      }
+
+      return json(200, { project });
+    }
+
+    let snapshot;
+    if (user.role === 'admin') {
+      snapshot = await db.collection('projects').get();
+    } else {
+      snapshot = await db.collection('projects').where('customerId', '==', user.uid).get();
+    }
+
+    const projects = snapshot.docs
+      .map((document) => ({ id: document.id, ...document.data() }))
+      .filter((project) => canReadProject(user, project))
+      .sort((a, b) => {
+        const aTime = a.createdAt && typeof a.createdAt.toMillis === 'function' ? a.createdAt.toMillis() : 0;
+        const bTime = b.createdAt && typeof b.createdAt.toMillis === 'function' ? b.createdAt.toMillis() : 0;
+        return bTime - aTime;
       });
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ project }),
-      };
-    }
-    // Otherwise, fetch and return all projects.
-    else {
-      const snapshot = await db.collection("projects").get();
-      const projects = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ projects }),
-      };
-    }
+
+    return json(200, { projects });
   } catch (error) {
-    console.error("Error fetching projects:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+    return toPublicError(error);
   }
 };
