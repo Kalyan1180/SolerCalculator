@@ -151,7 +151,8 @@ export default {
             ? Number(this.formData.suggestedPrice)
             : Number(this.solerResults.special)
         };
-        const result = await createProject(this.currentUser.uid, projectData, this.solerResults);
+        const customerId = this.canCreateProjects ? null : this.currentUser.uid;
+        const result = await createProject(customerId, projectData, this.solerResults);
         if (!result.success) throw new Error(result.error || 'Unable to create project');
 
         this.message = `Project ${result.projectId} created successfully. Redirecting in ${this.redirectCountdown} seconds...`;
