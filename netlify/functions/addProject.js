@@ -15,12 +15,8 @@ const MAX_TEXT_LENGTH = 500;
 
 function cleanText(value, field, required = true, maxLength = MAX_TEXT_LENGTH) {
   const text = typeof value === 'string' ? value.trim() : '';
-  if (required && !text) {
-    throw new HttpError(400, `${field} is required.`);
-  }
-  if (text.length > maxLength) {
-    throw new HttpError(400, `${field} is too long.`);
-  }
+  if (required && !text) throw new HttpError(400, `${field} is required.`);
+  if (text.length > maxLength) throw new HttpError(400, `${field} is too long.`);
   return text;
 }
 
@@ -28,7 +24,6 @@ function cleanNumber(value, field, options = {}) {
   const number = Number(value);
   const minimum = options.minimum === undefined ? 0 : options.minimum;
   const maximum = options.maximum === undefined ? Number.MAX_SAFE_INTEGER : options.maximum;
-
   if (!Number.isFinite(number) || number < minimum || number > maximum) {
     throw new HttpError(400, `${field} must be between ${minimum} and ${maximum}.`);
   }
@@ -36,10 +31,7 @@ function cleanNumber(value, field, options = {}) {
 }
 
 function normalizeInverter(value) {
-  if (!value || typeof value !== 'object') {
-    throw new HttpError(400, 'Inverter details are required.');
-  }
-
+  if (!value || typeof value !== 'object') throw new HttpError(400, 'Inverter details are required.');
   return {
     id: cleanText(value.id || '', 'Inverter ID', false, 100),
     name: cleanText(value.name, 'Inverter name', true, 150),
@@ -53,11 +45,7 @@ function normalizeInverter(value) {
 function normalizeBattery(value) {
   const selected = value && value.selectedBattery ? value.selectedBattery : value;
   const quantityValue = value && value.selectedBattery ? value.quantity : 1;
-
-  if (!selected || typeof selected !== 'object') {
-    throw new HttpError(400, 'Battery details are required.');
-  }
-
+  if (!selected || typeof selected !== 'object') throw new HttpError(400, 'Battery details are required.');
   return {
     selectedBattery: {
       id: cleanText(selected.id || '', 'Battery ID', false, 100),
@@ -71,26 +59,16 @@ function normalizeBattery(value) {
 }
 
 async function resolveCustomerId(user, email, requestedCustomerId) {
-  if (user.role !== 'admin') {
-    return user.uid;
-  }
-
+  if (user.role !== 'admin') return user.uid;
   const explicitCustomerId = cleanText(requestedCustomerId || '', 'Customer ID', false, 128);
-  if (explicitCustomerId) {
-    return explicitCustomerId;
-  }
-
-  if (!email) {
-    return null;
-  }
+  if (explicitCustomerId) return explicitCustomerId;
+  if (!email) return null;
 
   try {
     const customer = await getAuth().getUserByEmail(email);
     return customer.uid;
   } catch (error) {
-    if (error.code === 'auth/user-not-found') {
-      return null;
-    }
+    if (error.code === 'auth/user-not-found') return null;
     throw error;
   }
 }
@@ -103,7 +81,6 @@ exports.handler = async function handler(event) {
   try {
     const user = await requireUser(event);
     const data = parseJsonBody(event);
-
     const customerName = cleanText(data.customerName || data.name, 'Customer name', true, 150);
     const customerEmail = cleanText(
       user.role === 'admin' ? data.customerEmail || data.email : user.email,
@@ -118,18 +95,10 @@ exports.handler = async function handler(event) {
     const battery = normalizeBattery(data.battery || data.requiredBattery);
 
     const panelUnitCost = cleanNumber(process.env.VUE_APP_PANEL_COST_PER_PIECE || 15000, 'Panel unit cost');
-    const componentCost =
-      panelCount * panelUnitCost +
-      inverter.cost +
-      battery.quantity * battery.selectedBattery.price;
-
-    const submittedCostWithout = Number(
-      data.costWithout ?? data.calculatorResults?.costWithout ?? componentCost
-    );
+    const componentCost = panelCount * panelUnitCost + inverter.cost + battery.quantity * battery.selectedBattery.price;
+    const submittedCostWithout = Number(data.costWithout ?? data.calculatorResults?.costWithout ?? componentCost);
     const materialCost = componentCost;
-    const laborCost = Number.isFinite(submittedCostWithout)
-      ? Math.max(0, submittedCostWithout - componentCost)
-      : 0;
+    const laborCost = Number.isFinite(submittedCostWithout) ? Math.max(0, submittedCostWithout - componentCost) : 0;
     const quotedPrice = cleanNumber(
       data.quotedPrice ?? data.suggestedPrice ?? data.cost ?? data.calculatorResults?.special,
       'Quoted price'
@@ -138,7 +107,6 @@ exports.handler = async function handler(event) {
     const customerId = await resolveCustomerId(user, customerEmail, data.customerId);
     const projectId = `PRJ-${Date.now()}-${randomBytes(5).toString('hex')}`;
     const timestamp = admin.firestore.Timestamp.now();
-
     const project = {
       projectId,
       customerId,
@@ -153,12 +121,9 @@ exports.handler = async function handler(event) {
       battery,
       materialCost,
       laborCost,
-      totalCostWithMarkup: cleanNumber(
-        data.costWith ?? data.calculatorResults?.costWith ?? quotedPrice,
-        'Total cost with markup'
-      ),
+      totalCostWithMarkup: cleanNumber(data.costWith ?? data.calculatorResults?.costWith ?? quotedPrice, 'Total cost with markup'),
       quotedPrice,
-      finalPrice: null,
+      finalPrice: quotedPrice,
       advancePercentage: 50,
       advanceAmount: null,
       balanceAmount: null,
@@ -182,12 +147,7 @@ exports.handler = async function handler(event) {
     };
 
     await getDb().collection('projects').doc(projectId).set(project);
-
-    return json(201, {
-      message: 'Project created successfully.',
-      projectId,
-      project
-    });
+    return json(201, { message: 'Project created successfully.', projectId, project });
   } catch (error) {
     return toPublicError(error);
   }
