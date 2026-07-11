@@ -1,6 +1,4 @@
 // src/models/projectModel.js
-// Project data model with Firestore integration
-
 import { db } from '@/firebase';
 import {
   collection,
@@ -11,71 +9,118 @@ import {
   query,
   where,
   getDocs,
-  Timestamp
+  Timestamp,
+  arrayUnion
 } from 'firebase/firestore';
-import { PROJECT_STATUS } from '@/constants/businessConstants';
+import { PAYMENT_STATUS, PROJECT_STATUS } from '@/constants/businessConstants';
 
 const PROJECTS_COLLECTION = 'projects';
 
+const STATUS_TRANSITIONS = {
+  [PROJECT_STATUS.QUOTE_PENDING]: [PROJECT_STATUS.QUOTE_SENT, PROJECT_STATUS.CANCELLED],
+  [PROJECT_STATUS.QUOTE_SENT]: [PROJECT_STATUS.APPROVED, PROJECT_STATUS.QUOTE_REJECTED, PROJECT_STATUS.CANCELLED],
+  [PROJECT_STATUS.QUOTE_REJECTED]: [],
+  [PROJECT_STATUS.APPROVED]: [PROJECT_STATUS.INSTALLATION_SCHEDULED, PROJECT_STATUS.CANCELLED],
+  [PROJECT_STATUS.INSTALLATION_SCHEDULED]: [PROJECT_STATUS.IN_PROGRESS, PROJECT_STATUS.CANCELLED],
+  [PROJECT_STATUS.IN_PROGRESS]: [PROJECT_STATUS.COMPLETED, PROJECT_STATUS.CANCELLED],
+  [PROJECT_STATUS.COMPLETED]: [],
+  [PROJECT_STATUS.CANCELLED]: []
+};
+
+function numberOrZero(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function timestampToMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function createProjectId() {
+  const randomPart = Math.random().toString(36).slice(2, 11);
+  return `PRJ-${Date.now()}-${randomPart}`;
+}
+
+function validateProjectInput(projectData, calculatorResults) {
+  if (!projectData?.name?.trim()) return 'Customer name is required';
+  if (!projectData?.email?.trim()) return 'Customer email is required';
+  if (!projectData?.phone?.trim()) return 'Customer phone is required';
+  if (!projectData?.address?.trim()) return 'Customer address is required';
+  if (numberOrZero(calculatorResults?.panelCount) <= 0) return 'Panel count must be greater than zero';
+  if (!calculatorResults?.inverter) return 'A valid inverter is required';
+
+  const quotedPrice = numberOrZero(
+    projectData.suggestedPrice || calculatorResults.special || calculatorResults.costWith
+  );
+  if (quotedPrice <= 0) return 'Quoted price must be greater than zero';
+
+  return null;
+}
+
 /**
- * Create a new project from solar calculator results
+ * Create a project using the canonical schema consumed by all dashboards.
  */
 export async function createProject(customerId, projectData, calculatorResults) {
   try {
-    const projectId = `PRJ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+    const validationError = validateProjectInput(projectData, calculatorResults);
+    if (validationError) return { success: false, error: validationError };
+
+    const projectId = createProjectId();
+    const totalCostWithoutMarkup = numberOrZero(calculatorResults.costWithout);
+    const materialCost = numberOrZero(calculatorResults.materialCost) || totalCostWithoutMarkup;
+    const laborCost = numberOrZero(calculatorResults.laborCost);
+    const quotedPrice = numberOrZero(
+      projectData.suggestedPrice || calculatorResults.special || calculatorResults.costWith
+    );
+
     const newProject = {
       projectId,
-      customerId,
-      customerName: projectData.name,
-      customerEmail: projectData.email,
-      customerPhone: projectData.phone,
-      address: projectData.address,
-      
-      // Status
+      customerId: customerId || null,
+      customerName: projectData.name.trim(),
+      customerEmail: projectData.email.trim(),
+      customerPhone: projectData.phone.trim(),
+      address: projectData.address.trim(),
+
       status: PROJECT_STATUS.QUOTE_PENDING,
-      
-      // Solar specifications
-      panelCount: calculatorResults.panelCount,
+      panelCount: numberOrZero(calculatorResults.panelCount),
       inverter: calculatorResults.inverter,
-      battery: calculatorResults.battery,
-      
-      // Cost breakdown
-      materialCost: calculatorResults.costWithout || 0,
-      laborCost: (calculatorResults.costWithout * 0.15) || 0, // Estimate 15% labor
-      totalCostWithMarkup: calculatorResults.costWith || 0,
-      quotedPrice: calculatorResults.special || 0,
-      finalPrice: null, // Updated after approval
-      
-      // Payment tracking
-      advancePercentage: 50, // 50% advance
+      battery: calculatorResults.battery || null,
+
+      materialCost,
+      laborCost,
+      totalCostWithoutMarkup,
+      totalCostWithMarkup: numberOrZero(calculatorResults.costWith),
+      quotedPrice,
+      finalPrice: null,
+
+      advancePercentage: 50,
       advanceAmount: null,
       balanceAmount: null,
-      paymentStatus: 'not_started',
-      
-      // Timeline
+      paymentStatus: PAYMENT_STATUS.NOT_STARTED,
+      paymentHistory: [],
+
       createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
       quoteSentDate: null,
       approvalDate: null,
+      installationScheduledDate: null,
       installationStartDate: null,
       completionDate: null,
-      
-      // Notes
+
       adminNotes: '',
-      customerNotes: projectData.additionalNotes || '',
+      customerNotes: projectData.additionalNotes?.trim() || '',
       technicalNotes: '',
-      
-      // Completion
       sitePhotos: [],
       techniciansAssigned: [],
       customerSignoff: false,
       completionNotes: ''
     };
-    
-    const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
-    await setDoc(projectRef, newProject);
-    
-    console.log('Project created:', projectId);
+
+    await setDoc(doc(db, PROJECTS_COLLECTION, projectId), newProject);
     return { success: true, projectId, project: newProject };
   } catch (error) {
     console.error('Error creating project:', error);
@@ -83,38 +128,31 @@ export async function createProject(customerId, projectData, calculatorResults) 
   }
 }
 
-/**
- * Get project by ID
- */
 export async function getProject(projectId) {
   try {
-    const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
-    const projectSnap = await getDoc(projectRef);
-    
-    if (projectSnap.exists()) {
-      return { success: true, project: projectSnap.data() };
-    } else {
-      return { success: false, error: 'Project not found' };
-    }
+    if (!projectId) return { success: false, error: 'Project ID is required' };
+    const projectSnap = await getDoc(doc(db, PROJECTS_COLLECTION, String(projectId)));
+    if (!projectSnap.exists()) return { success: false, error: 'Project not found' };
+    return { success: true, project: { id: projectSnap.id, ...projectSnap.data() } };
   } catch (error) {
     console.error('Error fetching project:', error);
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Get all projects for a customer
- */
 export async function getCustomerProjects(customerId) {
   try {
-    const q = query(collection(db, PROJECTS_COLLECTION), where('customerId', '==', customerId));
-    const querySnapshot = await getDocs(q);
-    const projects = [];
-    
-    querySnapshot.forEach(doc => {
-      projects.push({ id: doc.id, ...doc.data() });
-    });
-    
+    if (!customerId) return { success: false, error: 'Customer ID is required' };
+    const projectsQuery = query(
+      collection(db, PROJECTS_COLLECTION),
+      where('customerId', '==', customerId)
+    );
+    const querySnapshot = await getDocs(projectsQuery);
+    const projects = querySnapshot.docs.map(projectDoc => ({
+      id: projectDoc.id,
+      ...projectDoc.data()
+    }));
+    projects.sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
     return { success: true, projects };
   } catch (error) {
     console.error('Error fetching customer projects:', error);
@@ -122,35 +160,50 @@ export async function getCustomerProjects(customerId) {
   }
 }
 
-/**
- * Update project status
- */
 export async function updateProjectStatus(projectId, newStatus, adminNotes = '') {
   try {
-    const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
+    if (!Object.values(PROJECT_STATUS).includes(newStatus)) {
+      return { success: false, error: 'Invalid project status' };
+    }
+
+    const projectRef = doc(db, PROJECTS_COLLECTION, String(projectId));
+    const projectSnap = await getDoc(projectRef);
+    if (!projectSnap.exists()) return { success: false, error: 'Project not found' };
+
+    const projectData = projectSnap.data();
+    const allowedTransitions = STATUS_TRANSITIONS[projectData.status] || [];
+    if (!allowedTransitions.includes(newStatus)) {
+      return {
+        success: false,
+        error: `Cannot change project from ${projectData.status} to ${newStatus}`
+      };
+    }
+
+    const now = Timestamp.now();
     const updates = {
       status: newStatus,
-      adminNotes
+      updatedAt: now
     };
-    
-    // Add timestamp based on status
+    if (adminNotes.trim()) updates.adminNotes = adminNotes.trim();
+
     if (newStatus === PROJECT_STATUS.QUOTE_SENT) {
-      updates.quoteSentDate = Timestamp.now();
+      updates.quoteSentDate = now;
     } else if (newStatus === PROJECT_STATUS.APPROVED) {
-      updates.approvalDate = Timestamp.now();
-      // Calculate advance and balance amounts
-      const project = await getDoc(projectRef);
-      const projectData = project.data();
-      updates.advanceAmount = (projectData.quotedPrice * projectData.advancePercentage) / 100;
-      updates.balanceAmount = projectData.quotedPrice - updates.advanceAmount;
+      const quotedPrice = numberOrZero(projectData.quotedPrice);
+      const advancePercentage = numberOrZero(projectData.advancePercentage) || 50;
+      updates.approvalDate = now;
+      updates.finalPrice = quotedPrice;
+      updates.advanceAmount = (quotedPrice * advancePercentage) / 100;
+      updates.balanceAmount = quotedPrice - updates.advanceAmount;
     } else if (newStatus === PROJECT_STATUS.INSTALLATION_SCHEDULED) {
-      updates.installationStartDate = Timestamp.now();
+      updates.installationScheduledDate = now;
+    } else if (newStatus === PROJECT_STATUS.IN_PROGRESS) {
+      updates.installationStartDate = now;
     } else if (newStatus === PROJECT_STATUS.COMPLETED) {
-      updates.completionDate = Timestamp.now();
+      updates.completionDate = now;
     }
-    
+
     await updateDoc(projectRef, updates);
-    console.log('Project status updated:', projectId, newStatus);
     return { success: true };
   } catch (error) {
     console.error('Error updating project status:', error);
@@ -158,15 +211,38 @@ export async function updateProjectStatus(projectId, newStatus, adminNotes = '')
   }
 }
 
-/**
- * Update payment status
- */
-export async function updatePaymentStatus(projectId, paymentStatus, paymentNote = '') {
+export async function updatePaymentStatus(projectId, paymentStatus, paymentNote = '', paymentMethod = '') {
   try {
-    const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
+    if (![PAYMENT_STATUS.ADVANCE_PAID, PAYMENT_STATUS.BALANCE_PAID].includes(paymentStatus)) {
+      return { success: false, error: 'Invalid payment status' };
+    }
+
+    const projectRef = doc(db, PROJECTS_COLLECTION, String(projectId));
+    const projectSnap = await getDoc(projectRef);
+    if (!projectSnap.exists()) return { success: false, error: 'Project not found' };
+
+    const project = projectSnap.data();
+    if (!project.approvalDate || project.advanceAmount == null || project.balanceAmount == null) {
+      return { success: false, error: 'Approve the quotation before recording payment' };
+    }
+    if (paymentStatus === PAYMENT_STATUS.BALANCE_PAID && project.paymentStatus !== PAYMENT_STATUS.ADVANCE_PAID) {
+      return { success: false, error: 'Record the advance payment before the balance payment' };
+    }
+
+    const amount = paymentStatus === PAYMENT_STATUS.ADVANCE_PAID
+      ? numberOrZero(project.advanceAmount)
+      : numberOrZero(project.balanceAmount);
+
     await updateDoc(projectRef, {
       paymentStatus,
-      adminNotes: paymentNote
+      updatedAt: Timestamp.now(),
+      paymentHistory: arrayUnion({
+        status: paymentStatus,
+        amount,
+        method: paymentMethod || 'unspecified',
+        note: paymentNote || '',
+        recordedAt: Timestamp.now()
+      })
     });
     return { success: true };
   } catch (error) {
@@ -175,27 +251,47 @@ export async function updatePaymentStatus(projectId, paymentStatus, paymentNote 
   }
 }
 
-/**
- * Get all projects with filters
- */
+export async function updateProjectFields(projectId, updates) {
+  try {
+    const allowedFields = new Set([
+      'adminNotes',
+      'technicalNotes',
+      'sitePhotos',
+      'techniciansAssigned',
+      'customerSignoff',
+      'completionNotes',
+      'finalPrice'
+    ]);
+    const safeUpdates = {};
+    Object.entries(updates || {}).forEach(([key, value]) => {
+      if (allowedFields.has(key)) safeUpdates[key] = value;
+    });
+    if (!Object.keys(safeUpdates).length) {
+      return { success: false, error: 'No supported project fields were provided' };
+    }
+
+    safeUpdates.updatedAt = Timestamp.now();
+    await updateDoc(doc(db, PROJECTS_COLLECTION, String(projectId)), safeUpdates);
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating project fields:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getAllProjects(filters = {}) {
   try {
-    let q = collection(db, PROJECTS_COLLECTION);
-    
+    let projectsQuery = collection(db, PROJECTS_COLLECTION);
     if (filters.status) {
-      q = query(q, where('status', '==', filters.status));
+      projectsQuery = query(projectsQuery, where('status', '==', filters.status));
     }
-    
-    const querySnapshot = await getDocs(q);
-    const projects = [];
-    
-    querySnapshot.forEach(doc => {
-      projects.push({ id: doc.id, ...doc.data() });
-    });
-    
-    // Sort by creation date (newest first)
-    projects.sort((a, b) => b.createdAt - a.createdAt);
-    
+
+    const querySnapshot = await getDocs(projectsQuery);
+    const projects = querySnapshot.docs.map(projectDoc => ({
+      id: projectDoc.id,
+      ...projectDoc.data()
+    }));
+    projects.sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
     return { success: true, projects };
   } catch (error) {
     console.error('Error fetching projects:', error);
