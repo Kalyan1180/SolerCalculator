@@ -67,29 +67,30 @@ const router = createRouter({
   routes
 });
 
-let authReadyPromise;
-function waitForAuthReady() {
-  if (auth.currentUser) return Promise.resolve(auth.currentUser);
-  if (!authReadyPromise) {
-    authReadyPromise = new Promise(resolve => {
-      const unsubscribe = onAuthStateChanged(
-        auth,
-        user => {
-          unsubscribe();
-          resolve(user);
-        },
-        () => {
-          unsubscribe();
-          resolve(null);
-        }
-      );
-    });
-  }
-  return authReadyPromise;
+let authInitialized = false;
+const initialAuthPromise = new Promise(resolve => {
+  const unsubscribe = onAuthStateChanged(
+    auth,
+    user => {
+      authInitialized = true;
+      unsubscribe();
+      resolve(user);
+    },
+    () => {
+      authInitialized = true;
+      unsubscribe();
+      resolve(null);
+    }
+  );
+});
+
+async function getCurrentUser() {
+  if (!authInitialized) await initialAuthPromise;
+  return auth.currentUser;
 }
 
 router.beforeEach(async to => {
-  const currentUser = await waitForAuthReady();
+  const currentUser = await getCurrentUser();
 
   if (to.meta.requiresGuest && currentUser) {
     return { name: 'Home' };
