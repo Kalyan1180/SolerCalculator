@@ -37,14 +37,13 @@
     },
     "inventory_manager": {
       "label": "Inventory Manager",
-      "description": "Manages stock inventory and calculator equipment without project or user administration access.",
+      "description": "Manages stock inventory and calculator equipment without project, analytics or user administration access.",
       "permissions": [
         "dashboard.access",
         "inventory.read",
         "inventory.write",
         "equipment.read",
-        "equipment.write",
-        "analytics.read"
+        "equipment.write"
       ]
     },
     "project_manager": {
@@ -57,8 +56,7 @@
         "projects.update",
         "projects.payments",
         "projects.documents",
-        "notifications.send",
-        "analytics.read"
+        "notifications.send"
       ]
     },
     "admin": {
