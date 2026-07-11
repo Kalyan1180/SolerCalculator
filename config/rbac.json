@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "permissions": {
+    "dashboard.access": "Open the administration dashboard",
+    "projects.read": "View all customer projects and quotations",
+    "projects.create": "Create custom projects",
+    "projects.update": "Update project details, notes and status",
+    "projects.payments": "Record advance and balance payments",
+    "projects.documents": "Generate quotations and invoices",
+    "projects.delete": "Delete project records",
+    "notifications.send": "Send project email or SMS notifications",
+    "inventory.read": "View stock inventory",
+    "inventory.write": "Create, update and delete stock inventory",
+    "equipment.read": "View calculator equipment catalog",
+    "equipment.write": "Create, update and delete calculator equipment",
+    "analytics.read": "View business analytics",
+    "users.read": "View registered users and assigned roles",
+    "users.roles.write": "Assign and change user roles",
+    "audit.read": "View security and role-change audit records"
+  },
+  "roles": {
+    "customer": {
+      "label": "Customer",
+      "description": "Can use the calculator and access only their own quotations and projects.",
+      "permissions": []
+    },
+    "analyst": {
+      "label": "Analyst",
+      "description": "Read-only access to projects, inventory, equipment and business analytics.",
+      "permissions": [
+        "dashboard.access",
+        "projects.read",
+        "inventory.read",
+        "equipment.read",
+        "analytics.read"
+      ]
+    },
+    "inventory_manager": {
+      "label": "Inventory Manager",
+      "description": "Manages stock inventory and calculator equipment without project or user administration access.",
+      "permissions": [
+        "dashboard.access",
+        "inventory.read",
+        "inventory.write",
+        "equipment.read",
+        "equipment.write",
+        "analytics.read"
+      ]
+    },
+    "project_manager": {
+      "label": "Project Manager",
+      "description": "Manages quotations, projects, project payments, documents and customer notifications.",
+      "permissions": [
+        "dashboard.access",
+        "projects.read",
+        "projects.create",
+        "projects.update",
+        "projects.payments",
+        "projects.documents",
+        "notifications.send",
+        "analytics.read"
+      ]
+    },
+    "admin": {
+      "label": "Administrator",
+      "description": "Full operational and security administration access.",
+      "permissions": ["*"]
+    }
+  }
+}
