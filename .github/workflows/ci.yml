@@ -32,6 +32,9 @@ jobs:
       - name: Validate session policy
         run: npm run validate:session
 
+      - name: Validate UI access policy
+        run: npm run validate:ui-access
+
       - name: Lint
         run: npm run lint
 
