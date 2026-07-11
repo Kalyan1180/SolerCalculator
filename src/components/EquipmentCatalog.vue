@@ -10,6 +10,9 @@
       </button>
     </div>
 
+    <div v-if="!accessLoading && !canWriteEquipment" class="alert alert-info">
+      Read-only access: your role can view calculator equipment but cannot add, edit or delete records.
+    </div>
     <div v-if="error" class="alert alert-danger">{{ error }}</div>
     <div v-if="successMessage" class="alert alert-success">{{ successMessage }}</div>
     <div v-if="loading" class="text-center my-4" role="status"><div class="spinner-border text-primary"></div></div>
@@ -19,7 +22,7 @@
         <section class="card h-100">
           <div class="card-header bg-primary text-white"><h4 class="mb-0">Inverters</h4></div>
           <div class="card-body">
-            <form @submit.prevent="saveInverter" class="border rounded p-3 mb-4">
+            <form v-if="canWriteEquipment" @submit.prevent="saveInverter" class="border rounded p-3 mb-4">
               <h5>{{ editingInverterId ? 'Edit Inverter' : 'Add Inverter' }}</h5>
               <div class="row g-2">
                 <div class="col-12"><label class="form-label">Name</label><input v-model.trim="inverterForm.name" class="form-control" maxlength="120" required /></div>
@@ -36,16 +39,16 @@
 
             <div class="table-responsive">
               <table class="table table-hover align-middle">
-                <thead><tr><th>Name</th><th>KVA</th><th>Panels</th><th>Battery V</th><th>Cost</th><th></th></tr></thead>
+                <thead><tr><th>Name</th><th>KVA</th><th>Panels</th><th>Battery V</th><th>Cost</th><th v-if="canWriteEquipment"></th></tr></thead>
                 <tbody>
                   <tr v-for="item in inverters" :key="item.id">
                     <td>{{ item.name }}</td><td>{{ item.peakLoad }}</td><td>{{ item.maxPanels }}</td><td>{{ item.batterySupported }}</td><td>Rs {{ money(item.cost) }}</td>
-                    <td class="text-nowrap">
-                      <button class="btn btn-sm btn-outline-warning me-1" :disabled="busy" @click="editInverter(item)"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-sm btn-outline-danger" :disabled="busy" @click="removeEquipment('inverter', item)"><i class="fas fa-trash"></i></button>
+                    <td v-if="canWriteEquipment" class="text-nowrap">
+                      <button class="btn btn-sm btn-outline-warning me-1" :disabled="busy" aria-label="Edit inverter" @click="editInverter(item)"><i class="fas fa-edit"></i></button>
+                      <button class="btn btn-sm btn-outline-danger" :disabled="busy" aria-label="Delete inverter" @click="removeEquipment('inverter', item)"><i class="fas fa-trash"></i></button>
                     </td>
                   </tr>
-                  <tr v-if="!inverters.length"><td colspan="6" class="text-center text-muted">No inverters configured.</td></tr>
+                  <tr v-if="!inverters.length"><td :colspan="canWriteEquipment ? 6 : 5" class="text-center text-muted">No inverters configured.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -57,7 +60,7 @@
         <section class="card h-100">
           <div class="card-header bg-success text-white"><h4 class="mb-0">Batteries</h4></div>
           <div class="card-body">
-            <form @submit.prevent="saveBattery" class="border rounded p-3 mb-4">
+            <form v-if="canWriteEquipment" @submit.prevent="saveBattery" class="border rounded p-3 mb-4">
               <h5>{{ editingBatteryId ? 'Edit Battery' : 'Add Battery' }}</h5>
               <div class="row g-2">
                 <div class="col-12"><label class="form-label">Name</label><input v-model.trim="batteryForm.name" class="form-control" maxlength="120" required /></div>
@@ -74,16 +77,16 @@
 
             <div class="table-responsive">
               <table class="table table-hover align-middle">
-                <thead><tr><th>Name</th><th>AH</th><th>kWh</th><th>Price</th><th></th></tr></thead>
+                <thead><tr><th>Name</th><th>AH</th><th>kWh</th><th>Price</th><th v-if="canWriteEquipment"></th></tr></thead>
                 <tbody>
                   <tr v-for="item in batteries" :key="item.id">
                     <td>{{ item.name }}</td><td>{{ item.capacity }}</td><td>{{ item.energy }}</td><td>Rs {{ money(item.price) }}</td>
-                    <td class="text-nowrap">
-                      <button class="btn btn-sm btn-outline-warning me-1" :disabled="busy" @click="editBattery(item)"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-sm btn-outline-danger" :disabled="busy" @click="removeEquipment('battery', item)"><i class="fas fa-trash"></i></button>
+                    <td v-if="canWriteEquipment" class="text-nowrap">
+                      <button class="btn btn-sm btn-outline-warning me-1" :disabled="busy" aria-label="Edit battery" @click="editBattery(item)"><i class="fas fa-edit"></i></button>
+                      <button class="btn btn-sm btn-outline-danger" :disabled="busy" aria-label="Delete battery" @click="removeEquipment('battery', item)"><i class="fas fa-trash"></i></button>
                     </td>
                   </tr>
-                  <tr v-if="!batteries.length"><td colspan="5" class="text-center text-muted">No batteries configured.</td></tr>
+                  <tr v-if="!batteries.length"><td :colspan="canWriteEquipment ? 5 : 4" class="text-center text-muted">No batteries configured.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -96,6 +99,8 @@
 
 <script>
 import { authenticatedJsonRequest } from '@/utils/authenticatedRequest';
+import rbacMixin from '@/mixins/rbacMixin';
+import { PERMISSIONS } from '@/constants/rbac';
 
 function numberValue(value) {
   const number = Number(value);
@@ -104,6 +109,7 @@ function numberValue(value) {
 
 export default {
   name: 'EquipmentCatalog',
+  mixins: [rbacMixin],
   data() {
     return {
       inverters: [],
@@ -117,6 +123,11 @@ export default {
       error: '',
       successMessage: ''
     };
+  },
+  computed: {
+    canWriteEquipment() {
+      return this.can(PERMISSIONS.EQUIPMENT_WRITE);
+    }
   },
   created() {
     this.loadCatalog();
@@ -159,6 +170,7 @@ export default {
       this.editingBatteryId = '';
     },
     editInverter(item) {
+      if (!this.canWriteEquipment) return;
       this.editingInverterId = item.id;
       this.inverterForm = {
         name: item.name || '',
@@ -169,6 +181,7 @@ export default {
       };
     },
     editBattery(item) {
+      if (!this.canWriteEquipment) return;
       this.editingBatteryId = item.id;
       this.batteryForm = {
         name: item.name || '',
@@ -178,10 +191,15 @@ export default {
       };
     },
     calculateBatteryEnergy() {
+      if (!this.canWriteEquipment) return;
       const capacity = numberValue(this.batteryForm.capacity);
       if (capacity > 0) this.batteryForm.energy = Number(((capacity * 12 * 0.8) / 1000).toFixed(3));
     },
     async saveInverter() {
+      if (!this.canWriteEquipment) {
+        this.error = 'Your role does not allow equipment changes.';
+        return;
+      }
       this.busy = true;
       this.error = '';
       try {
@@ -203,6 +221,10 @@ export default {
       }
     },
     async saveBattery() {
+      if (!this.canWriteEquipment) {
+        this.error = 'Your role does not allow equipment changes.';
+        return;
+      }
       this.busy = true;
       this.error = '';
       try {
@@ -224,6 +246,7 @@ export default {
       }
     },
     async removeEquipment(type, item) {
+      if (!this.canWriteEquipment) return;
       if (!window.confirm(`Delete ${item.name}? Existing project snapshots will remain unchanged.`)) return;
       this.busy = true;
       this.error = '';
