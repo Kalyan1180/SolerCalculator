@@ -6,15 +6,18 @@
         <p class="text-muted mb-0">Track purchasing cost, selling price, supplier, and available stock.</p>
       </div>
       <div class="d-flex gap-2">
-        <router-link to="/admin/equipment" class="btn btn-outline-primary">Calculator Catalog</router-link>
-        <button class="btn btn-primary" @click="toggleForm">{{ showForm ? 'Close Form' : 'Add Item' }}</button>
+        <router-link v-if="canViewEquipment" to="/admin/equipment" class="btn btn-outline-primary">Calculator Catalog</router-link>
+        <button v-if="canWriteInventory" class="btn btn-primary" @click="toggleForm">{{ showForm ? 'Close Form' : 'Add Item' }}</button>
       </div>
     </div>
 
+    <div v-if="!accessLoading && !canWriteInventory" class="alert alert-info">
+      Read-only access: your role can view stock but cannot add, edit or delete inventory records.
+    </div>
     <div v-if="error" class="alert alert-danger">{{ error }}</div>
     <div v-if="successMessage" class="alert alert-success">{{ successMessage }}</div>
 
-    <section v-if="showForm" class="card mb-4">
+    <section v-if="showForm && canWriteInventory" class="card mb-4">
       <div class="card-header bg-primary text-white"><h5 class="mb-0">{{ editingItemId ? 'Edit Item' : 'Add Inventory Item' }}</h5></div>
       <div class="card-body">
         <form @submit.prevent="saveItem">
@@ -54,7 +57,7 @@
       <div class="card-header bg-secondary text-white"><h5 class="mb-0">Inventory Items ({{ items.length }})</h5></div>
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead class="table-light"><tr><th>Type</th><th>Name</th><th>Cost</th><th>Selling</th><th>Profit</th><th>Stock</th><th>Status</th><th></th></tr></thead>
+          <thead class="table-light"><tr><th>Type</th><th>Name</th><th>Cost</th><th>Selling</th><th>Profit</th><th>Stock</th><th>Status</th><th v-if="canWriteInventory"></th></tr></thead>
           <tbody>
             <tr v-for="item in items" :key="item.id || item.itemId">
               <td><span class="badge bg-info text-dark">{{ item.type }}</span></td>
@@ -64,12 +67,12 @@
               <td :class="numberValue(item.profit) >= 0 ? 'text-success' : 'text-danger'">Rs {{ money(item.profit) }} ({{ numberValue(item.profitMargin).toFixed(2) }}%)</td>
               <td>{{ numberValue(item.quantity) }}</td>
               <td><span class="badge" :class="statusClass(item.status)">{{ statusLabel(item.status) }}</span></td>
-              <td class="text-nowrap">
-                <button class="btn btn-sm btn-outline-warning me-1" :disabled="busy" @click="editItem(item)"><i class="fas fa-edit"></i></button>
-                <button class="btn btn-sm btn-outline-danger" :disabled="busy" @click="removeItem(item)"><i class="fas fa-trash"></i></button>
+              <td v-if="canWriteInventory" class="text-nowrap">
+                <button class="btn btn-sm btn-outline-warning me-1" :disabled="busy" aria-label="Edit inventory item" @click="editItem(item)"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger" :disabled="busy" aria-label="Delete inventory item" @click="removeItem(item)"><i class="fas fa-trash"></i></button>
               </td>
             </tr>
-            <tr v-if="!items.length"><td colspan="8" class="text-center text-muted py-4">No stock items have been added.</td></tr>
+            <tr v-if="!items.length"><td :colspan="canWriteInventory ? 8 : 7" class="text-center text-muted py-4">No stock items have been added.</td></tr>
           </tbody>
         </table>
       </div>
@@ -84,9 +87,12 @@ import {
   getAllInventoryItems,
   updateInventoryItem
 } from '@/models/inventoryModel';
+import rbacMixin from '@/mixins/rbacMixin';
+import { PERMISSIONS } from '@/constants/rbac';
 
 export default {
   name: 'ManageInventory',
+  mixins: [rbacMixin],
   data() {
     return {
       items: [],
@@ -108,6 +114,12 @@ export default {
     };
   },
   computed: {
+    canWriteInventory() {
+      return this.can(PERMISSIONS.INVENTORY_WRITE);
+    },
+    canViewEquipment() {
+      return this.can(PERMISSIONS.EQUIPMENT_READ);
+    },
     profitPerUnit() {
       return this.numberValue(this.form.sellingPrice) - this.numberValue(this.form.costPrice);
     },
@@ -131,6 +143,7 @@ export default {
       return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(this.numberValue(value));
     },
     toggleForm() {
+      if (!this.canWriteInventory) return;
       if (this.showForm) this.resetForm();
       else this.showForm = true;
     },
@@ -152,6 +165,10 @@ export default {
       }
     },
     async saveItem() {
+      if (!this.canWriteInventory) {
+        this.error = 'Your role does not allow inventory changes.';
+        return;
+      }
       this.busy = true;
       this.error = '';
       try {
@@ -169,6 +186,7 @@ export default {
       }
     },
     editItem(item) {
+      if (!this.canWriteInventory) return;
       this.editingItemId = item.id || item.itemId;
       this.form = {
         type: item.type || '',
@@ -183,6 +201,7 @@ export default {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     async removeItem(item) {
+      if (!this.canWriteInventory) return;
       const itemId = item.id || item.itemId;
       if (!itemId || !window.confirm(`Delete ${item.name}?`)) return;
       this.busy = true;
