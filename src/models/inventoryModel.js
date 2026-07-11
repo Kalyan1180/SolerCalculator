@@ -1,57 +1,82 @@
 // src/models/inventoryModel.js
-// Inventory management model with Firestore integration
-
 import { db } from '@/firebase';
 import {
   collection,
-  doc,
-  setDoc,
-  getDoc,
-  updateDoc,
   deleteDoc,
+  doc,
+  getDoc,
   getDocs,
-  Timestamp
+  query,
+  setDoc,
+  Timestamp,
+  updateDoc,
+  where
 } from 'firebase/firestore';
-import { LOW_STOCK_THRESHOLD } from '@/constants/inventoryConstants';
+import { LOW_STOCK_THRESHOLD, STOCK_STATUS } from '@/constants/inventoryConstants';
 
 const INVENTORY_COLLECTION = 'inventory';
 
-/**
- * Create new inventory item
- */
+function finiteNumber(value, fieldName) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new Error(`${fieldName} must be a valid number`);
+  return number;
+}
+
+function nonNegativeNumber(value, fieldName) {
+  const number = finiteNumber(value, fieldName);
+  if (number < 0) throw new Error(`${fieldName} cannot be negative`);
+  return number;
+}
+
+function stockStatus(quantity) {
+  if (quantity <= 0) return STOCK_STATUS.OUT_OF_STOCK;
+  if (quantity <= LOW_STOCK_THRESHOLD) return STOCK_STATUS.LOW_STOCK;
+  return STOCK_STATUS.IN_STOCK;
+}
+
+function calculatePricing(costPrice, sellingPrice) {
+  const profit = sellingPrice - costPrice;
+  return {
+    profit,
+    profitMargin: costPrice > 0 ? Number(((profit / costPrice) * 100).toFixed(2)) : 0
+  };
+}
+
+function createItemId() {
+  return `INV-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 export async function createInventoryItem(itemData) {
   try {
-    const itemId = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+    if (!itemData?.type?.trim()) return { success: false, error: 'Item type is required' };
+    if (!itemData?.name?.trim()) return { success: false, error: 'Item name is required' };
+
+    const costPrice = nonNegativeNumber(itemData.costPrice, 'Cost price');
+    const sellingPrice = nonNegativeNumber(itemData.sellingPrice, 'Selling price');
+    const quantity = nonNegativeNumber(itemData.quantity, 'Quantity');
+    if (!Number.isInteger(quantity)) return { success: false, error: 'Quantity must be a whole number' };
+
+    const itemId = createItemId();
+    const now = Timestamp.now();
+    const pricing = calculatePricing(costPrice, sellingPrice);
     const newItem = {
       itemId,
-      type: itemData.type,
-      name: itemData.name,
-      description: itemData.description || '',
-      specs: itemData.specs || {},
-      
-      // Pricing
-      costPrice: Number(itemData.costPrice),
-      sellingPrice: Number(itemData.sellingPrice),
-      profit: Number(itemData.sellingPrice) - Number(itemData.costPrice),
-      profitMargin: (((Number(itemData.sellingPrice) - Number(itemData.costPrice)) / Number(itemData.costPrice)) * 100).toFixed(2),
-      
-      // Stock
-      quantity: Number(itemData.quantity),
-      unit: itemData.unit || 'piece',
-      supplier: itemData.supplier || '',
-      
-      // Status
-      status: itemData.quantity > LOW_STOCK_THRESHOLD ? 'in_stock' : 'low_stock',
-      
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
+      type: itemData.type.trim(),
+      name: itemData.name.trim(),
+      description: itemData.description?.trim() || '',
+      specs: itemData.specs && typeof itemData.specs === 'object' ? itemData.specs : {},
+      costPrice,
+      sellingPrice,
+      ...pricing,
+      quantity,
+      unit: itemData.unit?.trim() || 'piece',
+      supplier: itemData.supplier?.trim() || '',
+      status: stockStatus(quantity),
+      createdAt: now,
+      updatedAt: now
     };
-    
-    const itemRef = doc(db, INVENTORY_COLLECTION, itemId);
-    await setDoc(itemRef, newItem);
-    
-    console.log('Inventory item created:', itemId);
+
+    await setDoc(doc(db, INVENTORY_COLLECTION, itemId), newItem);
     return { success: true, itemId, item: newItem };
   } catch (error) {
     console.error('Error creating inventory item:', error);
@@ -59,18 +84,11 @@ export async function createInventoryItem(itemData) {
   }
 }
 
-/**
- * Get all inventory items
- */
 export async function getAllInventoryItems() {
   try {
     const querySnapshot = await getDocs(collection(db, INVENTORY_COLLECTION));
-    const items = [];
-    
-    querySnapshot.forEach(doc => {
-      items.push({ id: doc.id, ...doc.data() });
-    });
-    
+    const items = querySnapshot.docs.map(itemDoc => ({ id: itemDoc.id, ...itemDoc.data() }));
+    items.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     return { success: true, items };
   } catch (error) {
     console.error('Error fetching inventory:', error);
@@ -78,55 +96,70 @@ export async function getAllInventoryItems() {
   }
 }
 
-/**
- * Get inventory item by ID
- */
 export async function getInventoryItem(itemId) {
   try {
-    const itemRef = doc(db, INVENTORY_COLLECTION, itemId);
-    const itemSnap = await getDoc(itemRef);
-    
-    if (itemSnap.exists()) {
-      return { success: true, item: itemSnap.data() };
-    } else {
-      return { success: false, error: 'Item not found' };
-    }
+    if (!itemId) return { success: false, error: 'Item ID is required' };
+    const itemSnap = await getDoc(doc(db, INVENTORY_COLLECTION, String(itemId)));
+    if (!itemSnap.exists()) return { success: false, error: 'Item not found' };
+    return { success: true, item: { id: itemSnap.id, ...itemSnap.data() } };
   } catch (error) {
     console.error('Error fetching inventory item:', error);
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Update inventory item
- */
-export async function updateInventoryItem(itemId, updates) {
+export async function updateInventoryItem(itemId, requestedUpdates) {
   try {
-    const itemRef = doc(db, INVENTORY_COLLECTION, itemId);
-    
-    // Recalculate profit if prices changed
-    if (updates.costPrice || updates.sellingPrice) {
-      const item = await getDoc(itemRef);
-      const itemData = item.data();
-      const cost = updates.costPrice || itemData.costPrice;
-      const selling = updates.sellingPrice || itemData.sellingPrice;
-      
-      updates.profit = selling - cost;
-      updates.profitMargin = ((((selling - cost) / cost) * 100).toFixed(2));
+    if (!itemId) return { success: false, error: 'Item ID is required' };
+    const itemRef = doc(db, INVENTORY_COLLECTION, String(itemId));
+    const itemSnap = await getDoc(itemRef);
+    if (!itemSnap.exists()) return { success: false, error: 'Item not found' };
+
+    const allowedFields = new Set([
+      'type', 'name', 'description', 'specs', 'costPrice', 'sellingPrice',
+      'quantity', 'unit', 'supplier', 'status'
+    ]);
+    const updates = {};
+    Object.entries(requestedUpdates || {}).forEach(([key, value]) => {
+      if (allowedFields.has(key)) updates[key] = value;
+    });
+    if (!Object.keys(updates).length) return { success: false, error: 'No supported fields were provided' };
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'name')) {
+      updates.name = String(updates.name || '').trim();
+      if (!updates.name) return { success: false, error: 'Item name is required' };
     }
-    
-    // Update stock status
-    if (updates.quantity !== undefined) {
-      updates.status = updates.quantity > LOW_STOCK_THRESHOLD ? 'in_stock' : 'low_stock';
-      if (updates.quantity === 0) {
-        updates.status = 'out_of_stock';
-      }
+    if (Object.prototype.hasOwnProperty.call(updates, 'type')) {
+      updates.type = String(updates.type || '').trim();
+      if (!updates.type) return { success: false, error: 'Item type is required' };
     }
-    
+    ['description', 'unit', 'supplier'].forEach(field => {
+      if (Object.prototype.hasOwnProperty.call(updates, field)) updates[field] = String(updates[field] || '').trim();
+    });
+
+    const current = itemSnap.data();
+    const costPrice = Object.prototype.hasOwnProperty.call(updates, 'costPrice')
+      ? nonNegativeNumber(updates.costPrice, 'Cost price')
+      : nonNegativeNumber(current.costPrice, 'Cost price');
+    const sellingPrice = Object.prototype.hasOwnProperty.call(updates, 'sellingPrice')
+      ? nonNegativeNumber(updates.sellingPrice, 'Selling price')
+      : nonNegativeNumber(current.sellingPrice, 'Selling price');
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'costPrice') || Object.prototype.hasOwnProperty.call(updates, 'sellingPrice')) {
+      updates.costPrice = costPrice;
+      updates.sellingPrice = sellingPrice;
+      Object.assign(updates, calculatePricing(costPrice, sellingPrice));
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'quantity')) {
+      const quantity = nonNegativeNumber(updates.quantity, 'Quantity');
+      if (!Number.isInteger(quantity)) return { success: false, error: 'Quantity must be a whole number' };
+      updates.quantity = quantity;
+      updates.status = stockStatus(quantity);
+    }
+
     updates.updatedAt = Timestamp.now();
-    
     await updateDoc(itemRef, updates);
-    console.log('Inventory item updated:', itemId);
     return { success: true };
   } catch (error) {
     console.error('Error updating inventory item:', error);
@@ -134,14 +167,13 @@ export async function updateInventoryItem(itemId, updates) {
   }
 }
 
-/**
- * Delete inventory item
- */
 export async function deleteInventoryItem(itemId) {
   try {
-    const itemRef = doc(db, INVENTORY_COLLECTION, itemId);
+    if (!itemId) return { success: false, error: 'Item ID is required' };
+    const itemRef = doc(db, INVENTORY_COLLECTION, String(itemId));
+    const itemSnap = await getDoc(itemRef);
+    if (!itemSnap.exists()) return { success: false, error: 'Item not found' };
     await deleteDoc(itemRef);
-    console.log('Inventory item deleted:', itemId);
     return { success: true };
   } catch (error) {
     console.error('Error deleting inventory item:', error);
@@ -149,21 +181,15 @@ export async function deleteInventoryItem(itemId) {
   }
 }
 
-/**
- * Get inventory items by type
- */
 export async function getInventoryByType(type) {
   try {
-    const querySnapshot = await getDocs(collection(db, INVENTORY_COLLECTION));
-    const items = [];
-    
-    querySnapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.type === type) {
-        items.push({ id: doc.id, ...data });
-      }
-    });
-    
+    if (!type) return { success: false, error: 'Inventory type is required' };
+    const inventoryQuery = query(
+      collection(db, INVENTORY_COLLECTION),
+      where('type', '==', String(type))
+    );
+    const querySnapshot = await getDocs(inventoryQuery);
+    const items = querySnapshot.docs.map(itemDoc => ({ id: itemDoc.id, ...itemDoc.data() }));
     return { success: true, items };
   } catch (error) {
     console.error('Error fetching inventory by type:', error);
@@ -171,25 +197,23 @@ export async function getInventoryByType(type) {
   }
 }
 
-/**
- * Calculate inventory value
- */
 export async function getInventoryValue() {
   try {
     const result = await getAllInventoryItems();
     if (!result.success) return result;
-    
-    const totalCost = result.items.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
-    const totalValue = result.items.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0);
-    const totalProfit = totalValue - totalCost;
-    
+    const totals = result.items.reduce((summary, item) => {
+      const quantity = Number(item.quantity) || 0;
+      summary.totalCost += (Number(item.costPrice) || 0) * quantity;
+      summary.totalValue += (Number(item.sellingPrice) || 0) * quantity;
+      summary.totalUnits += quantity;
+      return summary;
+    }, { totalCost: 0, totalValue: 0, totalUnits: 0 });
+
     return {
       success: true,
-      totalCost,
-      totalValue,
-      totalProfit,
-      totalItems: result.items.length,
-      totalUnits: result.items.reduce((sum, item) => sum + item.quantity, 0)
+      ...totals,
+      totalProfit: totals.totalValue - totals.totalCost,
+      totalItems: result.items.length
     };
   } catch (error) {
     console.error('Error calculating inventory value:', error);
