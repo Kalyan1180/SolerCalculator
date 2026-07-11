@@ -1,138 +1,194 @@
 // src/utils/pdfGenerator.js
-// PDF export functionality for quotations and invoices
+// Small dependency-free PDF generator for quotations and invoices.
 
-import jsPDF from 'jspdf';
-import html2pdf from 'html2pdf.js';
+const PAGE_WIDTH = 595;
+const PAGE_HEIGHT = 842;
+const LEFT_MARGIN = 50;
+const TOP_POSITION = 790;
+const LINE_HEIGHT = 14;
+const LINES_PER_PAGE = 48;
 
-/**
- * Generate and download quotation PDF
- */
+function ascii(value) {
+  return String(value ?? '')
+    .replace(/₹/g, 'INR ')
+    .replace(/[–—]/g, '-')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function escapePdfText(value) {
+  return ascii(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
+}
+
+function money(value) {
+  const number = Number(value);
+  const safeValue = Number.isFinite(number) ? number : 0;
+  return `INR ${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(safeValue)}`;
+}
+
+function wrapLine(value, maxCharacters = 82) {
+  const text = ascii(value);
+  if (!text) return [''];
+
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+
+  words.forEach((word) => {
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length <= maxCharacters) {
+      line = candidate;
+    } else {
+      if (line) lines.push(line);
+      line = word.length > maxCharacters ? word.slice(0, maxCharacters) : word;
+    }
+  });
+
+  if (line) lines.push(line);
+  return lines;
+}
+
+function expandLines(lines) {
+  return lines.flatMap((line) => wrapLine(line));
+}
+
+function buildPdf(lines) {
+  const expandedLines = expandLines(lines);
+  const pages = [];
+  for (let index = 0; index < expandedLines.length; index += LINES_PER_PAGE) {
+    pages.push(expandedLines.slice(index, index + LINES_PER_PAGE));
+  }
+  if (!pages.length) pages.push(['']);
+
+  const objectCount = 3 + pages.length * 2;
+  const fontObjectId = objectCount;
+  const objects = new Array(objectCount + 1);
+  const pageReferences = [];
+
+  pages.forEach((pageLines, pageIndex) => {
+    const pageObjectId = 3 + pageIndex * 2;
+    const contentObjectId = pageObjectId + 1;
+    pageReferences.push(`${pageObjectId} 0 R`);
+
+    const commands = [
+      'BT',
+      '/F1 10 Tf',
+      `${LEFT_MARGIN} ${TOP_POSITION} Td`,
+      `${LINE_HEIGHT} TL`,
+      ...pageLines.map((line) => `(${escapePdfText(line)}) Tj T*`),
+      'ET'
+    ].join('\n');
+
+    objects[pageObjectId] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] ` +
+      `/Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`;
+    objects[contentObjectId] = `<< /Length ${commands.length} >>\nstream\n${commands}\nendstream`;
+  });
+
+  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objects[2] = `<< /Type /Pages /Kids [${pageReferences.join(' ')}] /Count ${pages.length} >>`;
+  objects[fontObjectId] = '<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>';
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = new Array(objectCount + 1).fill(0);
+
+  for (let objectId = 1; objectId <= objectCount; objectId += 1) {
+    offsets[objectId] = pdf.length;
+    pdf += `${objectId} 0 obj\n${objects[objectId]}\nendobj\n`;
+  }
+
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objectCount + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (let objectId = 1; objectId <= objectCount; objectId += 1) {
+    pdf += `${String(offsets[objectId]).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return pdf;
+}
+
+function downloadPdf(filename, lines) {
+  const blob = new Blob([buildPdf(lines)], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function projectId(project) {
+  return ascii(project?.projectId || project?.id || 'PROJECT');
+}
+
+function customerLines(project) {
+  return [
+    'CUSTOMER DETAILS',
+    `Name: ${project?.customerName || 'N/A'}`,
+    `Email: ${project?.customerEmail || 'N/A'}`,
+    `Phone: ${project?.customerPhone || 'N/A'}`,
+    `Address: ${project?.address || 'N/A'}`
+  ];
+}
+
+function specificationLines(project) {
+  return [
+    'SOLAR SPECIFICATIONS',
+    `Solar panels: ${Number(project?.panelCount) || 0}`,
+    `Inverter: ${project?.inverter?.name || 'N/A'}`,
+    `Battery: ${project?.battery?.selectedBattery?.name || 'N/A'}`,
+    `Battery quantity: ${Number(project?.battery?.quantity) || 0}`
+  ];
+}
+
 export async function downloadQuotationPDF(project) {
   try {
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
+    if (!project) throw new Error('Project data is required.');
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 20;
+    const materialCost = Number(project.materialCost) || 0;
+    const laborCost = Number(project.laborCost) || 0;
+    const quotedPrice = Number(project.finalPrice || project.quotedPrice) || 0;
+    const issueDate = new Date();
+    const validUntil = new Date(issueDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    // Header
-    doc.setFontSize(24);
-    doc.text('ANT SOLAR', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 10;
-
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text('Professional Solar Solutions', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 8;
-
-    // Title
-    doc.setFontSize(16);
-    doc.setTextColor(0);
-    doc.text('QUOTATION', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 12;
-
-    // Quotation Details
-    doc.setFontSize(10);
-    doc.text(`Quotation #: ${project.projectId}`, 20, yPosition);
-    yPosition += 7;
-    doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`, 20, yPosition);
-    yPosition += 7;
-    doc.text(`Valid Till: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}`, 20, yPosition);
-    yPosition += 12;
-
-    // Customer Details
-    doc.setFontSize(11);
-    doc.text('CUSTOMER DETAILS:', 20, yPosition);
-    yPosition += 7;
-    doc.setFontSize(10);
-    doc.text(`Name: ${project.customerName}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Email: ${project.customerEmail}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Phone: ${project.customerPhone}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Address: ${project.address}`, 20, yPosition);
-    yPosition += 12;
-
-    // Solar Specifications
-    doc.setFontSize(11);
-    doc.text('SOLAR SPECIFICATIONS:', 20, yPosition);
-    yPosition += 7;
-    doc.setFontSize(10);
-    doc.text(`Solar Panels: ${project.panelCount} pieces @ ₹15,000 each`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Inverter: ${project.inverter?.name || 'N/A'}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`Battery: ${project.battery?.selectedBattery?.name || 'N/A'} (${project.battery?.quantity || 0} units)`, 20, yPosition);
-    yPosition += 12;
-
-    // Cost Breakdown Table
-    doc.setFontSize(11);
-    doc.text('COST BREAKDOWN:', 20, yPosition);
-    yPosition += 8;
-
-    const columns = ['Description', 'Amount'];
-    const rows = [
-      ['Material Cost', `₹${formatCurrency(project.materialCost)}`],
-      ['Labor Cost', `₹${formatCurrency(project.laborCost)}`],
-      ['Total Cost', `₹${formatCurrency(project.materialCost + project.laborCost)}`],
-      ['Markup/Profit', `₹${formatCurrency(project.quotedPrice - project.materialCost - project.laborCost)}`],
-      ['QUOTED PRICE', `₹${formatCurrency(project.quotedPrice)}`]
+    const lines = [
+      'ANT SOLAR',
+      'Professional Solar Solutions',
+      '',
+      'QUOTATION',
+      `Quotation number: ${projectId(project)}`,
+      `Date: ${issueDate.toLocaleDateString('en-IN')}`,
+      `Valid until: ${validUntil.toLocaleDateString('en-IN')}`,
+      '',
+      ...customerLines(project),
+      '',
+      ...specificationLines(project),
+      '',
+      'COST BREAKDOWN',
+      `Material cost: ${money(materialCost)}`,
+      `Installation and labor: ${money(laborCost)}`,
+      `Total internal cost: ${money(materialCost + laborCost)}`,
+      `Markup / margin: ${money(quotedPrice - materialCost - laborCost)}`,
+      `QUOTED PRICE: ${money(quotedPrice)}`,
+      '',
+      'TERMS AND CONDITIONS',
+      'This quotation is valid for 7 days. A 50 percent advance payment is required to confirm the order. Installation dates are confirmed after site verification and receipt of advance payment.'
     ];
 
-    doc.autoTable({
-      head: [columns],
-      body: rows,
-      startY: yPosition,
-      columnStyles: {
-        0: { cellWidth: 100 },
-        1: { cellWidth: 60, halign: 'right' }
-      },
-      didDrawPage: function (data) {
-        // Footer
-        const pageCount = doc.internal.getPages().length;
-        const pageSize = doc.internal.pageSize;
-        const pageHeight = pageSize.getHeight();
-        const pageWidth = pageSize.getWidth();
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(
-          `Page ${data.pageNumber} of ${pageCount}`,
-          pageWidth / 2,
-          pageHeight - 10,
-          { align: 'center' }
-        );
-      }
-    });
-
-    yPosition = doc.lastAutoTable.finalY + 15;
-
-    // Terms & Conditions
-    doc.setFontSize(10);
-    doc.text('TERMS & CONDITIONS:', 20, yPosition);
-    yPosition += 7;
-    doc.setFontSize(9);
-    const termsText = 'This quotation is valid for 7 days. Advance payment of 50% is required to confirm the order. Installation will commence after advance payment receipt.';
-    const wrappedTerms = doc.splitTextToSize(termsText, pageWidth - 40);
-    doc.text(wrappedTerms, 20, yPosition);
-    yPosition += wrappedTerms.length * 5 + 5;
-
-    // Notes
     if (project.adminNotes) {
-      doc.setFontSize(10);
-      doc.text('NOTES:', 20, yPosition);
-      yPosition += 7;
-      doc.setFontSize(9);
-      const wrappedNotes = doc.splitTextToSize(project.adminNotes, pageWidth - 40);
-      doc.text(wrappedNotes, 20, yPosition);
+      lines.push('', 'NOTES', project.adminNotes);
     }
 
-    // Save the PDF
-    doc.save(`Quotation_${project.projectId}.pdf`);
+    downloadPdf(`Quotation_${projectId(project)}.pdf`, lines);
     return { success: true };
   } catch (error) {
     console.error('Error generating quotation PDF:', error);
@@ -140,122 +196,46 @@ export async function downloadQuotationPDF(project) {
   }
 }
 
-/**
- * Generate and download invoice PDF
- */
 export async function downloadInvoicePDF(project) {
   try {
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
+    if (!project) throw new Error('Project data is required.');
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let yPosition = 20;
+    const total = Number(project.finalPrice || project.quotedPrice) || 0;
+    const advanceAmount = Number(project.advanceAmount) || 0;
+    const balanceAmount = Number(project.balanceAmount) || 0;
+    const advancePaid = ['advance_paid', 'balance_paid'].includes(project.paymentStatus) ? advanceAmount : 0;
+    const balancePaid = project.paymentStatus === 'balance_paid' ? balanceAmount : 0;
+    const paid = advancePaid + balancePaid;
+    const due = Math.max(0, total - paid);
 
-    // Header
-    doc.setFontSize(24);
-    doc.text('ANT SOLAR', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 10;
-
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text('Professional Solar Solutions', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 8;
-
-    // Title
-    doc.setFontSize(16);
-    doc.setTextColor(0);
-    doc.text('INVOICE', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 12;
-
-    // Invoice Details
-    doc.setFontSize(10);
-    doc.text(`Invoice #: INV-${project.projectId}`, 20, yPosition);
-    yPosition += 7;
-    doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`, 20, yPosition);
-    yPosition += 7;
-    doc.text(`Due Date: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN')}`, 20, yPosition);
-    yPosition += 12;
-
-    // Customer Details
-    doc.setFontSize(11);
-    doc.text('BILL TO:', 20, yPosition);
-    yPosition += 7;
-    doc.setFontSize(10);
-    doc.text(`${project.customerName}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`${project.customerEmail}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`${project.customerPhone}`, 20, yPosition);
-    yPosition += 6;
-    doc.text(`${project.address}`, 20, yPosition);
-    yPosition += 12;
-
-    // Invoice Items Table
-    const columns = ['Description', 'Qty', 'Unit Price', 'Total'];
-    const rows = [
-      ['Solar Panels Installation', project.panelCount, '₹15,000', `₹${formatCurrency(project.panelCount * 15000)}`],
-      [project.inverter?.name || 'Inverter', '1', `₹${formatCurrency(project.inverter?.cost || 0)}`, `₹${formatCurrency(project.inverter?.cost || 0)}`],
-      [project.battery?.selectedBattery?.name || 'Battery', project.battery?.quantity || 1, `₹${formatCurrency(project.battery?.selectedBattery?.price || 0)}`, `₹${formatCurrency((project.battery?.quantity || 1) * (project.battery?.selectedBattery?.price || 0))}`],
-      ['Installation & Labor', '1', `₹${formatCurrency(project.laborCost || 0)}`, `₹${formatCurrency(project.laborCost || 0)}`]
+    const lines = [
+      'ANT SOLAR',
+      'Professional Solar Solutions',
+      '',
+      'INVOICE',
+      `Invoice number: INV-${projectId(project)}`,
+      `Date: ${new Date().toLocaleDateString('en-IN')}`,
+      '',
+      ...customerLines(project),
+      '',
+      ...specificationLines(project),
+      '',
+      'INVOICE SUMMARY',
+      `Material cost: ${money(project.materialCost)}`,
+      `Installation and labor: ${money(project.laborCost)}`,
+      `Invoice total: ${money(total)}`,
+      `Amount paid: ${money(paid)}`,
+      `BALANCE DUE: ${money(due)}`,
+      `Payment status: ${project.paymentStatus || 'not_started'}`,
+      `Payment method: ${project.paymentMethod || 'N/A'}`,
+      '',
+      'Thank you for choosing ANT Solar.'
     ];
 
-    doc.autoTable({
-      head: [columns],
-      body: rows,
-      startY: yPosition,
-      columnStyles: {
-        0: { cellWidth: 80 },
-        1: { cellWidth: 20, halign: 'center' },
-        2: { cellWidth: 30, halign: 'right' },
-        3: { cellWidth: 30, halign: 'right' }
-      }
-    });
-
-    yPosition = doc.lastAutoTable.finalY + 10;
-
-    // Summary
-    doc.setFontSize(11);
-    doc.text('SUMMARY:', 20, yPosition);
-    yPosition += 8;
-
-    const summary = [
-      [`Subtotal:`, `₹${formatCurrency(project.materialCost + project.laborCost)}`],
-      [`Total:`, `₹${formatCurrency(project.quotedPrice)}`],
-      [`Advance Paid:`, `₹${formatCurrency(project.advanceAmount || 0)}`],
-      [`Balance Due:`, `₹${formatCurrency(project.balanceAmount || 0)}`]
-    ];
-
-    doc.setFontSize(10);
-    summary.forEach((row, index) => {
-      const isBold = index === 1 || index === 3;
-      if (isBold) doc.setFont(undefined, 'bold');
-      doc.text(row[0], 20, yPosition);
-      doc.text(row[1], pageWidth - 30, yPosition, { align: 'right' });
-      doc.setFont(undefined, 'normal');
-      yPosition += 7;
-    });
-
-    yPosition += 5;
-    doc.text('Thank you for your business!', pageWidth / 2, yPosition, { align: 'center' });
-
-    // Save the PDF
-    doc.save(`Invoice_${project.projectId}.pdf`);
+    downloadPdf(`Invoice_${projectId(project)}.pdf`, lines);
     return { success: true };
   } catch (error) {
     console.error('Error generating invoice PDF:', error);
     return { success: false, error: error.message };
   }
-}
-
-/**
- * Format currency helper
- */
-function formatCurrency(value) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'decimal',
-    maximumFractionDigits: 0
-  }).format(value);
 }
