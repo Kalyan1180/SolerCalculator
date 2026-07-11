@@ -1,10 +1,25 @@
 import rbacConfig from '../../config/rbac.json';
 
 export const RBAC_VERSION = rbacConfig.version;
-export const PERMISSIONS = Object.freeze(Object.keys(rbacConfig.permissions).reduce((result, permission) => {
-  result[permission.replace(/[^a-zA-Z0-9]+(.)/g, (_, character) => character.toUpperCase()).toUpperCase()] = permission;
-  return result;
-}, {}));
+
+export const PERMISSIONS = Object.freeze({
+  DASHBOARD_ACCESS: 'dashboard.access',
+  PROJECTS_READ: 'projects.read',
+  PROJECTS_CREATE: 'projects.create',
+  PROJECTS_UPDATE: 'projects.update',
+  PROJECTS_PAYMENTS: 'projects.payments',
+  PROJECTS_DOCUMENTS: 'projects.documents',
+  PROJECTS_DELETE: 'projects.delete',
+  NOTIFICATIONS_SEND: 'notifications.send',
+  INVENTORY_READ: 'inventory.read',
+  INVENTORY_WRITE: 'inventory.write',
+  EQUIPMENT_READ: 'equipment.read',
+  EQUIPMENT_WRITE: 'equipment.write',
+  ANALYTICS_READ: 'analytics.read',
+  USERS_READ: 'users.read',
+  USERS_ROLES_WRITE: 'users.roles.write',
+  AUDIT_READ: 'audit.read'
+});
 
 export const ROLES = Object.freeze({
   CUSTOMER: 'customer',
