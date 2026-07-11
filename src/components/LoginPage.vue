@@ -51,9 +51,15 @@ export default {
   },
   methods: {
     redirectAfterLogin() {
-      const redirect = typeof this.$route.query.redirect === 'string' && this.$route.query.redirect.startsWith('/')
+      const requested = typeof this.$route.query.redirect === 'string'
+        && this.$route.query.redirect.startsWith('/')
+        && !this.$route.query.redirect.startsWith('//')
         ? this.$route.query.redirect
         : '/';
+      const hasCalculatorResults = Number(this.$store.getters.solerResults?.panelCount) > 0;
+      const redirect = requested === '/submit-quotation' && !hasCalculatorResults
+        ? '/solercalc'
+        : requested;
       this.$router.replace(redirect);
     },
     async logInWithGoogle() {
