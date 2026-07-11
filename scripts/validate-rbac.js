@@ -5,6 +5,7 @@ const root = path.resolve(__dirname, '..');
 const configPath = path.join(root, 'config', 'rbac.json');
 const rulesPath = path.join(root, 'firestore.rules');
 const roleFunctionPath = path.join(root, 'netlify', 'functions', 'updateUserRole.js');
+const revokeFunctionPath = path.join(root, 'netlify', 'functions', 'revokeUserSessions.js');
 
 function fail(message) {
   throw new Error(`RBAC validation failed: ${message}`);
@@ -21,6 +22,7 @@ function includesAny(values, candidates) {
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const firestoreRules = fs.readFileSync(rulesPath, 'utf8');
 const roleFunction = fs.readFileSync(roleFunctionPath, 'utf8');
+const revokeFunction = fs.readFileSync(revokeFunctionPath, 'utf8');
 
 if (!Number.isInteger(config.version) || config.version < 1) {
   fail('version must be a positive integer');
@@ -90,13 +92,19 @@ const analystForbidden = [
   'notifications.send',
   'inventory.write',
   'equipment.write',
-  'users.roles.write'
+  'users.roles.write',
+  'users.sessions.revoke'
 ];
 if (includesAny(config.roles.analyst.permissions, analystForbidden)) {
   fail('analyst must remain read-only');
 }
 
-const securityPermissions = ['users.read', 'users.roles.write', 'audit.read'];
+const securityPermissions = [
+  'users.read',
+  'users.roles.write',
+  'users.sessions.revoke',
+  'audit.read'
+];
 for (const [role, definition] of Object.entries(config.roles)) {
   if (role !== 'admin' && includesAny(definition.permissions, securityPermissions)) {
     fail(`security administration permission assigned to non-administrator role ${role}`);
@@ -108,6 +116,7 @@ const projectManagerForbidden = [
   'equipment.write',
   'users.read',
   'users.roles.write',
+  'users.sessions.revoke',
   'audit.read'
 ];
 if (includesAny(config.roles.project_manager.permissions, projectManagerForbidden)) {
@@ -122,6 +131,7 @@ const inventoryManagerForbidden = [
   'notifications.send',
   'users.read',
   'users.roles.write',
+  'users.sessions.revoke',
   'audit.read'
 ];
 if (includesAny(config.roles.inventory_manager.permissions, inventoryManagerForbidden)) {
@@ -143,6 +153,12 @@ for (const role of requiredRoles.filter(role => !['customer', 'admin'].includes(
 if (!permissionSet.has('users.roles.write')) fail('required server security permission users.roles.write is missing');
 if (!roleFunction.includes("requirePermission(event, 'users.roles.write')")) {
   fail('role administration function does not enforce users.roles.write');
+}
+if (!permissionSet.has('users.sessions.revoke')) {
+  fail('required server security permission users.sessions.revoke is missing');
+}
+if (!revokeFunction.includes("requirePermission(event, 'users.sessions.revoke')")) {
+  fail('session revocation function does not enforce users.sessions.revoke');
 }
 if (!firestoreRules.includes("hasPermission('audit.read')")) {
   fail('Firestore rules do not enforce audit.read for audit log access');
