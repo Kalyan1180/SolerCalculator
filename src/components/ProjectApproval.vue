@@ -10,6 +10,9 @@
       <button type="button" class="btn-close" aria-label="Close" @click="error = ''"></button>
     </div>
     <div v-if="successMessage" class="alert alert-success" role="status">{{ successMessage }}</div>
+    <div v-if="!accessLoading && !canUpdateProject" class="alert alert-info">
+      Read-only access: your role can view this project but cannot change its status, notes or payment records.
+    </div>
 
     <div v-if="!loading && project" class="row g-4">
       <div class="col-lg-8">
@@ -71,19 +74,17 @@
             </table>
 
             <div class="mb-3">
-              <label for="adminNotes" class="form-label fw-bold">Admin Notes</label>
-              <textarea id="adminNotes" v-model.trim="adminNotes" class="form-control" rows="3" maxlength="2000"></textarea>
+              <label for="adminNotes" class="form-label fw-bold">Internal Notes</label>
+              <textarea id="adminNotes" v-model.trim="adminNotes" class="form-control" rows="3" maxlength="2000" :readonly="!canUpdateProject"></textarea>
             </div>
-            <button class="btn btn-outline-primary" :disabled="busyAction" @click="saveNotes">Save Notes</button>
+            <button v-if="canUpdateProject" class="btn btn-outline-primary" :disabled="busyAction" @click="saveNotes">Save Notes</button>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header bg-light"><h5 class="mb-0">Site Photos</h5></div>
           <div class="card-body">
-            <p class="mb-2">
-              Photo upload is disabled so this application can operate without a paid Firebase Storage plan.
-            </p>
+            <p class="mb-2">Photo upload is disabled so this application can operate without a paid Firebase Storage plan.</p>
             <small class="text-muted">Projects, quotations, payments, inventory and status updates are unaffected.</small>
 
             <div v-if="project.sitePhotos?.length" class="row g-3 mt-2">
@@ -131,42 +132,47 @@
             >
               {{ action.label }}
             </button>
-            <span v-if="!availableStatusActions.length" class="text-muted">No further status action is available.</span>
+            <span v-if="!canUpdateProject" class="text-muted">Your role has read-only project access.</span>
+            <span v-else-if="!availableStatusActions.length" class="text-muted">No further status action is available.</span>
           </div>
         </div>
 
         <div class="card mb-4">
           <div class="card-header bg-info text-white"><h5 class="mb-0">Record Payment</h5></div>
           <div class="card-body">
-            <div class="mb-3">
-              <label for="paymentType" class="form-label">Payment</label>
-              <select id="paymentType" v-model="paymentType" class="form-select" :disabled="busyAction || !paymentReady">
-                <option value="advance">Advance</option>
-                <option value="balance" :disabled="!advancePaid">Balance</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label for="paymentMethod" class="form-label">Method</label>
-              <select id="paymentMethod" v-model="paymentMethod" class="form-select" :disabled="busyAction || !paymentReady">
-                <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank transfer</option>
-                <option value="cheque">Cheque</option>
-                <option value="upi">UPI</option>
-              </select>
-            </div>
-            <button class="btn btn-success w-100" :disabled="!canRecordPayment || busyAction" @click="recordPayment">
-              Record {{ paymentType }} payment
-            </button>
-            <small v-if="!paymentReady" class="d-block text-muted mt-2">Approve the quotation before recording payment.</small>
+            <template v-if="canManagePayments">
+              <div class="mb-3">
+                <label for="paymentType" class="form-label">Payment</label>
+                <select id="paymentType" v-model="paymentType" class="form-select" :disabled="busyAction || !paymentReady">
+                  <option value="advance">Advance</option>
+                  <option value="balance" :disabled="!advancePaid">Balance</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label for="paymentMethod" class="form-label">Method</label>
+                <select id="paymentMethod" v-model="paymentMethod" class="form-select" :disabled="busyAction || !paymentReady">
+                  <option value="cash">Cash</option>
+                  <option value="bank_transfer">Bank transfer</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="upi">UPI</option>
+                </select>
+              </div>
+              <button class="btn btn-success w-100" :disabled="!canRecordPayment || busyAction" @click="recordPayment">
+                Record {{ paymentType }} payment
+              </button>
+              <small v-if="!paymentReady" class="d-block text-muted mt-2">Approve the quotation before recording payment.</small>
+            </template>
+            <span v-else class="text-muted">Your role cannot record payments.</span>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header bg-secondary text-white"><h5 class="mb-0">Documents & Notifications</h5></div>
           <div class="list-group list-group-flush">
-            <button class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadQuotation">Download quotation PDF</button>
-            <button class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadInvoice">Download invoice PDF</button>
-            <button class="list-group-item list-group-item-action" :disabled="busyAction" @click="sendEmailUpdate">Send email update</button>
+            <button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadQuotation">Download quotation PDF</button>
+            <button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadInvoice">Download invoice PDF</button>
+            <button v-if="canSendNotifications" class="list-group-item list-group-item-action" :disabled="busyAction" @click="sendEmailUpdate">Send email update</button>
+            <div v-if="!canGenerateDocuments && !canSendNotifications" class="list-group-item text-muted">No document or notification permission is assigned to your role.</div>
           </div>
         </div>
       </div>
@@ -184,9 +190,12 @@ import {
 import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/constants/businessConstants';
 import { sendCompletionEmail, sendProjectUpdateEmail } from '@/utils/emailService';
 import { downloadInvoicePDF, downloadQuotationPDF } from '@/utils/pdfGenerator';
+import rbacMixin from '@/mixins/rbacMixin';
+import { PERMISSIONS } from '@/constants/rbac';
 
 export default {
   name: 'ProjectApproval',
+  mixins: [rbacMixin],
   props: {
     projectId: { type: String, required: true }
   },
@@ -203,6 +212,18 @@ export default {
     };
   },
   computed: {
+    canUpdateProject() {
+      return this.can(PERMISSIONS.PROJECTS_UPDATE);
+    },
+    canManagePayments() {
+      return this.can(PERMISSIONS.PROJECTS_PAYMENTS);
+    },
+    canGenerateDocuments() {
+      return this.can(PERMISSIONS.PROJECTS_DOCUMENTS);
+    },
+    canSendNotifications() {
+      return this.can(PERMISSIONS.NOTIFICATIONS_SEND);
+    },
     shortProjectId() {
       return String(this.project?.projectId || this.projectId).slice(0, 16);
     },
@@ -216,11 +237,12 @@ export default {
       return Boolean(this.project?.approvalDate && this.project?.advanceAmount != null);
     },
     canRecordPayment() {
-      if (!this.paymentReady) return false;
+      if (!this.canManagePayments || !this.paymentReady) return false;
       if (this.paymentType === 'advance') return !this.advancePaid;
       return this.advancePaid && !this.balancePaid;
     },
     availableStatusActions() {
+      if (!this.canUpdateProject) return [];
       const actions = {
         quote_pending: [{ status: 'quote_sent', label: 'Send Quote', className: 'btn-outline-primary' }],
         quote_sent: [{ status: 'approved', label: 'Approve Quote', className: 'btn-success' }],
@@ -260,6 +282,10 @@ export default {
       window.setTimeout(() => { this.successMessage = ''; }, 3500);
     },
     async updateStatus(newStatus) {
+      if (!this.canUpdateProject) {
+        this.error = 'Your role does not allow project status changes.';
+        return;
+      }
       this.busyAction = true;
       this.error = '';
       try {
@@ -268,12 +294,14 @@ export default {
         await this.loadProject();
         this.showSuccess(`Status updated to ${this.getStatusLabel(newStatus)}.`);
 
-        let emailResult = { success: true };
-        if (newStatus === 'completed') emailResult = await sendCompletionEmail(this.project);
-        else if (['quote_sent', 'approved'].includes(newStatus)) {
-          emailResult = await sendProjectUpdateEmail(this.project, `Your project status is now ${this.getStatusLabel(newStatus)}.`);
+        if (this.canSendNotifications) {
+          let emailResult = { success: true };
+          if (newStatus === 'completed') emailResult = await sendCompletionEmail(this.project);
+          else if (['quote_sent', 'approved'].includes(newStatus)) {
+            emailResult = await sendProjectUpdateEmail(this.project, `Your project status is now ${this.getStatusLabel(newStatus)}.`);
+          }
+          if (!emailResult.success) this.error = `Status saved, but the email could not be sent: ${emailResult.error}`;
         }
-        if (!emailResult.success) this.error = `Status saved, but the email could not be sent: ${emailResult.error}`;
       } catch (error) {
         this.error = error.message || 'Unable to update project status.';
       } finally {
@@ -281,6 +309,10 @@ export default {
       }
     },
     async saveNotes() {
+      if (!this.canUpdateProject) {
+        this.error = 'Your role does not allow project note changes.';
+        return;
+      }
       this.busyAction = true;
       this.error = '';
       try {
@@ -294,6 +326,10 @@ export default {
       }
     },
     async recordPayment() {
+      if (!this.canManagePayments) {
+        this.error = 'Your role does not allow payment updates.';
+        return;
+      }
       this.busyAction = true;
       this.error = '';
       try {
@@ -314,14 +350,20 @@ export default {
       }
     },
     async downloadQuotation() {
+      if (!this.canGenerateDocuments) return;
       const result = await downloadQuotationPDF(this.project);
       if (!result.success) this.error = result.error || 'Unable to generate quotation PDF.';
     },
     async downloadInvoice() {
+      if (!this.canGenerateDocuments) return;
       const result = await downloadInvoicePDF(this.project);
       if (!result.success) this.error = result.error || 'Unable to generate invoice PDF.';
     },
     async sendEmailUpdate() {
+      if (!this.canSendNotifications) {
+        this.error = 'Your role does not allow customer notifications.';
+        return;
+      }
       this.busyAction = true;
       this.error = '';
       try {
