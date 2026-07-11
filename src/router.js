@@ -9,6 +9,7 @@ import ContactPage from '@/components/ContactPage.vue';
 import LoginPage from '@/components/LoginPage.vue';
 import SignUpPage from '@/components/SignUpPage.vue';
 import AccessDenied from '@/components/AccessDenied.vue';
+import AuditLog from '@/components/AuditLog.vue';
 import { auth } from '@/firebase';
 import { getUserAccess, hasEveryPermission } from '@/utils/accessControl';
 import { PERMISSIONS } from '@/constants/rbac';
@@ -90,6 +91,12 @@ const routes = [
     meta: protectedMeta(PERMISSIONS.USERS_READ)
   },
   {
+    path: '/admin/audit',
+    name: 'AuditLog',
+    component: AuditLog,
+    meta: protectedMeta(PERMISSIONS.AUDIT_READ)
+  },
+  {
     path: '/admin/investigate',
     name: 'AdminInvestigate',
     component: AdminInvestigate,
@@ -149,7 +156,9 @@ router.beforeEach(async to => {
       : [to.meta.requiredPermission];
 
     try {
-      const access = await getUserAccess(currentUser.uid);
+      // Protected navigation always re-reads the Firestore role. This makes
+      // privilege revocation effective immediately instead of waiting for cache expiry.
+      const access = await getUserAccess(currentUser.uid, { force: true });
       if (!hasEveryPermission(access, requiredPermissions)) {
         return {
           name: 'AccessDenied',
