@@ -4,14 +4,42 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
+// Firebase web configuration is intentionally public and is included in the
+// browser bundle. Environment variables can override these values for another
+// Firebase project, while the fallback keeps the existing ANT Solar deployment
+// working when Netlify client variables have not been configured yet.
+const defaultFirebaseConfig = {
+  apiKey: 'AIzaSyBTBcdZb5FMZpf2kbUx6eWhC2hQXrPb9hU',
+  authDomain: 'ant-soler.firebaseapp.com',
+  projectId: 'ant-soler',
+  storageBucket: 'ant-soler.firebasestorage.app',
+  messagingSenderId: '859294648883',
+  appId: '1:859294648883:web:944270286ecf293614f146',
+  measurementId: 'G-VSNNLEK1KG'
+};
+
+function configuredValue(value, fallback) {
+  const normalized = String(value || '').trim();
+  if (!normalized || normalized.startsWith('your_') || normalized.startsWith('ci-')) {
+    return fallback;
+  }
+  return normalized;
+}
+
 const firebaseConfig = {
-  apiKey: process.env.VUE_APP_FIREBASE_API_KEY,
-  authDomain: process.env.VUE_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.VUE_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.VUE_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.VUE_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.VUE_APP_FIREBASE_APP_ID,
-  measurementId: process.env.VUE_APP_FIREBASE_MEASUREMENT_ID
+  apiKey: configuredValue(process.env.VUE_APP_FIREBASE_API_KEY, defaultFirebaseConfig.apiKey),
+  authDomain: configuredValue(process.env.VUE_APP_FIREBASE_AUTH_DOMAIN, defaultFirebaseConfig.authDomain),
+  projectId: configuredValue(process.env.VUE_APP_FIREBASE_PROJECT_ID, defaultFirebaseConfig.projectId),
+  storageBucket: configuredValue(process.env.VUE_APP_FIREBASE_STORAGE_BUCKET, defaultFirebaseConfig.storageBucket),
+  messagingSenderId: configuredValue(
+    process.env.VUE_APP_FIREBASE_MESSAGING_SENDER_ID,
+    defaultFirebaseConfig.messagingSenderId
+  ),
+  appId: configuredValue(process.env.VUE_APP_FIREBASE_APP_ID, defaultFirebaseConfig.appId),
+  measurementId: configuredValue(
+    process.env.VUE_APP_FIREBASE_MEASUREMENT_ID,
+    defaultFirebaseConfig.measurementId
+  )
 };
 
 const app = initializeApp(firebaseConfig);
