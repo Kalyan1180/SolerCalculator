@@ -68,30 +68,37 @@ const router = createRouter({
   }
 });
 
-let authReadyPromise;
-function waitForAuth() {
-  if (authReadyPromise) return authReadyPromise;
-  authReadyPromise = new Promise((resolve) => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+let authInitialized = false;
+const initialAuthState = new Promise((resolve) => {
+  const unsubscribe = onAuthStateChanged(
+    auth,
+    () => {
+      authInitialized = true;
       unsubscribe();
-      resolve(user);
-    }, () => resolve(null));
-  });
-  return authReadyPromise;
+      resolve();
+    },
+    () => {
+      authInitialized = true;
+      unsubscribe();
+      resolve();
+    }
+  );
+});
+
+async function getCurrentUser() {
+  if (!authInitialized) await initialAuthState;
+  return auth.currentUser;
 }
 
 router.beforeEach(async (to) => {
-  const currentUser = auth.currentUser || await waitForAuth();
+  const currentUser = await getCurrentUser();
 
   if (to.meta.guestOnly && currentUser) {
     return { name: 'Home' };
   }
 
   if (to.meta.requiresAuth && !currentUser) {
-    return {
-      name: 'LoginPage',
-      query: { redirect: to.fullPath }
-    };
+    return { name: 'LoginPage', query: { redirect: to.fullPath } };
   }
 
   if (to.meta.requiresRole) {
