@@ -11,11 +11,10 @@ service firebase.storage {
     }
 
     match /project-photos/{projectId}/{fileName} {
-      allow read, write: if isAdmin()
-        && request.resource == null
-          || (isAdmin()
-            && request.resource.size < 5 * 1024 * 1024
-            && request.resource.contentType.matches('image/(jpeg|png|webp)'));
+      allow read, delete: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
     }
 
     match /{allPaths=**} {
