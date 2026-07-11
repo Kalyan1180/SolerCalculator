@@ -1,8 +1,14 @@
-const { getAdminServices, jsonResponse, requireAdmin } = require('./_firebaseAdmin');
+const {
+  getAdminServices,
+  getRoleDefinition,
+  jsonResponse,
+  normalizeRole,
+  requirePermission
+} = require('./_firebaseAdmin');
 
 exports.handler = async event => {
   if (event.httpMethod !== 'GET') return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'GET' });
-  const authorization = await requireAdmin(event);
+  const authorization = await requirePermission(event, 'users.read');
   if (!authorization.authorized) return authorization.response;
 
   try {
@@ -14,11 +20,14 @@ exports.handler = async event => {
     const roles = new Map(roleSnapshot.docs.map(userDoc => [userDoc.id, userDoc.data()]));
     const users = authResult.users.map(user => {
       const profile = roles.get(user.uid) || {};
+      const role = normalizeRole(profile.role);
+      const roleDefinition = getRoleDefinition(role);
       return {
         uid: user.uid,
         email: user.email || profile.email || '',
         displayName: user.displayName || profile.displayName || '',
-        role: profile.role || 'customer',
+        role,
+        roleLabel: roleDefinition.label,
         disabled: user.disabled,
         emailVerified: user.emailVerified,
         createdAt: user.metadata.creationTime || null,
