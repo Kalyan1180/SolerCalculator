@@ -32,6 +32,27 @@ function paidAmount(project) {
   return Math.max(historyTotal, Math.max(0, numberValue(project?.amountPaid)));
 }
 
+function validateBackupEnergy(operations, system) {
+  const selectedBattery = system.operationalUpdates?.battery?.selectedBattery;
+  if (!selectedBattery) return;
+
+  const requiredEnergy = Math.max(0, numberValue(operations.calculationInput?.unitPerDay) * 3 / 5);
+  if (requiredEnergy <= 0) return;
+
+  const batteryEnergy = Math.max(0, numberValue(
+    selectedBattery.specs?.energy ?? selectedBattery.energy
+  ));
+  const batteryQuantity = Math.max(0, numberValue(system.operationalUpdates.battery.quantity));
+  const suppliedEnergy = batteryEnergy * batteryQuantity;
+  if (batteryEnergy <= 0 || suppliedEnergy + 0.0001 < requiredEnergy) {
+    throw workflowError(
+      400,
+      'BATTERY_CAPACITY_INSUFFICIENT',
+      `The selected battery combination supplies ${suppliedEnergy.toFixed(2)} kWh, below the required ${requiredEnergy.toFixed(2)} kWh backup capacity.`
+    );
+  }
+}
+
 function customerFields(payload, current) {
   const customerName = text(payload.customerName ?? current.customerName, 100);
   const customerEmail = text(payload.customerEmail ?? current.customerEmail, 160).toLowerCase();
@@ -85,6 +106,7 @@ exports.handler = async event => {
     }
 
     const system = buildEditedSystem({ project, operations, plan: inventoryContext.plan, payload });
+    validateBackupEnergy(operations, system);
     const customers = customerFields(payload, project);
     const scheduledDate = validDate(payload.installationScheduledDate ?? project.installationScheduledDate);
     const now = new Date();
