@@ -11,7 +11,7 @@ import SignUpPage from '@/components/SignUpPage.vue';
 import AccessDenied from '@/components/AccessDenied.vue';
 import AuditLog from '@/components/AuditLog.vue';
 import { auth } from '@/firebase';
-import { getUserAccess, hasEveryPermission } from '@/utils/accessControl';
+import { getUserAccess, hasEveryPermission, hasPermission } from '@/utils/accessControl';
 import { ensureActiveSession } from '@/utils/sessionManager';
 import { PERMISSIONS } from '@/constants/rbac';
 import SubmitQuotation from '@/components/SubmitQuotation.vue';
@@ -75,7 +75,7 @@ const routes = [
     meta: protectedMeta(
       PERMISSIONS.INVENTORY_READ,
       'Smart Inventory & Equipment',
-      'Equipment and stock now use one inventory source of truth.'
+      'Equipment and stock use one controlled source of truth.'
     )
   },
   {
@@ -106,7 +106,7 @@ const routes = [
     meta: protectedMeta(
       PERMISSIONS.PROJECTS_READ,
       'Project Workspace',
-      'Review project specifications, stock readiness, payments and authorized actions.'
+      'Review project specifications, supply readiness, payments and authorized actions.'
     )
   },
   {
@@ -141,7 +141,7 @@ const routes = [
     meta: protectedMeta(
       PERMISSIONS.ANALYTICS_READ,
       'Analytics',
-      'Monitor project, payment, revenue and inventory performance.'
+      'Monitor project, payment, revenue and operational performance.'
     )
   },
   {
@@ -187,8 +187,24 @@ async function getCurrentUser() {
 
 router.beforeEach(async to => {
   const currentUser = await getCurrentUser();
+  const isAdministrationRoute = to.meta.layout === 'admin';
+  let routeAccess = null;
 
   if (to.meta.requiresGuest && currentUser) return { name: 'Home' };
+
+  // Public visitors are not redirected to an administration-specific login or
+  // error page. Unknown administration URLs behave like unavailable pages.
+  if (isAdministrationRoute && !currentUser) return { name: 'Home' };
+
+  if (isAdministrationRoute && currentUser) {
+    try {
+      routeAccess = await getUserAccess(currentUser.uid, { force: true });
+      if (!hasPermission(routeAccess, PERMISSIONS.DASHBOARD_ACCESS)) return { name: 'Home' };
+    } catch (error) {
+      console.error('Unable to resolve protected workspace access:', error);
+      return { name: 'Home' };
+    }
+  }
 
   if (to.meta.requiresAuth && !currentUser) {
     return {
@@ -204,20 +220,19 @@ router.beforeEach(async to => {
 
     if (!session.active) {
       if (session.reason === 'session-validation-unavailable') {
-        return {
-          name: 'AccessDenied',
-          query: {
-            reason: session.reason,
-            from: to.fullPath
-          }
-        };
+        return isAdministrationRoute
+          ? { name: 'Home' }
+          : {
+            name: 'AccessDenied',
+            query: { reason: session.reason, from: to.fullPath }
+          };
       }
 
       return {
         name: 'LoginPage',
         query: {
           reason: session.reason || 'session-expired',
-          redirect: to.fullPath
+          redirect: isAdministrationRoute ? '/' : to.fullPath
         }
       };
     }
@@ -229,7 +244,7 @@ router.beforeEach(async to => {
       : [to.meta.requiredPermission];
 
     try {
-      const access = await getUserAccess(currentUser.uid, { force: true });
+      const access = routeAccess || await getUserAccess(currentUser.uid, { force: true });
       if (!hasEveryPermission(access, requiredPermissions)) {
         return {
           name: 'AccessDenied',
@@ -241,10 +256,12 @@ router.beforeEach(async to => {
       }
     } catch (error) {
       console.error('Route authorization failed:', error);
-      return {
-        name: 'AccessDenied',
-        query: { permission: requiredPermissions.join(', '), reason: 'access-check-failed' }
-      };
+      return isAdministrationRoute
+        ? { name: 'Home' }
+        : {
+          name: 'AccessDenied',
+          query: { permission: requiredPermissions.join(', '), reason: 'access-check-failed' }
+        };
     }
   }
 
