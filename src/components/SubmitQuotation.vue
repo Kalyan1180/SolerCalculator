@@ -1,67 +1,131 @@
 <template>
-  <div class="quotation-container container my-5">
-    <h2 class="text-center mb-4">Submit Solar Requirement</h2>
+  <div class="marketing-page">
+    <section class="marketing-section">
+      <div class="marketing-container">
+        <div class="row justify-content-center">
+          <div class="col-xl-9">
+            <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+              <div>
+                <span class="marketing-eyebrow"><i class="fas fa-file-signature" aria-hidden="true"></i>Quotation workflow</span>
+                <h1 class="h2 mb-2">{{ canCreateProjects ? 'Create a customer project' : 'Submit your solar requirement' }}</h1>
+                <p class="text-muted mb-0">Review the calculator result and provide the details needed to continue.</p>
+              </div>
+              <router-link to="/solercalc" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2" aria-hidden="true"></i>Back to calculator
+              </router-link>
+            </div>
 
-    <div v-if="loading" class="loader-overlay">
-      <div class="loader">Submitting quotation, please wait...</div>
-    </div>
+            <div v-if="loading" class="loader-overlay" role="status" aria-live="polite">
+              <div class="card p-4 text-center">
+                <div class="spinner-border text-primary mx-auto mb-3"></div>
+                <strong>Submitting quotation</strong>
+                <span class="text-muted">Please keep this page open.</span>
+              </div>
+            </div>
 
-    <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
-    <div v-if="message" class="alert alert-success text-center" role="status">{{ message }}</div>
+            <div v-if="error" class="alert alert-danger" role="alert">
+              <i class="fas fa-circle-exclamation me-2" aria-hidden="true"></i>{{ error }}
+            </div>
 
-    <form v-if="!message" @submit.prevent="submitQuotation" class="quotation-form border p-4 rounded">
-      <div class="mb-3">
-        <label for="custName" class="form-label">Customer Name</label>
-        <input v-model.trim="formData.name" type="text" id="custName" class="form-control" maxlength="100" required />
+            <section v-if="message" class="card text-center p-4 p-md-5">
+              <div class="enterprise-empty-state__icon"><i class="fas fa-circle-check" aria-hidden="true"></i></div>
+              <h2 class="h4">Requirement submitted</h2>
+              <p class="text-muted mb-0">{{ message }}</p>
+            </section>
+
+            <div v-else class="row g-4">
+              <div class="col-lg-7">
+                <form class="card" @submit.prevent="submitQuotation">
+                  <div class="card-header">
+                    <h2 class="h5 mb-1">Customer details</h2>
+                    <p class="text-muted small mb-0">Fields marked with an asterisk are required.</p>
+                  </div>
+                  <div class="card-body">
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <label for="custName" class="form-label">Customer name *</label>
+                        <input v-model.trim="formData.name" type="text" id="custName" class="form-control" maxlength="100" autocomplete="name" required />
+                      </div>
+                      <div class="col-md-6">
+                        <label for="custPhone" class="form-label">Phone number *</label>
+                        <input v-model.trim="formData.phone" type="tel" id="custPhone" class="form-control" maxlength="20" autocomplete="tel" required />
+                      </div>
+                      <div class="col-12">
+                        <label for="custEmail" class="form-label">Email address *</label>
+                        <input v-model.trim="formData.email" type="email" id="custEmail" class="form-control" autocomplete="email" required />
+                      </div>
+                      <div class="col-12">
+                        <label for="custAddress" class="form-label">Installation address *</label>
+                        <textarea v-model.trim="formData.address" id="custAddress" class="form-control" rows="3" maxlength="500" autocomplete="street-address" required></textarea>
+                      </div>
+                      <div class="col-12">
+                        <label for="additionalNotes" class="form-label">Additional notes</label>
+                        <textarea v-model.trim="formData.additionalNotes" id="additionalNotes" class="form-control" rows="3" maxlength="1000"></textarea>
+                      </div>
+                      <div v-if="canCreateProjects" class="col-12">
+                        <label for="suggestedPrice" class="form-label">Final quoted price (Rs) *</label>
+                        <input
+                          v-model.number="formData.suggestedPrice"
+                          type="number"
+                          id="suggestedPrice"
+                          class="form-control"
+                          min="1"
+                          step="1"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 mt-4" :disabled="loading || !hasCalculatorResults">
+                      <i :class="canCreateProjects ? 'fas fa-folder-plus' : 'fas fa-paper-plane'" class="me-2" aria-hidden="true"></i>
+                      {{ canCreateProjects ? 'Create project' : 'Submit requirement' }}
+                    </button>
+                    <small v-if="!hasCalculatorResults" class="d-block text-danger mt-2">Calculator results are missing. Return to the calculator and generate a recommendation first.</small>
+                  </div>
+                </form>
+              </div>
+
+              <div class="col-lg-5">
+                <aside class="card h-100">
+                  <div class="card-header">
+                    <h2 class="h5 mb-1">System summary</h2>
+                    <p class="text-muted small mb-0">Generated from your latest calculator result.</p>
+                  </div>
+                  <div class="card-body">
+                    <template v-if="hasCalculatorResults">
+                      <div class="spec-card mb-3">
+                        <small class="text-muted d-block">Solar panels</small>
+                        <strong class="fs-4">{{ solerResults.panelCount }}</strong>
+                      </div>
+                      <div class="spec-card mb-3">
+                        <small class="text-muted d-block">Inverter</small>
+                        <strong>{{ solerResults.inverter?.name || 'N/A' }}</strong>
+                      </div>
+                      <div class="spec-card mb-3">
+                        <small class="text-muted d-block">Battery</small>
+                        <strong>{{ solerResults.battery?.selectedBattery?.name || 'Not required' }}</strong>
+                      </div>
+                      <div class="border-top pt-3 mt-3">
+                        <div class="d-flex justify-content-between mb-2"><span class="text-muted">Installed estimate</span><strong>Rs {{ formatMoney(solerResults.costWith) }}</strong></div>
+                        <div class="d-flex justify-content-between"><span class="text-muted">Offer price</span><strong class="text-success">Rs {{ formatMoney(solerResults.special) }}</strong></div>
+                      </div>
+
+                      <div v-if="canCreateProjects" class="alert alert-info mt-4 mb-0">
+                        Internal cost before profit: <strong>Rs {{ formatMoney(solerResults.costWithout) }}</strong>
+                      </div>
+                    </template>
+                    <div v-else class="enterprise-empty-state py-4">
+                      <div class="enterprise-empty-state__icon"><i class="fas fa-calculator" aria-hidden="true"></i></div>
+                      <p class="text-muted mb-0">No calculator result is available.</p>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <div class="mb-3">
-        <label for="custAddress" class="form-label">Address</label>
-        <textarea v-model.trim="formData.address" id="custAddress" class="form-control" rows="3" maxlength="500" required></textarea>
-      </div>
-
-      <div class="mb-3">
-        <label for="custPhone" class="form-label">Phone Number</label>
-        <input v-model.trim="formData.phone" type="tel" id="custPhone" class="form-control" maxlength="20" required />
-      </div>
-
-      <div class="mb-3">
-        <label for="custEmail" class="form-label">Email</label>
-        <input v-model.trim="formData.email" type="email" id="custEmail" class="form-control" required />
-      </div>
-
-      <div class="mb-3">
-        <label for="additionalNotes" class="form-label">Additional Notes</label>
-        <textarea v-model.trim="formData.additionalNotes" id="additionalNotes" class="form-control" rows="2" maxlength="1000"></textarea>
-      </div>
-
-      <div class="mb-3" v-if="canCreateProjects">
-        <label for="suggestedPrice" class="form-label">Final Quoted Price (Rs)</label>
-        <input
-          v-model.number="formData.suggestedPrice"
-          type="number"
-          id="suggestedPrice"
-          class="form-control"
-          min="1"
-          step="1"
-          required
-        />
-      </div>
-
-      <div class="prefilled-fields border p-3 mb-3 rounded" v-if="canCreateProjects && hasCalculatorResults">
-        <h4>Calculation Data</h4>
-        <p><strong>Panels:</strong> {{ solerResults.panelCount }}</p>
-        <p><strong>Estimated installed cost:</strong> Rs {{ formatMoney(solerResults.costWith) }}</p>
-        <p><strong>Cost before profit:</strong> Rs {{ formatMoney(solerResults.costWithout) }}</p>
-        <p><strong>Offer price:</strong> Rs {{ formatMoney(solerResults.special) }}</p>
-        <p><strong>Inverter:</strong> {{ solerResults.inverter?.name || 'N/A' }}</p>
-        <p><strong>Battery:</strong> {{ solerResults.battery?.selectedBattery?.name || 'N/A' }}</p>
-      </div>
-
-      <button type="submit" class="btn btn-primary w-100" :disabled="loading || !hasCalculatorResults">
-        {{ canCreateProjects ? 'Create Project' : 'Submit Requirement' }}
-      </button>
-    </form>
+    </section>
   </div>
 </template>
 
@@ -178,16 +242,16 @@ export default {
 </script>
 
 <style scoped>
-.quotation-container { max-width: 650px; }
-.quotation-form, .prefilled-fields { background-color: #f8f9fa; }
 .loader-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(255, 255, 255, 0.8);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  z-index: 1090;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(7, 20, 38, 0.45);
+  backdrop-filter: blur(4px);
 }
-.loader { font-size: 1.15rem; color: #007bff; }
+.loader-overlay .card { min-width: min(360px, 100%); }
+.spec-card { padding: 1rem; border: 1px solid var(--ant-slate-200); border-radius: 10px; background: var(--ant-slate-50); }
 </style>

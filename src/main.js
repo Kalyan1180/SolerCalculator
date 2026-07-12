@@ -9,6 +9,7 @@ import {
 import 'bootstrap/dist/css/bootstrap.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import '@/assets/styles/enterprise.css';
 
 async function bootstrap() {
   // Persistence must be selected before Firebase restores the signed-in user.

@@ -1,13 +1,15 @@
 <template>
-  <main class="container py-5">
+  <main class="auth-page d-flex align-items-center">
     <section class="access-denied-card mx-auto text-center p-4 p-md-5">
-      <i class="fas fa-shield-alt fa-4x text-danger mb-4" aria-hidden="true"></i>
-      <h1 class="h2">Access denied</h1>
-      <p class="text-muted mb-2">Your account is signed in, but its assigned role does not include permission for this page.</p>
-      <p v-if="requiredPermission" class="small mb-4"><strong>Required permission:</strong> <code>{{ requiredPermission }}</code></p>
+      <div class="enterprise-empty-state__icon mb-3"><i class="fas fa-shield-halved" aria-hidden="true"></i></div>
+      <span class="marketing-eyebrow mb-2">Protected workspace</span>
+      <h1 class="h2">This page is not available for your role</h1>
+      <p class="text-muted mb-4">
+        Your account is signed in, but the requested module is outside your assigned responsibilities. Items you cannot access are hidden from the dashboard and navigation.
+      </p>
       <div class="d-flex flex-wrap justify-content-center gap-2">
-        <router-link to="/" class="btn btn-outline-secondary">Return Home</router-link>
-        <router-link v-if="canOpenDashboard" to="/admin" class="btn btn-primary">Admin Dashboard</router-link>
+        <router-link to="/" class="btn btn-outline-secondary">Return to website</router-link>
+        <router-link v-if="canOpenDashboard" to="/admin" class="btn btn-primary">Open my dashboard</router-link>
       </div>
     </section>
   </main>
@@ -15,16 +17,14 @@
 
 <script>
 import rbacMixin from '@/mixins/rbacMixin';
+import { PERMISSIONS } from '@/constants/rbac';
 
 export default {
   name: 'AccessDenied',
   mixins: [rbacMixin],
   computed: {
-    requiredPermission() {
-      return String(this.$route.query.permission || '');
-    },
     canOpenDashboard() {
-      return this.can('dashboard.access');
+      return this.can(PERMISSIONS.DASHBOARD_ACCESS);
     }
   }
 };
@@ -33,9 +33,9 @@ export default {
 <style scoped>
 .access-denied-card {
   max-width: 680px;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border: 1px solid var(--ant-slate-200);
+  border-radius: var(--ant-radius-lg);
   background: #fff;
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--ant-shadow-md);
 }
 </style>

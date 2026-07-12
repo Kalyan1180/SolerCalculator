@@ -1,16 +1,30 @@
 <!DOCTYPE html>
-<html lang="">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta name="theme-color" content="#0b1f36">
+    <meta name="description" content="ANT Solar system calculator, quotation and project tracking.">
     <link rel="icon" href="<%= BASE_URL %>favicon.ico">
     <title><%= htmlWebpackPlugin.options.title %></title>
   </head>
   <body>
     <noscript>
-      <strong>We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
+      <strong>ANT Solar requires JavaScript. Please enable it to continue.</strong>
     </noscript>
+
+    <!-- Netlify scans this static form during deployment. The visible Vue form
+         submits the same field names through a URL-encoded POST request. -->
+    <form name="ant-solar-contact" data-netlify="true" netlify-honeypot="bot-field" hidden>
+      <input type="hidden" name="form-name" value="ant-solar-contact">
+      <input name="bot-field">
+      <input name="name">
+      <input type="email" name="email">
+      <input type="tel" name="phone">
+      <textarea name="message"></textarea>
+    </form>
+
     <div id="app"></div>
     <!-- built files will be auto injected -->
   </body>

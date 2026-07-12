@@ -1,70 +1,86 @@
 <template>
-  <div class="customer-projects container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2 class="mb-0">My Solar Projects</h2>
-      <button class="btn btn-outline-secondary" :disabled="loading" @click="loadProjects">Refresh</button>
-    </div>
-
-    <div v-if="loading" class="text-center my-5" role="status">
-      <div class="spinner-border text-primary"></div>
-      <p class="mt-2">Loading your projects...</p>
-    </div>
-    <div v-if="error" class="alert alert-danger">{{ error }}</div>
-
-    <div v-if="!loading && projects.length" class="row g-4">
-      <div v-for="project in projects" :key="project.id || project.projectId" class="col-lg-6">
-        <article class="card h-100 shadow-sm">
-          <div class="card-header text-white" :style="{ backgroundColor: getStatusColor(project.status) }">
-            <div class="d-flex justify-content-between align-items-center gap-2">
-              <h5 class="mb-0">Project #{{ shortId(project.projectId || project.id) }}</h5>
-              <span class="badge bg-light text-dark">{{ getStatusLabel(project.status) }}</span>
-            </div>
+  <div class="marketing-page">
+    <section class="marketing-section">
+      <div class="marketing-container">
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+          <div>
+            <span class="marketing-eyebrow"><i class="fas fa-folder-open" aria-hidden="true"></i>Customer workspace</span>
+            <h1 class="h2 mb-2">My Solar Projects</h1>
+            <p class="text-muted mb-0">Track quotation, approval, payment and installation progress.</p>
           </div>
+          <button class="btn btn-outline-secondary" :disabled="loading" @click="loadProjects">
+            <i class="fas fa-rotate me-2" aria-hidden="true"></i>Refresh
+          </button>
+        </div>
 
-          <div class="card-body">
-            <div class="mb-3">
-              <p class="mb-1"><strong>Panels:</strong> {{ numberValue(project.panelCount) }}</p>
-              <p class="mb-1"><strong>Inverter:</strong> {{ project.inverter?.name || 'N/A' }}</p>
-              <p class="mb-1"><strong>Battery:</strong> {{ project.battery?.selectedBattery?.name || 'Not required' }}</p>
-            </div>
+        <div v-if="loading" class="text-center my-5" role="status">
+          <div class="spinner-border text-primary"></div>
+          <p class="mt-3 text-muted">Loading your projects…</p>
+        </div>
+        <div v-if="error" class="alert alert-danger"><i class="fas fa-circle-exclamation me-2"></i>{{ error }}</div>
 
-            <div class="cost-section mb-3 p-3 bg-light rounded">
-              <p class="mb-2"><strong>Quoted Price:</strong> <span class="text-primary">Rs {{ formatCurrency(project.quotedPrice) }}</span></p>
-              <div class="d-flex align-items-center mt-2">
-                <div class="payment-item" :class="{ active: advancePaid(project) }">
-                  <small>Advance</small>
-                  <strong class="d-block">Rs {{ formatCurrency(project.advanceAmount) }}</strong>
+        <div v-if="!loading && projects.length" class="row g-4">
+          <div v-for="project in projects" :key="project.id || project.projectId" class="col-xl-6">
+            <article class="card h-100">
+              <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                  <small class="text-muted d-block">Project</small>
+                  <h2 class="h5 mb-0">#{{ shortId(project.projectId || project.id) }}</h2>
                 </div>
-                <div class="separator">→</div>
-                <div class="payment-item" :class="{ active: project.paymentStatus === 'balance_paid' }">
-                  <small>Balance</small>
-                  <strong class="d-block">Rs {{ formatCurrency(project.balanceAmount) }}</strong>
+                <span class="badge text-white" :style="{ backgroundColor: getStatusColor(project.status) }">{{ getStatusLabel(project.status) }}</span>
+              </div>
+
+              <div class="card-body">
+                <div class="row g-3 mb-4">
+                  <div class="col-sm-4"><div class="project-fact"><small>Panels</small><strong>{{ numberValue(project.panelCount) }}</strong></div></div>
+                  <div class="col-sm-4"><div class="project-fact"><small>Inverter</small><strong>{{ project.inverter?.name || 'N/A' }}</strong></div></div>
+                  <div class="col-sm-4"><div class="project-fact"><small>Battery</small><strong>{{ project.battery?.selectedBattery?.name || 'Not required' }}</strong></div></div>
+                </div>
+
+                <div class="project-price mb-4">
+                  <span class="text-muted">Quoted price</span>
+                  <strong>Rs {{ formatCurrency(project.quotedPrice) }}</strong>
+                </div>
+
+                <div class="payment-grid mb-4">
+                  <div class="payment-item" :class="{ active: advancePaid(project) }">
+                    <span class="payment-icon"><i :class="advancePaid(project) ? 'fas fa-circle-check' : 'far fa-circle'" aria-hidden="true"></i></span>
+                    <div><small>Advance</small><strong>Rs {{ formatCurrency(project.advanceAmount) }}</strong></div>
+                  </div>
+                  <div class="payment-item" :class="{ active: project.paymentStatus === 'balance_paid' }">
+                    <span class="payment-icon"><i :class="project.paymentStatus === 'balance_paid' ? 'fas fa-circle-check' : 'far fa-circle'" aria-hidden="true"></i></span>
+                    <div><small>Balance</small><strong>Rs {{ formatCurrency(project.balanceAmount) }}</strong></div>
+                  </div>
+                </div>
+
+                <div class="project-timeline" aria-label="Project progress">
+                  <div v-for="step in timelineSteps(project)" :key="step.label" class="project-timeline__step" :class="{ completed: step.completed }">
+                    <span class="project-timeline__dot"><i v-if="step.completed" class="fas fa-check" aria-hidden="true"></i></span>
+                    <small>{{ step.label }}</small>
+                  </div>
+                </div>
+
+                <div v-if="project.customerNotes" class="alert alert-info mt-4 mb-0">
+                  <strong class="d-block mb-1">Your notes</strong>{{ project.customerNotes }}
                 </div>
               </div>
-            </div>
 
-            <div class="timeline mb-3">
-              <div v-for="step in timelineSteps(project)" :key="step.label" class="timeline-item" :class="{ completed: step.completed }">
-                <div class="timeline-marker"></div>
-                <small>{{ step.label }}</small>
+              <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center">
+                <small class="text-muted">Created {{ formatDate(project.createdAt) }}</small>
+                <span class="small fw-semibold text-primary">{{ getStatusLabel(project.status) }}</span>
               </div>
-            </div>
-
-            <div v-if="project.customerNotes" class="alert alert-info mb-0">
-              <small><strong>Your notes:</strong> {{ project.customerNotes }}</small>
-            </div>
+            </article>
           </div>
+        </div>
 
-          <div class="card-footer bg-light"><small class="text-muted">Created: {{ formatDate(project.createdAt) }}</small></div>
-        </article>
+        <section v-if="!loading && !projects.length && !error" class="card enterprise-empty-state">
+          <div class="enterprise-empty-state__icon"><i class="fas fa-solar-panel" aria-hidden="true"></i></div>
+          <h2 class="h4">No solar projects yet</h2>
+          <p class="text-muted">Use the calculator to prepare a system estimate and submit your first requirement.</p>
+          <router-link to="/solercalc" class="btn btn-primary">Start a solar estimate</router-link>
+        </section>
       </div>
-    </div>
-
-    <div v-if="!loading && !projects.length && !error" class="text-center my-5">
-      <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
-      <p class="text-muted">No solar projects yet.</p>
-      <router-link to="/solercalc" class="btn btn-primary">Get a Quote</router-link>
-    </div>
+    </section>
   </div>
 </template>
 
@@ -125,7 +141,7 @@ export default {
       return PROJECT_STATUS_LABELS[status] || status || 'Unknown';
     },
     getStatusColor(status) {
-      return PROJECT_STATUS_COLORS[status] || '#6c757d';
+      return PROJECT_STATUS_COLORS[status] || '#667085';
     },
     formatCurrency(value) {
       return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(this.numberValue(value));
@@ -140,15 +156,25 @@ export default {
 </script>
 
 <style scoped>
-.customer-projects { min-height: 100vh; }
-.card { border: 0; }
-.payment-item { flex: 1; padding: 0.75rem; text-align: center; background: white; border: 2px solid #ddd; border-radius: 4px; opacity: 0.55; }
-.payment-item.active { opacity: 1; border-color: #198754; background: #f0f8f4; }
-.separator { padding: 0 0.5rem; color: #999; }
-.timeline { display: flex; gap: 0.5rem; }
-.timeline-item { flex: 1; text-align: center; opacity: 0.4; }
-.timeline-item.completed { opacity: 1; }
-.timeline-marker { width: 12px; height: 12px; background: #ddd; border-radius: 50%; margin: 0 auto 0.4rem; }
-.timeline-item.completed .timeline-marker { background: #198754; }
-.cost-section { border-left: 4px solid #0d6efd; }
+.project-fact { height: 100%; padding: 0.9rem; border: 1px solid var(--ant-slate-200); border-radius: 10px; background: var(--ant-slate-50); }
+.project-fact small, .project-fact strong { display: block; }
+.project-fact small { color: var(--ant-slate-500); }
+.project-fact strong { margin-top: 0.25rem; color: var(--ant-slate-800); }
+.project-price { display: flex; align-items: center; justify-content: space-between; padding: 1rem; border-radius: 10px; background: #eff4ff; }
+.project-price strong { color: var(--ant-blue-700); font-size: 1.15rem; }
+.payment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.payment-item { display: flex; align-items: center; gap: 0.65rem; padding: 0.9rem; border: 1px solid var(--ant-slate-200); border-radius: 10px; opacity: 0.7; }
+.payment-item.active { border-color: #abefc6; background: #ecfdf3; opacity: 1; }
+.payment-item small, .payment-item strong { display: block; }
+.payment-icon { color: var(--ant-slate-400); }
+.payment-item.active .payment-icon { color: var(--ant-green-600); }
+.project-timeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
+.project-timeline__step { position: relative; display: grid; justify-items: center; gap: 0.45rem; color: var(--ant-slate-400); text-align: center; }
+.project-timeline__step::before { position: absolute; top: 15px; left: calc(-50% + 15px); width: calc(100% - 30px); height: 2px; background: var(--ant-slate-200); content: ''; }
+.project-timeline__step:first-child::before { display: none; }
+.project-timeline__step.completed { color: var(--ant-green-600); }
+.project-timeline__step.completed::before { background: var(--ant-green-600); }
+.project-timeline__dot { z-index: 1; display: grid; place-items: center; width: 30px; height: 30px; border: 2px solid var(--ant-slate-300); border-radius: 50%; background: #fff; font-size: 0.68rem; }
+.project-timeline__step.completed .project-timeline__dot { border-color: var(--ant-green-600); color: #fff; background: var(--ant-green-600); }
+@media (max-width: 575.98px) { .payment-grid { grid-template-columns: 1fr; } }
 </style>
