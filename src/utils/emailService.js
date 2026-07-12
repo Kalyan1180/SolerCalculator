@@ -6,6 +6,11 @@ function requireProject(project) {
   if (!project?.customerEmail) throw new Error('Customer email is missing');
 }
 
+function numberValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
 async function sendTemplate(project, template, data) {
   requireProject(project);
   return authenticatedJsonRequest('/.netlify/functions/sendEmail', {
@@ -40,11 +45,15 @@ export async function sendProjectUpdateEmail(project, statusMessage) {
 export async function sendPaymentReminderEmail(project, milestone = 'advance') {
   try {
     const normalizedMilestone = milestone === 'balance' ? 'balance' : 'advance';
+    const advancePercentage = numberValue(project.advancePercentage) || 50;
+    const balancePercentage = Math.max(0, 100 - advancePercentage);
     const amount = normalizedMilestone === 'advance' ? project.advanceAmount : project.balanceAmount;
     const result = await sendTemplate(project, 'payment-reminder', {
       customerName: project.customerName,
       projectId: project.projectId,
-      milestone: normalizedMilestone === 'advance' ? 'Advance (50%)' : 'Balance (50%)',
+      milestone: normalizedMilestone === 'advance'
+        ? `Advance (${advancePercentage}%)`
+        : `Balance (${balancePercentage}%)`,
       amount,
       dueDate: new Date(Date.now() + (2 * 24 * 60 * 60 * 1000)).toLocaleDateString('en-IN')
     });
