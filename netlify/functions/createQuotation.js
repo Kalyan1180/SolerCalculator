@@ -5,6 +5,7 @@ const {
   jsonResponse,
   roleHasPermission
 } = require('./_firebaseAdmin');
+const { publicBattery, publicEquipment } = require('./_projectPrivacy');
 
 function cleanText(value, maxLength) {
   return String(value || '').trim().slice(0, maxLength);
@@ -49,6 +50,16 @@ function createProjectId() {
   return `PRJ-${Date.now()}-${crypto.randomBytes(5).toString('hex')}`;
 }
 
+function safeRequirements(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 50).map(line => ({
+    type: cleanText(line?.type, 40) || 'other',
+    name: cleanText(line?.name, 150) || 'Equipment',
+    unit: cleanText(line?.unit, 40) || 'piece',
+    requiredQuantity: Math.max(0, Math.ceil(finiteNumber(line?.requiredQuantity)))
+  })).filter(line => line.requiredQuantity > 0);
+}
+
 exports.handler = async event => {
   if (event.httpMethod !== 'POST') {
     return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'POST' });
@@ -75,6 +86,7 @@ exports.handler = async event => {
     const recommendationRef = db.collection('recommendations').doc(recommendationId);
     const projectId = createProjectId();
     const projectRef = db.collection('projects').doc(projectId);
+    const operationsRef = db.collection('projectOperations').doc(projectId);
 
     await db.runTransaction(async transaction => {
       const recommendationSnapshot = await transaction.get(recommendationRef);
@@ -104,8 +116,9 @@ exports.handler = async event => {
       const suggestedPrice = managedProject ? finiteNumber(payload.suggestedPrice) : finiteNumber(recommendation.offerPrice);
       if (suggestedPrice <= 0) fail(400, 'INVALID_PRICE', 'Quoted price must be greater than zero.');
 
+      const publicView = stored.publicRecommendation || {};
       const now = fieldValue.serverTimestamp();
-      const newProject = {
+      const customerProject = {
         projectId,
         customerId: managedProject ? null : authorization.user.uid,
         customerName: customer.name,
@@ -114,22 +127,14 @@ exports.handler = async event => {
         address: customer.address,
 
         status: 'quote_pending',
-        panelCount: finiteNumber(recommendation.panelCount),
-        panel: recommendation.panel,
-        inverter: recommendation.inverter,
-        battery: recommendation.battery || null,
-        billOfMaterials: recommendation.billOfMaterials,
-        inventoryAssessment: recommendation.inventoryAssessment,
-        calculationInput: stored.calculationInput || {},
-        recommendationId,
+        panelCount: Math.max(1, Math.ceil(finiteNumber(recommendation.panelCount))),
+        panel: publicView.panel || publicEquipment(recommendation.panel, 'panel'),
+        inverter: publicView.inverter || publicEquipment(recommendation.inverter, 'inverter'),
+        battery: publicView.battery || publicBattery(recommendation.battery),
+        systemRequirements: safeRequirements(publicView.requirements),
 
-        materialCost: finiteNumber(recommendation.materialCost),
-        laborCost: finiteNumber(recommendation.laborCost),
-        totalCostWithoutMarkup: finiteNumber(recommendation.totalCostWithoutMarkup),
-        totalCostWithMarkup: finiteNumber(recommendation.totalCostWithMarkup),
         quotedPrice: suggestedPrice,
         finalPrice: null,
-
         advancePercentage: 50,
         advanceAmount: null,
         balanceAmount: null,
@@ -144,19 +149,39 @@ exports.handler = async event => {
         installationStartDate: null,
         completionDate: null,
 
-        adminNotes: '',
         customerNotes: customer.additionalNotes,
-        technicalNotes: '',
         sitePhotos: [],
-        techniciansAssigned: [],
         customerSignoff: false,
-        completionNotes: '',
-        createdByUid: authorization.user.uid,
-        createdByRole: authorization.role,
-        managedProject
+        completionNotes: ''
       };
 
-      transaction.set(projectRef, newProject);
+      const projectOperations = {
+        projectId,
+        panel: recommendation.panel,
+        inverter: recommendation.inverter,
+        battery: recommendation.battery || null,
+        billOfMaterials: recommendation.billOfMaterials,
+        inventoryAssessment: recommendation.inventoryAssessment,
+        calculationInput: stored.calculationInput || {},
+        recommendationId,
+
+        materialCost: finiteNumber(recommendation.materialCost),
+        laborCost: finiteNumber(recommendation.laborCost),
+        totalCostWithoutMarkup: finiteNumber(recommendation.totalCostWithoutMarkup),
+        totalCostWithMarkup: finiteNumber(recommendation.totalCostWithMarkup),
+
+        adminNotes: '',
+        technicalNotes: '',
+        techniciansAssigned: [],
+        createdByUid: authorization.user.uid,
+        createdByRole: authorization.role,
+        managedProject,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      transaction.set(projectRef, customerProject);
+      transaction.set(operationsRef, projectOperations);
       transaction.update(recommendationRef, {
         consumedAt: now,
         consumedBy: authorization.user.uid,
