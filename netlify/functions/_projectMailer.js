@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { attachmentForNotification } = require('./_projectDocuments');
 
 const REQUIRED_EMAIL_VARIABLES = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASSWORD'];
 const STATUS_LABELS = Object.freeze({
@@ -14,9 +15,9 @@ const STATUS_LABELS = Object.freeze({
 
 const NEXT_STEPS = Object.freeze({
   quote_pending: 'Our team is preparing and reviewing your quotation.',
-  quote_sent: 'Please review the quotation and contact us if you would like any clarification or changes.',
+  quote_sent: 'Please review the attached quotation and contact us if you need clarification or revisions.',
   quote_rejected: 'Please contact us if you would like us to prepare a revised solution.',
-  approved: 'Please arrange the agreed advance payment so procurement and scheduling can proceed.',
+  approved: 'Please review the attached invoice and arrange the agreed payment so procurement and scheduling can proceed.',
   installation_scheduled: 'Please ensure the installation area is accessible on the scheduled date.',
   in_progress: 'Our installation team is working on your solar system. We will update you when commissioning is complete.',
   completed: 'Please review the completed installation and contact us for service or warranty support when required.',
@@ -77,8 +78,10 @@ function transporter() {
 }
 
 function equipmentRows(project) {
+  const panelCategory = project.panel?.panelType || project.panel?.specs?.panelType;
   const rows = [
     ['Solar panels', `${numberValue(project.panelCount)} × ${project.panel?.name || 'Solar panel'}`],
+    ...(panelCategory ? [['Panel category', String(panelCategory).replace(/_/g, ' ')]] : []),
     ['Inverter', project.inverter?.name || 'To be confirmed'],
     ['Battery', project.battery?.selectedBattery
       ? `${numberValue(project.battery.quantity)} × ${project.battery.selectedBattery.name}`
@@ -98,7 +101,23 @@ function commercialRows(project) {
   ].map(([label, value]) => `<tr><td style="padding:7px 12px;color:#475569">${escapeHtml(label)}</td><td style="padding:7px 12px;font-weight:600">${escapeHtml(value)}</td></tr>`).join('');
 }
 
-function layout({ title, customerName, intro, project, body = '', nextStep = '' }) {
+function layout({
+  title,
+  customerName,
+  intro,
+  project,
+  body = '',
+  nextStep = '',
+  includeSystemSummary = false,
+  includeCommercialSummary = false
+}) {
+  const systemSection = includeSystemSummary
+    ? `<h3 style="margin:24px 0 8px">System summary</h3><table style="width:100%;border-collapse:collapse;background:#f8fafc">${equipmentRows(project)}</table>`
+    : '';
+  const commercialSection = includeCommercialSummary
+    ? `<h3 style="margin:24px 0 8px">Commercial summary</h3><table style="width:100%;border-collapse:collapse;background:#f8fafc">${commercialRows(project)}</table>`
+    : '';
+
   return `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:680px;margin:0 auto;padding:24px">
       <div style="background:#0f4c81;color:#fff;padding:22px 26px;border-radius:14px 14px 0 0">
@@ -108,10 +127,8 @@ function layout({ title, customerName, intro, project, body = '', nextStep = '' 
         <p>Dear ${escapeHtml(customerName || 'Customer')},</p><p>${escapeHtml(intro)}</p>
         <p><strong>Project ID:</strong> ${escapeHtml(project.projectId)}</p>
         ${body}
-        <h3 style="margin:24px 0 8px">System summary</h3>
-        <table style="width:100%;border-collapse:collapse;background:#f8fafc">${equipmentRows(project)}</table>
-        <h3 style="margin:24px 0 8px">Commercial summary</h3>
-        <table style="width:100%;border-collapse:collapse;background:#f8fafc">${commercialRows(project)}</table>
+        ${systemSection}
+        ${commercialSection}
         ${nextStep ? `<div style="margin-top:22px;padding:15px;border-left:4px solid #16a34a;background:#f0fdf4"><strong>Next step</strong><br>${escapeHtml(nextStep)}</div>` : ''}
         <p style="margin-top:24px">For any clarification, reply to this email or contact ANT Solar.</p>
         <p>Best regards,<br><strong>ANT Solar Team</strong></p>
@@ -127,6 +144,15 @@ function statusEmail(notification) {
     ? `<p><strong>Scheduled installation date:</strong> ${escapeHtml(dateValue(project.installationScheduledDate))}</p>`
     : '';
   const noteBlock = note ? `<p><strong>Update from our team:</strong> ${escapeHtml(note)}</p>` : '';
+  const isQuotation = newStatus === 'quote_sent';
+  const isApproval = newStatus === 'approved';
+  const isCompletion = newStatus === 'completed';
+  const attachmentNote = isQuotation
+    ? '<p><strong>Your quotation PDF is attached to this email.</strong></p>'
+    : isApproval
+      ? '<p><strong>Your invoice PDF is attached to this email.</strong></p>'
+      : '';
+
   return {
     subject: `Solar project update: ${newLabel} — ${String(project.projectId).slice(0, 16)}`,
     html: layout({
@@ -134,8 +160,10 @@ function statusEmail(notification) {
       customerName: project.customerName,
       intro: `Your project status changed from ${previousLabel} to ${newLabel}.`,
       project,
-      body: `<p><strong>Current status:</strong> ${escapeHtml(newLabel)}</p>${schedule}${noteBlock}`,
-      nextStep: NEXT_STEPS[newStatus] || 'Our team will contact you with the next update.'
+      body: `<p><strong>Current status:</strong> ${escapeHtml(newLabel)}</p>${schedule}${noteBlock}${attachmentNote}`,
+      nextStep: NEXT_STEPS[newStatus] || 'Our team will contact you with the next update.',
+      includeSystemSummary: isQuotation || isApproval || isCompletion,
+      includeCommercialSummary: isQuotation || isApproval
     })
   };
 }
@@ -143,15 +171,21 @@ function statusEmail(notification) {
 function projectChangedEmail(notification) {
   const { project, changes } = notification.payload;
   const rows = (changes || []).map(change => `<li><strong>${escapeHtml(change.label)}:</strong> ${escapeHtml(change.value)}</li>`).join('');
+  const commercialLabels = new Set(['Quoted price', 'Advance']);
+  const systemLabels = new Set(['Solar panels', 'Panel model', 'Inverter', 'Battery', 'Battery quantity']);
+  const includeCommercialSummary = (changes || []).some(change => commercialLabels.has(change.label));
+  const includeSystemSummary = (changes || []).some(change => systemLabels.has(change.label));
   return {
-    subject: `Solar quotation revised — ${String(project.projectId).slice(0, 16)}`,
+    subject: `Solar project details revised — ${String(project.projectId).slice(0, 16)}`,
     html: layout({
       title: 'Your solar project details were revised',
       customerName: project.customerName,
-      intro: 'We updated the customer-visible project or quotation details shown below.',
+      intro: 'We updated the customer-visible details listed below.',
       project,
       body: rows ? `<h3>What changed</h3><ul>${rows}</ul>` : '',
-      nextStep: 'Please review the revised system and commercial details. Contact us if you need clarification.'
+      nextStep: 'Please review the revised details. Contact us if you need clarification.',
+      includeSystemSummary,
+      includeCommercialSummary
     })
   };
 }
@@ -163,13 +197,42 @@ function paymentEmail(notification) {
     html: layout({
       title: 'Payment received',
       customerName: project.customerName,
-      intro: `We received your payment of Rs. ${money(payment.amount)}.`,
+      intro: `We received your payment of Rs. ${money(payment.amount)}. Your PDF receipt is attached.`,
       project,
       body: `<p><strong>Payment method:</strong> ${escapeHtml(payment.method || 'Not specified')}</p>
-        ${payment.reference ? `<p><strong>Reference:</strong> ${escapeHtml(payment.reference)}</p>` : ''}`,
+        ${payment.reference ? `<p><strong>Reference:</strong> ${escapeHtml(payment.reference)}</p>` : ''}
+        <p><strong>Payment date:</strong> ${escapeHtml(dateValue(payment.receivedAt || payment.recordedAt))}</p>`,
       nextStep: numberValue(project.amountPaid) >= numberValue(project.quotedPrice)
         ? 'Your payment is complete. Our team will continue with the remaining project activities.'
-        : `The remaining amount is Rs. ${money(Math.max(0, numberValue(project.quotedPrice) - numberValue(project.amountPaid)))}.`
+        : `The remaining amount is Rs. ${money(Math.max(0, numberValue(project.quotedPrice) - numberValue(project.amountPaid)))}.`,
+      includeCommercialSummary: true
+    })
+  };
+}
+
+function surveyEmail(notification) {
+  const { project, survey, action, note } = notification.payload;
+  const scheduled = action === 'scheduled';
+  return {
+    subject: `${scheduled ? 'Site survey scheduled' : 'Site survey completed'} — ${String(project.projectId).slice(0, 16)}`,
+    html: layout({
+      title: scheduled ? 'Your site survey is scheduled' : 'Your site survey is complete',
+      customerName: project.customerName,
+      intro: scheduled
+        ? 'Our technical team has scheduled the site survey required before quotation approval.'
+        : 'The required site survey has been completed and our team can now finalize the approval workflow.',
+      project,
+      body: `
+        <p><strong>Survey status:</strong> ${scheduled ? 'Scheduled' : 'Completed'}</p>
+        <p><strong>${scheduled ? 'Scheduled date' : 'Completed date'}:</strong> ${escapeHtml(dateValue(scheduled ? survey.scheduledDate : survey.completedDate))}</p>
+        ${survey.surveyor ? `<p><strong>Surveyor:</strong> ${escapeHtml(survey.surveyor)}</p>` : ''}
+        ${note ? `<p><strong>Message from our team:</strong> ${escapeHtml(note)}</p>` : ''}
+      `,
+      nextStep: scheduled
+        ? 'Please ensure access to the roof, meter and electrical distribution area on the scheduled date.'
+        : 'Our team will review the findings and proceed with the quotation approval process.',
+      includeSystemSummary: false,
+      includeCommercialSummary: false
     })
   };
 }
@@ -178,6 +241,7 @@ function contentFor(notification) {
   if (notification.type === 'status_changed') return statusEmail(notification);
   if (notification.type === 'project_changed') return projectChangedEmail(notification);
   if (notification.type === 'payment_received') return paymentEmail(notification);
+  if (notification.type === 'site_survey_scheduled' || notification.type === 'site_survey_completed') return surveyEmail(notification);
   throw new Error(`Unsupported project notification type: ${notification.type}`);
 }
 
@@ -189,13 +253,20 @@ async function sendProjectNotification(notification) {
     throw error;
   }
   const content = contentFor(notification);
+  const attachment = await attachmentForNotification(notification);
   const result = await transporter().sendMail({
     from: String(process.env.EMAIL_FROM || process.env.EMAIL_USER).trim(),
     to: recipient,
     subject: content.subject,
-    html: content.html
+    html: content.html,
+    attachments: attachment ? [attachment] : []
   });
-  return { messageId: result.messageId, recipient, subject: content.subject };
+  return {
+    messageId: result.messageId,
+    recipient,
+    subject: content.subject,
+    attachmentName: attachment?.filename || ''
+  };
 }
 
 module.exports = {
