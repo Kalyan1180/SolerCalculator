@@ -38,6 +38,9 @@ jobs:
       - name: Validate smart inventory
         run: npm run validate:inventory
 
+      - name: Validate customer privacy
+        run: npm run validate:customer-privacy
+
       - name: Lint
         run: npm run lint
 
