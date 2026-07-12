@@ -30,20 +30,26 @@ exports.handler = async event => {
       .map(notificationDoc => ({ id: notificationDoc.id, ...notificationDoc.data(), payload: undefined }))
       .sort((a, b) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt))
       .slice(0, 50);
+    const equipment = equipmentOptions(inventoryContext.plan);
 
     return jsonResponse(200, {
       project: {
         ...merged,
+        siteSurveyStatus: merged.siteSurveyStatus || merged.siteSurvey?.status || 'not_scheduled',
         revision: Number(merged.revision || 0)
       },
-      equipment: equipmentOptions(inventoryContext.plan),
+      equipment,
       stockPlan: projectStockPlan(merged, inventoryContext.plan),
       notifications,
       capabilities: {
         canUpdate: authorization.permissions.includes('projects.update'),
         canDelete: authorization.permissions.includes('projects.delete'),
         canRecordPayments: authorization.permissions.includes('projects.payments'),
-        canSendNotifications: authorization.permissions.includes('notifications.send')
+        canSendNotifications: authorization.permissions.includes('notifications.send'),
+        canSeedPanels: authorization.permissions.includes('inventory.write')
+      },
+      setupRequired: {
+        panelModels: equipment.panels.length === 0
       },
       generatedAt: new Date().toISOString()
     });
