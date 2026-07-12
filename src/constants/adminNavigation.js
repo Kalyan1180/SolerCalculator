@@ -33,21 +33,11 @@ export const ADMIN_NAVIGATION_GROUPS = Object.freeze([
         routeName: 'ManageInventory',
         path: '/admin/inventory',
         permission: PERMISSIONS.INVENTORY_READ,
-        icon: 'fas fa-boxes-stacked',
+        icon: 'fas fa-warehouse',
         fallbackIcon: 'fas fa-boxes',
-        title: 'Stock Inventory',
+        title: 'Smart Inventory & Equipment',
         shortTitle: 'Inventory',
-        description: 'Stock levels, suppliers, buying cost and selling price.'
-      },
-      {
-        routeName: 'EquipmentCatalog',
-        path: '/admin/equipment',
-        permission: PERMISSIONS.EQUIPMENT_READ,
-        icon: 'fas fa-solar-panel',
-        fallbackIcon: 'fas fa-solar-panel',
-        title: 'Equipment Catalog',
-        shortTitle: 'Equipment',
-        description: 'Inverters and batteries used by the solar calculator.'
+        description: 'Equipment catalogue, live demand, quotation shortfall and restock priority.'
       }
     ]
   },

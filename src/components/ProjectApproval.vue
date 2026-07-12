@@ -44,13 +44,14 @@
                 <div class="spec-card h-100">
                   <div class="text-muted">Panels</div>
                   <h3>{{ numberValue(project.panelCount) }}</h3>
+                  <small>{{ project.panel?.name || 'Legacy/default panel' }}</small>
                 </div>
               </div>
               <div class="col-md-4">
                 <div class="spec-card h-100">
                   <div class="text-muted">Inverter</div>
                   <h5>{{ project.inverter?.name || 'N/A' }}</h5>
-                  <small>{{ numberValue(project.inverter?.peakLoad) }} KVA</small>
+                  <small>{{ numberValue(project.inverter?.peakLoad || project.inverter?.specs?.peakLoad) }} KVA</small>
                 </div>
               </div>
               <div class="col-md-4">
@@ -60,6 +61,41 @@
                   <small v-if="project.battery?.selectedBattery">{{ numberValue(project.battery?.quantity) }} unit(s)</small>
                 </div>
               </div>
+            </div>
+
+            <hr />
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+              <div>
+                <h5 class="mb-1">Quotation Stock Readiness</h5>
+                <p class="small text-muted mb-0">Live availability after other committed projects are considered.</p>
+              </div>
+              <span v-if="stockPlan" class="stock-readiness" :class="stockPlan.status === 'ready' ? 'is-ready' : 'is-short'">
+                <i :class="stockPlan.status === 'ready' ? 'fas fa-circle-check' : 'fas fa-triangle-exclamation'" aria-hidden="true"></i>
+                {{ stockPlan.status === 'ready' ? 'Ready to supply' : stockPlan.status === 'unmapped' ? 'Inventory mapping required' : `${stockPlan.shortItemCount} short item(s)` }}
+              </span>
+            </div>
+
+            <div v-if="stockLoading" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div><span class="ms-2 text-muted">Calculating stock requirement…</span></div>
+            <div v-else-if="stockError" class="alert alert-warning">{{ stockError }}</div>
+            <div v-else-if="stockPlan?.lines?.length" class="table-responsive mb-4">
+              <table class="table table-hover align-middle stock-plan-table">
+                <thead><tr><th>Item</th><th>Required</th><th>Available</th><th>Shortfall</th><th>Restock priority</th></tr></thead>
+                <tbody>
+                  <tr v-for="line in stockPlan.lines" :key="`${line.itemId}-${line.type}`">
+                    <td><strong>{{ line.name }}</strong><br /><small class="text-muted">{{ line.sku || 'No SKU' }} · {{ line.type }}</small></td>
+                    <td>{{ line.requiredQuantity }} {{ line.unit }}</td>
+                    <td>{{ line.availableQuantity }} {{ line.unit }}</td>
+                    <td><strong :class="line.shortfall > 0 ? 'text-danger' : 'text-success'">{{ line.shortfall }}</strong></td>
+                    <td><span class="priority-chip" :class="`is-${line.restockPriority}`">{{ priorityLabel(line.restockPriority) }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-if="stockPlan.totalShortfall > 0" class="alert alert-warning mb-0">
+                This quotation can remain active, but purchasing should cover the listed shortfall before installation is scheduled.
+              </div>
+            </div>
+            <div v-else class="alert alert-secondary">
+              This older project has no mapped inventory bill of materials. Recreate or revise the quotation using the unified inventory calculator to enable live shortfall planning.
             </div>
 
             <hr />
@@ -191,6 +227,7 @@ import {
 import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/constants/businessConstants';
 import { sendCompletionEmail, sendProjectUpdateEmail } from '@/utils/emailService';
 import { downloadInvoicePDF, downloadQuotationPDF } from '@/utils/pdfGenerator';
+import { authenticatedJsonRequest } from '@/utils/authenticatedRequest';
 import rbacMixin from '@/mixins/rbacMixin';
 import { PERMISSIONS } from '@/constants/rbac';
 
@@ -203,6 +240,9 @@ export default {
   data() {
     return {
       project: null,
+      stockPlan: null,
+      stockLoading: false,
+      stockError: '',
       adminNotes: '',
       loading: false,
       busyAction: false,
@@ -262,6 +302,9 @@ export default {
       const number = Number(value);
       return Number.isFinite(number) ? number : 0;
     },
+    priorityLabel(value) {
+      return { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' }[value] || 'Low';
+    },
     async loadProject() {
       this.loading = true;
       this.error = '';
@@ -271,6 +314,7 @@ export default {
         this.project = result.project;
         this.adminNotes = result.project.adminNotes || '';
         if (this.balancePaid) this.paymentType = 'balance';
+        await this.loadStockPlan();
       } catch (error) {
         this.project = null;
         this.error = error.message || 'Unable to load project.';
@@ -278,15 +322,28 @@ export default {
         this.loading = false;
       }
     },
+    async loadStockPlan() {
+      this.stockLoading = true;
+      this.stockError = '';
+      try {
+        const result = await authenticatedJsonRequest(
+          `/.netlify/functions/getProjectStockPlan?projectId=${encodeURIComponent(this.projectId)}`,
+          { method: 'GET' }
+        );
+        this.stockPlan = result.plan || null;
+      } catch (error) {
+        this.stockPlan = null;
+        this.stockError = error.message || 'Unable to calculate live stock readiness.';
+      } finally {
+        this.stockLoading = false;
+      }
+    },
     showSuccess(message) {
       this.successMessage = message;
       window.setTimeout(() => { this.successMessage = ''; }, 3500);
     },
     async updateStatus(newStatus) {
-      if (!this.canUpdateProject) {
-        this.error = 'Your role does not allow project status changes.';
-        return;
-      }
+      if (!this.canUpdateProject) return;
       this.busyAction = true;
       this.error = '';
       try {
@@ -310,10 +367,7 @@ export default {
       }
     },
     async saveNotes() {
-      if (!this.canUpdateProject) {
-        this.error = 'Your role does not allow project note changes.';
-        return;
-      }
+      if (!this.canUpdateProject) return;
       this.busyAction = true;
       this.error = '';
       try {
@@ -327,10 +381,7 @@ export default {
       }
     },
     async recordPayment() {
-      if (!this.canManagePayments) {
-        this.error = 'Your role does not allow payment updates.';
-        return;
-      }
+      if (!this.canManagePayments) return;
       this.busyAction = true;
       this.error = '';
       try {
@@ -361,10 +412,7 @@ export default {
       if (!result.success) this.error = result.error || 'Unable to generate invoice PDF.';
     },
     async sendEmailUpdate() {
-      if (!this.canSendNotifications) {
-        this.error = 'Your role does not allow customer notifications.';
-        return;
-      }
+      if (!this.canSendNotifications) return;
       this.busyAction = true;
       this.error = '';
       try {
@@ -407,4 +455,13 @@ export default {
 .payment-milestone { border-left: 4px solid var(--ant-green-600); }
 .photo-thumbnail { width: 100%; aspect-ratio: 1; object-fit: cover; }
 .list-group-item-action { padding: 0.9rem 1rem; color: var(--ant-slate-700); }
+.stock-readiness { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.7rem; border-radius: 999px; font-size: 0.85rem; font-weight: 800; }
+.stock-readiness.is-ready { background: #dcfce7; color: #166534; }
+.stock-readiness.is-short { background: #fef3c7; color: #92400e; }
+.priority-chip { display: inline-flex; padding: 0.25rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
+.priority-chip.is-critical { background: #fee2e2; color: #991b1b; }
+.priority-chip.is-high { background: #ffedd5; color: #9a3412; }
+.priority-chip.is-medium { background: #fef3c7; color: #92400e; }
+.priority-chip.is-low { background: #e2e8f0; color: #475569; }
+.stock-plan-table th { white-space: nowrap; }
 </style>

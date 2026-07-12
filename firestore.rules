@@ -47,8 +47,6 @@ service cloud.firestore {
       );
     }
 
-    // Keep this matrix synchronized with config/rbac.json. CI validates the JSON
-    // source; Firestore remains the final authorization boundary for browser calls.
     function hasPermission(permission) {
       return activeSession() && (
         currentRole() == 'admin'
@@ -136,6 +134,29 @@ service cloud.firestore {
       ]);
     }
 
+    function validInventoryItem(itemId) {
+      return request.resource.data.itemId == itemId
+        && request.resource.data.type in ['panel', 'inverter', 'battery', 'wiring', 'mounting', 'other']
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.sku is string
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity >= 0
+        && request.resource.data.reorderPoint is int
+        && request.resource.data.reorderPoint >= 0
+        && request.resource.data.targetStock is int
+        && request.resource.data.targetStock >= request.resource.data.reorderPoint
+        && request.resource.data.leadTimeDays is int
+        && request.resource.data.leadTimeDays > 0
+        && request.resource.data.costPrice is number
+        && request.resource.data.costPrice >= 0
+        && request.resource.data.sellingPrice is number
+        && request.resource.data.sellingPrice >= 0
+        && request.resource.data.activeForCalculator is bool
+        && request.resource.data.discontinued is bool
+        && request.resource.data.specs is map;
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || hasPermission('users.read');
       allow create: if isOwner(userId)
@@ -147,9 +168,6 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'email', 'displayName', 'updatedAt'
         ]);
-
-      // Role and session administration uses authenticated Netlify functions.
-      // Firebase Admin bypasses these rules and writes an audit record.
       allow delete: if false;
     }
 
@@ -177,17 +195,18 @@ service cloud.firestore {
 
     match /inventory/{itemId} {
       allow read: if hasPermission('inventory.read');
-      allow create, update, delete: if hasPermission('inventory.write');
+      allow create, update: if hasPermission('inventory.write') && validInventoryItem(itemId);
+      allow delete: if hasPermission('inventory.write');
     }
 
+    // Legacy equipment collections remain readable only through trusted Admin SDK
+    // migration code. The inventory collection is the sole mutable source of truth.
     match /inverters/{itemId} {
-      allow read: if true;
-      allow create, update, delete: if hasPermission('equipment.write');
+      allow read, write: if false;
     }
 
     match /batteries/{itemId} {
-      allow read: if true;
-      allow create, update, delete: if hasPermission('equipment.write');
+      allow read, write: if false;
     }
 
     match /auditLogs/{auditId} {

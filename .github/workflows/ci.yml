@@ -35,6 +35,9 @@ jobs:
       - name: Validate UI access policy
         run: npm run validate:ui-access
 
+      - name: Validate smart inventory
+        run: npm run validate:inventory
+
       - name: Lint
         run: npm run lint
 
