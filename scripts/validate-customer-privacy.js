@@ -89,15 +89,56 @@ requireText('netlify/functions/recommendSystem.js', [
   "mode === 'staff'",
   "requireAnyPermission(event, ['projects.create', 'inventory.read'])",
   'customerRecommendation(fullRecommendation, recommendationId, input)',
-  'return jsonResponse(200, { recommendation: publicView })'
+  'return jsonResponse(200, { recommendation: publicView })',
+  "db.collection('projectOperations').get()"
 ]);
-requireText('netlify/functions/createQuotation.js', [
+const quotationFunction = requireText('netlify/functions/createQuotation.js', [
   'const authorization = await authorize(event)',
   "db.collection('recommendations').doc(recommendationId)",
+  "db.collection('projectOperations').doc(projectId)",
   'stored.fullRecommendation',
-  'transaction.set(projectRef, newProject)',
+  'transaction.set(projectRef, customerProject)',
+  'transaction.set(operationsRef, projectOperations)',
   'transaction.update(recommendationRef'
 ]);
+const customerProjectSection = quotationFunction.slice(
+  quotationFunction.indexOf('const customerProject = {'),
+  quotationFunction.indexOf('const projectOperations = {')
+);
+prohibitedPublicDataIdentifiers.forEach(identifier => {
+  if (customerProjectSection.includes(identifier)) {
+    fail(`customer project document includes protected field ${identifier}`);
+  }
+});
+
+const projectPrivacy = requireText('netlify/functions/_projectPrivacy.js', [
+  'function sanitizeCustomerProject(project, id = \'\')',
+  'function mergeProjectOperations(project, operations)',
+  'module.exports'
+]);
+['billOfMaterials', 'inventoryAssessment', 'materialCost', 'laborCost', 'totalCostWithoutMarkup', 'adminNotes', 'technicalNotes'].forEach(field => {
+  const sanitizerBody = projectPrivacy.slice(
+    projectPrivacy.indexOf('function sanitizeCustomerProject'),
+    projectPrivacy.indexOf('function mergeProjectOperations')
+  );
+  if (sanitizerBody.includes(field)) fail(`customer project sanitizer exposes ${field}`);
+});
+
+requireText('netlify/functions/getMyProjects.js', [
+  'const authorization = await authorize(event)',
+  "where('customerId', '==', authorization.user.uid)",
+  'sanitizeCustomerProject(projectDoc.data(), projectDoc.id)',
+  '.map(jsonSafe)'
+]);
+const projectModelSource = requireText('src/models/projectModel.js', [
+  '/.netlify/functions/getMyProjects',
+  "const PROJECT_OPERATIONS_COLLECTION = 'projectOperations'",
+  'mergeProjectOperations(project, operations)',
+  'Direct project creation is disabled'
+]);
+if (projectModelSource.includes("where('customerId', '==', customerId)")) {
+  fail('customer project model still reads project documents directly');
+}
 
 const recommendationCore = requireText('netlify/functions/_systemRecommendation.js', [
   'function publicRequirement(line)',
@@ -114,9 +155,17 @@ const publicRequirementBody = recommendationCore.slice(
 
 const rulesSource = requireText('firestore.rules', [
   'match /recommendations/{recommendationId}',
+  'match /projectOperations/{projectId}',
+  'allow read: if hasPermission(\'projects.read\');',
   'allow read, write: if false;',
   'allow create: if false;'
 ]);
+if (rulesSource.includes('resource.data.customerId == request.auth.uid')) {
+  fail('customers can still read raw project documents directly');
+}
+if (!rulesSource.includes('Customer reads go through getMyProjects')) {
+  fail('customer project read boundary is not documented in Firestore rules');
+}
 if (!rulesSource.includes('createQuotation Netlify function')) {
   fail('Firestore project creation policy is not documented as server-only');
 }
@@ -129,4 +178,4 @@ if (!routerSource.includes("return { name: 'Home' }")) {
   fail('customer administration route concealment is missing');
 }
 
-console.log('Customer privacy is valid: public requirement views contain no operational availability, purchasing, pricing-cost or administration details.');
+console.log('Customer privacy is valid: public views and project reads contain no operational availability, purchasing, cost or administration details.');
