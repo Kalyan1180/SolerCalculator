@@ -22,6 +22,7 @@ import {
 
 const INVENTORY_COLLECTION = 'inventory';
 const SUPPORTED_TYPES = new Set(Object.values(INVENTORY_TYPES));
+const PANEL_TYPES = new Set(['bifacial', 'non_bifacial']);
 const CALCULATOR_TYPES = new Set([
   INVENTORY_TYPES.PANEL,
   INVENTORY_TYPES.INVERTER,
@@ -68,6 +69,15 @@ function normalizeType(value) {
   return type;
 }
 
+function normalizePanelType(value, technology = '') {
+  const normalized = normalizeText(value, 40).toLowerCase().replace(/[\s-]+/g, '_');
+  if (PANEL_TYPES.has(normalized)) return normalized;
+  const technologyText = normalizeText(technology, 80).toLowerCase();
+  if (technologyText.includes('non') && technologyText.includes('bifacial')) return 'non_bifacial';
+  if (technologyText.includes('bifacial')) return 'bifacial';
+  return '';
+}
+
 function stockStatus(quantity, reorderPoint, discontinued = false) {
   if (discontinued) return STOCK_STATUS.DISCONTINUED;
   if (quantity <= 0) return STOCK_STATUS.OUT_OF_STOCK;
@@ -97,6 +107,7 @@ function normalizeSpecs(type, specs = {}) {
   if (type === INVENTORY_TYPES.PANEL) {
     normalized.wattage = nonNegativeNumber(specs.wattage || 0, 'Panel wattage');
     normalized.technology = normalizeText(specs.technology, 80);
+    normalized.panelType = normalizePanelType(specs.panelType, normalized.technology);
   }
 
   if (type === INVENTORY_TYPES.INVERTER) {
@@ -153,7 +164,10 @@ function normalizedItemShape(data, id = '') {
   const costPrice = Number.isFinite(Number(data.costPrice)) ? Math.max(0, Number(data.costPrice)) : 0;
   const sellingPrice = Number.isFinite(Number(data.sellingPrice)) ? Math.max(0, Number(data.sellingPrice)) : 0;
   const discontinued = Boolean(data.discontinued);
-  const specs = data.specs && typeof data.specs === 'object' ? data.specs : {};
+  const rawSpecs = data.specs && typeof data.specs === 'object' ? data.specs : {};
+  const specs = type === INVENTORY_TYPES.PANEL
+    ? { ...rawSpecs, panelType: normalizePanelType(rawSpecs.panelType, rawSpecs.technology) }
+    : rawSpecs;
   const activeForCalculator = Boolean(data.activeForCalculator);
 
   return {
