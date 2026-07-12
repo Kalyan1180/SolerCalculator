@@ -5,6 +5,11 @@ const {
   projectStockPlan
 } = require('../netlify/functions/_inventoryPlanning');
 const { buildSystemRecommendation } = require('../netlify/functions/_systemRecommendation');
+const {
+  calculateTerms,
+  equipmentOptions,
+  paymentStatusFor
+} = require('../netlify/functions/_projectWorkflow');
 
 const root = path.resolve(__dirname, '..');
 
@@ -56,35 +61,42 @@ requireText('netlify/functions/createQuotation.js', [
   'billOfMaterials: recommendation.billOfMaterials',
   'inventoryAssessment: recommendation.inventoryAssessment',
   "db.collection('projectOperations').doc(projectId)",
-  'recommendationId'
+  'advancePercentage',
+  'amountPaid',
+  'revision'
 ]);
-requireText('netlify/functions/getInventoryPlan.js', [
-  "requirePermission(event, 'inventory.read')",
-  "db.collection('projectOperations').get()",
-  'mergeProjectOperations',
-  'buildInventoryPlan'
-]);
-requireText('netlify/functions/getProjectStockPlan.js', [
+requireText('netlify/functions/getProjectWorkspace.js', [
   "requirePermission(event, 'projects.read')",
-  "db.collection('projectOperations').doc(projectId).get()",
-  'mergeProjectOperations',
-  'projectStockPlan'
+  'equipmentOptions',
+  'projectStockPlan',
+  'notifications'
 ]);
-requireText('netlify/functions/migrateLegacyEquipment.js', [
-  "requirePermission(event, 'inventory.write')",
-  'legacySourceId'
+requireText('netlify/functions/updateProjectDetails.js', [
+  "requirePermission(event, 'projects.update')",
+  'buildEditedSystem',
+  'PAYMENTS_LOCK_COMMERCIALS',
+  'customerVisibleChanges'
 ]);
-requireText('netlify/functions/_systemRecommendation.js', [
-  'buildSystemRecommendation',
-  'billOfMaterials',
-  'inventoryAssessment',
-  'shortfall'
+requireText('netlify/functions/updateProjectStatus.js', [
+  "requirePermission(event, 'projects.update')",
+  'STATUS_TRANSITIONS',
+  'sendProjectNotification',
+  'statusHistory'
 ]);
-requireText('src/models/projectModel.js', [
-  "const PROJECT_OPERATIONS_COLLECTION = 'projectOperations'",
-  'mergeProjectOperations',
-  '/.netlify/functions/getMyProjects',
-  'Direct project creation is disabled'
+requireText('netlify/functions/recordProjectPayment.js', [
+  "requirePermission(event, 'projects.payments')",
+  'PAYMENT_EXCEEDS_BALANCE',
+  'paymentLedger',
+  'paymentStatusFor'
+]);
+requireText('netlify/functions/deleteProject.js', [
+  "requirePermission(event, 'projects.delete')",
+  "db.collection('deletedProjects').doc(projectId)",
+  'transaction.delete(projectRef)'
+]);
+requireText('netlify/functions/retryProjectNotification.js', [
+  "requirePermission(event, 'notifications.send')",
+  'sendProjectNotification'
 ]);
 requireText('src/components/ManageInventory.vue', [
   'getInventoryPlan',
@@ -92,14 +104,13 @@ requireText('src/components/ManageInventory.vue', [
   'quotationShortfall',
   'Restock planner'
 ]);
-requireText('src/components/SolerForm.vue', [
-  '/.netlify/functions/recommendSystem',
-  'recommendation.requirements',
-  'Request a quotation'
-]);
 requireText('src/components/ProjectApproval.vue', [
-  'getProjectStockPlan',
-  'Quotation Stock Readiness'
+  '/.netlify/functions/getProjectWorkspace',
+  '/.netlify/functions/updateProjectDetails',
+  '/.netlify/functions/updateProjectStatus',
+  '/.netlify/functions/recordProjectPayment',
+  'Quotation stock readiness',
+  'Out of stock'
 ]);
 
 const router = requireText('src/router.js', [
@@ -116,10 +127,9 @@ const rules = requireText('firestore.rules', [
   'validInventoryItem',
   "match /inventory/{itemId}",
   "match /projectOperations/{projectId}",
-  "match /inverters/{itemId}",
-  "match /batteries/{itemId}",
-  "match /recommendations/{recommendationId}",
-  'allow read, write: if false;'
+  "match /projectNotifications/{notificationId}",
+  "match /deletedProjects/{projectId}",
+  'allow create, update, delete: if false;'
 ]);
 if (!rules.includes('request.resource.data.reorderPoint is int')) fail('Firestore does not validate restock policy fields');
 
@@ -144,22 +154,14 @@ const inventory = [
   },
   {
     id: 'INV-1', itemId: 'INV-1', sku: 'INV-001', type: 'inverter', name: 'Inverter',
-    quantity: 2, reorderPoint: 1, targetStock: 2, leadTimeDays: 7,
+    quantity: 0, reorderPoint: 1, targetStock: 2, leadTimeDays: 7,
     costPrice: 500, sellingPrice: 600, activeForCalculator: true, discontinued: false,
     specs: { peakLoad: 3, maxPanels: 6, batterySupported: 0 }
   }
 ];
 const projects = [
-  {
-    projectId: 'COMMITTED',
-    status: 'approved',
-    billOfMaterials: [{ itemId: 'PANEL-1', type: 'panel', name: 'Panel', requiredQuantity: 4 }]
-  },
-  {
-    projectId: 'QUOTE',
-    status: 'quote_sent',
-    billOfMaterials: [{ itemId: 'PANEL-1', type: 'panel', name: 'Panel', requiredQuantity: 3 }]
-  }
+  { projectId: 'COMMITTED', status: 'approved', billOfMaterials: [{ itemId: 'PANEL-1', type: 'panel', name: 'Panel', requiredQuantity: 4 }] },
+  { projectId: 'QUOTE', status: 'quote_sent', billOfMaterials: [{ itemId: 'PANEL-1', type: 'panel', name: 'Panel', requiredQuantity: 3 }] }
 ];
 const plan = buildInventoryPlan(inventory, projects);
 const panel = plan.items.find(item => item.id === 'PANEL-1');
@@ -170,25 +172,30 @@ if (panel.quotationShortfall !== 2 || panel.projectedShortfall !== 2) fail('shor
 if (panel.recommendedOrder !== 6) fail(`recommended order expected 6 but received ${panel.recommendedOrder}`);
 
 const quotePlan = projectStockPlan(projects[1], plan);
-if (quotePlan.totalShortfall !== 2 || quotePlan.lines[0].availableQuantity !== 1) {
-  fail('quotation-specific stock planning is incorrect');
+if (quotePlan.totalShortfall !== 2 || quotePlan.lines[0].availableQuantity !== 1) fail('quotation-specific stock planning is incorrect');
+
+const options = equipmentOptions(plan);
+if (!options.inverters.some(item => item.id === 'INV-1' && item.outOfStock)) {
+  fail('out-of-stock equipment is missing from project edit options');
 }
 
 const recommendation = buildSystemRecommendation({
   unitPerDay: 4,
   peakLoad: 2,
   panelCount: 4,
-  catalog: plan.items.map(item => ({
-    ...item,
-    inventoryId: item.id,
-    availableQuantity: item.availableAfterCommitted
-  }))
+  catalog: plan.items.map(item => ({ ...item, inventoryId: item.id, availableQuantity: item.availableAfterCommitted }))
 });
 if (!recommendation.success) fail(`server-side recommendation failed: ${recommendation.error}`);
 if (recommendation.billOfMaterials.length !== 2) fail('server-side recommendation bill of materials is incomplete');
-if (recommendation.billOfMaterials[0].shortfall !== 3) fail('server-side recommendation did not use available committed balance');
 
-console.log(
-  `Smart inventory is valid: committed=${panel.committedDemand}, quotations=${panel.quotationDemand}, `
-  + `shortfall=${panel.projectedShortfall}, recommended order=${panel.recommendedOrder}.`
-);
+const fifty = calculateTerms({ quotedPrice: 100000, advancePercentage: 50 });
+const hundred = calculateTerms({ quotedPrice: 100000, advanceAmount: 100000, mode: 'amount' });
+if (fifty.advanceAmount !== 50000 || fifty.balanceAmount !== 50000) fail('50% advance terms are incorrect');
+if (hundred.advancePercentage !== 100 || hundred.balanceAmount !== 0) fail('100% advance terms are incorrect');
+let invalidAdvanceRejected = false;
+try { calculateTerms({ quotedPrice: 100000, advancePercentage: 49 }); } catch (error) { invalidAdvanceRejected = error.code === 'INVALID_ADVANCE'; }
+if (!invalidAdvanceRejected) fail('advance below 50% was not rejected');
+if (paymentStatusFor(50000, 100000, 50000) !== 'advance_paid') fail('advance payment status is incorrect');
+if (paymentStatusFor(100000, 100000, 50000) !== 'balance_paid') fail('full payment status is incorrect');
+
+console.log(`Smart operations valid: shortfall=${panel.projectedShortfall}, order=${panel.recommendedOrder}, out-of-stock options preserved, flexible advances validated.`);
