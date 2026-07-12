@@ -68,6 +68,12 @@ if (!adminEntrySource.includes('.filter(item => this.can(item.permission))')) {
 if (!navbarSource.includes('v-if="canOpenDashboard"')) {
   fail('public account navigation does not hide the administration link');
 }
+if (!routerSource.includes("if (isAdministrationRoute && !currentUser) return { name: 'Home' }")) {
+  fail('anonymous administration navigation is not concealed');
+}
+if (!routerSource.includes('!hasPermission(routeAccess, PERMISSIONS.DASHBOARD_ACCESS)')) {
+  fail('customer accounts are not silently excluded from administration routes');
+}
 
 const forbiddenRoleChecks = [
   /\buserRole\s*={2,3}\s*['"]admin['"]/,
@@ -96,9 +102,6 @@ const requiredVisibilityChecks = {
   'src/components/UserManagement.vue': [
     'v-if="canManageRoles"',
     'v-if="canRevokeSessions"'
-  ],
-  'src/components/SolerForm.vue': [
-    'v-if="canCreateProjects"'
   ]
 };
 
@@ -114,5 +117,5 @@ if (!routerSource.includes('requiredPermission')) fail('router is missing permis
 
 console.log(
   `UI access policy is valid: ${navigationRouteNames.size} centralized admin routes, `
-  + `${navigationPermissions.length} permission-gated navigation entries.`
+  + `${navigationPermissions.length} permission-gated navigation entries, customer routes concealed.`
 );

@@ -7,7 +7,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
       <div>
         <h2 class="h4 mb-1">Create a managed project</h2>
-        <p class="text-muted mb-0">Enter the customer requirement and let the system select technically suitable inventory.</p>
+        <p class="text-muted mb-0">Enter the customer requirement and generate an authorized operational recommendation.</p>
       </div>
       <router-link :to="{ name: 'ProjectManagement' }" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to projects</router-link>
     </div>
@@ -22,8 +22,8 @@
             <div class="card-body">
               <div class="row g-3">
                 <div class="col-md-6"><label class="form-label">Name</label><input v-model.trim="form.name" class="form-control" maxlength="100" required /></div>
-                <div class="col-md-6"><label class="form-label">Email</label><input v-model.trim="form.email" type="email" class="form-control" required /></div>
-                <div class="col-md-6"><label class="form-label">Phone</label><input v-model.trim="form.phone" type="tel" class="form-control" maxlength="20" required /></div>
+                <div class="col-md-6"><label class="form-label">Email</label><input v-model.trim="form.email" type="email" class="form-control" maxlength="160" required /></div>
+                <div class="col-md-6"><label class="form-label">Phone</label><input v-model.trim="form.phone" type="tel" class="form-control" maxlength="30" required /></div>
                 <div class="col-md-6"><label class="form-label">Address</label><input v-model.trim="form.address" class="form-control" maxlength="500" required /></div>
                 <div class="col-12"><label class="form-label">Customer notes</label><textarea v-model.trim="form.additionalNotes" class="form-control" rows="3" maxlength="1000"></textarea></div>
               </div>
@@ -31,24 +31,24 @@
           </section>
 
           <section class="card mb-4">
-            <div class="card-header"><h3 class="h5 mb-1">System requirement</h3><p class="small text-muted mb-0">These values drive the inventory recommendation.</p></div>
+            <div class="card-header"><h3 class="h5 mb-1">System requirement</h3><p class="small text-muted mb-0">These values drive the protected recommendation.</p></div>
             <div class="card-body">
               <div class="row g-3">
-                <div class="col-md-4"><label class="form-label">Panels required</label><input v-model.number="form.panels" type="number" min="1" step="1" class="form-control" required /></div>
-                <div class="col-md-4"><label class="form-label">Daily energy (kWh)</label><input v-model.number="form.dailyEnergy" type="number" min="0.01" step="0.01" class="form-control" required /></div>
-                <div class="col-md-4"><label class="form-label">Peak load (kW)</label><input v-model.number="form.peakLoad" type="number" min="0" step="0.01" class="form-control" required /></div>
+                <div class="col-md-4"><label class="form-label">Panels required</label><input v-model.number="form.panels" type="number" min="1" max="500" step="1" class="form-control" required /></div>
+                <div class="col-md-4"><label class="form-label">Daily energy (kWh)</label><input v-model.number="form.dailyEnergy" type="number" min="0.01" max="1000" step="0.01" class="form-control" required /></div>
+                <div class="col-md-4"><label class="form-label">Peak load (kW)</label><input v-model.number="form.peakLoad" type="number" min="0" max="1000" step="0.01" class="form-control" required /></div>
               </div>
               <button type="button" class="btn btn-outline-primary mt-4" :disabled="loading" @click="generateSuggestion">
-                <i class="fas fa-wand-magic-sparkles me-2" aria-hidden="true"></i>{{ recommendation ? 'Refresh inventory suggestion' : 'Suggest system from inventory' }}
+                <i class="fas fa-wand-magic-sparkles me-2" aria-hidden="true"></i>{{ recommendation ? 'Refresh operational suggestion' : 'Generate operational suggestion' }}
               </button>
             </div>
           </section>
 
           <section v-if="recommendation" class="card">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-              <div><h3 class="h5 mb-1">Recommended bill of materials</h3><p class="small text-muted mb-0">The selected combination prioritizes technical compatibility, availability and cost.</p></div>
+              <div><h3 class="h5 mb-1">Recommended bill of materials</h3><p class="small text-muted mb-0">Internal availability details are visible only in authorized workspaces.</p></div>
               <span class="stock-readiness" :class="recommendation.inventoryAssessment.status === 'ready' ? 'is-ready' : 'is-short'">
-                {{ recommendation.inventoryAssessment.status === 'ready' ? 'Stock ready' : `${recommendation.inventoryAssessment.shortItemCount} short item(s)` }}
+                {{ recommendation.inventoryAssessment.status === 'ready' ? 'Supply ready' : `${recommendation.inventoryAssessment.shortItemCount} short item(s)` }}
               </span>
             </div>
             <div class="table-responsive">
@@ -80,13 +80,13 @@
                 <label class="form-label" for="quotedPrice">Final quoted price (Rs)</label>
                 <input id="quotedPrice" v-model.number="form.quotedPrice" type="number" min="1" step="1" class="form-control form-control-lg" required />
                 <div v-if="recommendation.inventoryAssessment.totalShortfall > 0" class="alert alert-warning mt-3 mb-0">
-                  The project can be created, but purchasing must cover {{ recommendation.inventoryAssessment.totalShortfall }} total unit(s) of shortfall.
+                  Purchasing must cover {{ recommendation.inventoryAssessment.totalShortfall }} unit(s) before fulfilment.
                 </div>
               </template>
               <div v-else class="enterprise-empty-state py-3">
-                <div class="enterprise-empty-state__icon"><i class="fas fa-boxes-stacked"></i></div>
-                <h4 class="h6">No inventory recommendation yet</h4>
-                <p class="text-muted mb-0">Enter the requirement and select “Suggest system from inventory”.</p>
+                <div class="enterprise-empty-state__icon"><i class="fas fa-gears"></i></div>
+                <h4 class="h6">No operational recommendation yet</h4>
+                <p class="text-muted mb-0">Enter the requirement and generate a suggestion.</p>
               </div>
 
               <button type="submit" class="btn btn-primary btn-lg w-100 mt-4" :disabled="loading || !recommendation">
@@ -101,8 +101,12 @@
 </template>
 
 <script>
-import { createProject } from '@/models/projectModel';
-import { buildSystemRecommendation, finiteNumber } from '@/utils/inventoryRecommendation';
+import { authenticatedJsonRequest } from '@/utils/authenticatedRequest';
+
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
 
 export default {
   name: 'CustomProjectForm',
@@ -146,23 +150,20 @@ export default {
       }
 
       this.loading = true;
-      this.loadingMessage = 'Checking inventory and quotation demand…';
+      this.loadingMessage = 'Generating the protected operational recommendation…';
       try {
-        const response = await fetch('/.netlify/functions/getData');
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || 'Unable to load inventory');
-        const result = buildSystemRecommendation({
-          unitPerDay: this.form.dailyEnergy,
-          peakLoad: this.form.peakLoad,
-          panelCount: this.form.panels,
-          panels: Array.isArray(payload.panels) ? payload.panels : [],
-          inverters: Array.isArray(payload.inverters) ? payload.inverters : [],
-          batteries: Array.isArray(payload.batteries) ? payload.batteries : [],
-          accessories: Array.isArray(payload.accessories) ? payload.accessories : []
+        const payload = await authenticatedJsonRequest('/.netlify/functions/recommendSystem', {
+          method: 'POST',
+          body: JSON.stringify({
+            mode: 'staff',
+            unitPerDay: this.form.dailyEnergy,
+            peakLoad: this.form.peakLoad,
+            panelCount: this.form.panels
+          })
         });
-        if (!result.success) throw new Error(result.error || 'No suitable inventory system found');
-        this.recommendation = result;
-        this.form.quotedPrice = Math.ceil(result.offerPrice);
+        if (!payload.recommendation?.recommendationId) throw new Error('No suitable system could be generated.');
+        this.recommendation = payload.recommendation;
+        this.form.quotedPrice = Math.ceil(finiteNumber(payload.recommendation.offerPrice));
       } catch (error) {
         this.recommendation = null;
         this.statusMessage = error.message;
@@ -174,7 +175,7 @@ export default {
     async submitCustomProject() {
       this.statusMessage = '';
       if (!this.recommendation) {
-        this.statusMessage = 'Generate an inventory recommendation before creating the project.';
+        this.statusMessage = 'Generate an operational recommendation before creating the project.';
         this.statusType = 'error';
         return;
       }
@@ -190,31 +191,21 @@ export default {
       }
 
       this.loading = true;
-      this.loadingMessage = 'Creating project and inventory demand snapshot…';
+      this.loadingMessage = 'Creating the managed project…';
       try {
-        const calculatorResults = {
-          panelCount: this.recommendation.panelCount,
-          panel: this.recommendation.panel,
-          inverter: this.recommendation.inverter,
-          battery: this.recommendation.battery,
-          billOfMaterials: this.recommendation.billOfMaterials,
-          inventoryAssessment: this.recommendation.inventoryAssessment,
-          materialCost: this.recommendation.materialCost,
-          laborCost: this.recommendation.laborCost,
-          costWithout: this.recommendation.totalCostWithoutMarkup,
-          costWith: this.recommendation.totalCostWithMarkup,
-          special: finiteNumber(this.form.quotedPrice)
-        };
-        const projectData = {
-          name: this.form.name,
-          email: this.form.email,
-          phone: this.form.phone,
-          address: this.form.address,
-          additionalNotes: this.form.additionalNotes,
-          suggestedPrice: finiteNumber(this.form.quotedPrice)
-        };
-        const result = await createProject(null, projectData, calculatorResults);
-        if (!result.success) throw new Error(result.error || 'Unable to create project');
+        const result = await authenticatedJsonRequest('/.netlify/functions/createQuotation', {
+          method: 'POST',
+          body: JSON.stringify({
+            recommendationId: this.recommendation.recommendationId,
+            name: this.form.name,
+            email: this.form.email,
+            phone: this.form.phone,
+            address: this.form.address,
+            additionalNotes: this.form.additionalNotes,
+            suggestedPrice: finiteNumber(this.form.quotedPrice),
+            managedProject: true
+          })
+        });
 
         this.statusMessage = `Project ${result.projectId} created successfully.`;
         this.statusType = 'success';

@@ -3,9 +3,9 @@
     <section class="marketing-section">
       <div class="marketing-container">
         <header class="calculator-heading text-center mx-auto mb-4">
-          <span class="marketing-eyebrow"><i class="fas fa-calculator" aria-hidden="true"></i>Inventory-aware estimator</span>
+          <span class="marketing-eyebrow"><i class="fas fa-calculator" aria-hidden="true"></i>Solar requirement estimator</span>
           <h1 class="display-6 mb-3">Solar System Calculator</h1>
-          <p class="text-muted mb-0">Get a technically suitable system using panels, inverters, batteries and accessories from live stock.</p>
+          <p class="text-muted mb-0">Estimate the panels, inverter capacity and battery configuration suitable for your electricity use.</p>
         </header>
 
         <div v-if="errorMessage" class="alert alert-danger" role="alert">
@@ -17,13 +17,9 @@
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
               <div>
                 <span class="marketing-eyebrow mb-2"><i class="fas fa-solar-panel" aria-hidden="true"></i>Recommended system</span>
-                <h2 class="h3 mb-1">{{ recommendation.panelCount }}-panel inventory configuration</h2>
-                <p class="text-muted mb-0">Compatibility first, then stock availability and cost.</p>
+                <h2 class="h3 mb-1">{{ recommendation.panelCount }}-panel solar configuration</h2>
+                <p class="text-muted mb-0">A practical starting point based on the electricity information you provided.</p>
               </div>
-              <span :class="['stock-readiness', recommendation.inventoryAssessment.status === 'ready' ? 'is-ready' : 'is-short']">
-                <i :class="recommendation.inventoryAssessment.status === 'ready' ? 'fas fa-circle-check' : 'fas fa-triangle-exclamation'" aria-hidden="true"></i>
-                {{ readinessLabel }}
-              </span>
             </div>
 
             <div class="row g-3 mb-4">
@@ -32,49 +28,50 @@
               </div>
             </div>
 
-            <div v-if="recommendation.warnings.length" class="alert alert-warning">
-              <strong class="d-block mb-1">Technically suitable, but restocking is required:</strong>
-              <ul class="mb-0 ps-3"><li v-for="warning in recommendation.warnings" :key="warning">{{ warning }}</li></ul>
-              <small class="d-block mt-2">The quotation can still be created and the restock planner will rank the shortage.</small>
-            </div>
-
-            <div class="table-responsive mb-4">
-              <table class="table align-middle inventory-bom-table">
-                <thead><tr><th>Equipment</th><th>Required</th><th>Available</th><th>Shortfall</th><th>Status</th></tr></thead>
-                <tbody>
-                  <tr v-for="line in recommendation.billOfMaterials" :key="line.itemId">
-                    <td><strong>{{ line.name }}</strong><br /><small class="text-muted">{{ line.sku || 'No SKU' }} · {{ typeLabel(line.type) }}</small></td>
-                    <td>{{ line.requiredQuantity }} {{ line.unit }}</td>
-                    <td>{{ line.availableQuantity }} {{ line.unit }}</td>
-                    <td><strong :class="line.shortfall > 0 ? 'text-danger' : 'text-success'">{{ line.shortfall }}</strong></td>
-                    <td><span :class="['badge', line.shortfall > 0 ? 'bg-danger-subtle text-danger-emphasis' : 'bg-success-subtle text-success-emphasis']">{{ line.shortfall > 0 ? 'Restock required' : 'Ready' }}</span></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
             <div class="row g-3 mb-4">
               <div v-for="equipment in equipmentSummary" :key="equipment.label" class="col-lg-4">
                 <article class="equipment-result h-100">
                   <span class="equipment-result__icon"><i :class="equipment.icon" aria-hidden="true"></i></span>
-                  <small>{{ equipment.label }}</small><strong>{{ equipment.name }}</strong><span>{{ equipment.detail }}</span>
+                  <small>{{ equipment.label }}</small>
+                  <strong>{{ equipment.name }}</strong>
+                  <span>{{ equipment.detail }}</span>
                 </article>
               </div>
             </div>
 
+            <section class="requirement-section mb-4">
+              <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                <div>
+                  <h3 class="h5 mb-1">System requirements</h3>
+                  <p class="small text-muted mb-0">Equipment quantities included in this recommendation.</p>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table align-middle requirement-table mb-0">
+                  <thead><tr><th>Equipment</th><th class="text-end">Required quantity</th></tr></thead>
+                  <tbody>
+                    <tr v-for="line in recommendation.requirements" :key="`${line.type}-${line.name}`">
+                      <td><strong>{{ line.name }}</strong><br /><small class="text-muted">{{ typeLabel(line.type) }}</small></td>
+                      <td class="text-end"><strong>{{ line.requiredQuantity }}</strong> {{ line.unit }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
             <div class="price-panel mb-4">
-              <div><span>Estimated installed price</span><strong>Rs {{ formatMoney(recommendation.totalCostWithMarkup) }}</strong></div>
-              <div><span>Special offer estimate</span><strong class="text-success">Rs {{ formatMoney(recommendation.offerPrice) }}</strong></div>
-              <template v-if="canCreateProjects">
-                <div><span>Material cost</span><strong>Rs {{ formatMoney(recommendation.materialCost) }}</strong></div>
-                <div><span>Labour cost</span><strong>Rs {{ formatMoney(recommendation.laborCost) }}</strong></div>
-                <div><span>Cost before markup</span><strong>Rs {{ formatMoney(recommendation.totalCostWithoutMarkup) }}</strong></div>
-              </template>
+              <div><span>Estimated installed price</span><strong>Rs {{ formatMoney(recommendation.estimatedInstalledPrice) }}</strong></div>
+              <div><span>Estimated offer</span><strong class="text-success">Rs {{ formatMoney(recommendation.offerPrice) }}</strong></div>
             </div>
 
-            <p class="small text-muted">Availability is calculated after committed demand. Pending and sent quotations contribute to projected shortage and restock priority.</p>
+            <div class="alert alert-info">
+              The final equipment selection, installation scope and price will be confirmed after reviewing your site and electrical requirements.
+            </div>
+
             <div class="d-flex flex-wrap gap-2">
-              <button class="btn btn-primary flex-grow-1" @click="openQuotation"><i class="fas fa-file-signature me-2" aria-hidden="true"></i>{{ canCreateProjects ? 'Create quotation from this system' : 'Submit this requirement' }}</button>
+              <button class="btn btn-primary flex-grow-1" @click="openQuotation">
+                <i class="fas fa-file-signature me-2" aria-hidden="true"></i>Request a quotation
+              </button>
               <button class="btn btn-outline-secondary" @click="resetResults">Change calculation</button>
             </div>
           </div>
@@ -131,7 +128,7 @@
             </div>
 
             <button type="submit" class="btn btn-primary btn-lg w-100" :disabled="loading">
-              <span v-if="loading" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>{{ loading ? 'Checking inventory…' : 'Recommend a system' }}
+              <span v-if="loading" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>{{ loading ? 'Calculating…' : 'Calculate my requirement' }}
             </button>
           </div>
         </form>
@@ -142,9 +139,6 @@
 
 <script>
 import { ELECTRICITY_RATES, VALIDATION_CONFIG } from '@/constants/calculationConstants';
-import { PERMISSIONS } from '@/constants/rbac';
-import rbacMixin from '@/mixins/rbacMixin';
-import { buildSystemRecommendation, finiteNumber } from '@/utils/inventoryRecommendation';
 
 const APPLIANCE_CONFIG = Object.freeze({
   ledBulb: { label: 'LED bulb', watts: 9, hours: 5, peak: 9 },
@@ -156,9 +150,13 @@ const APPLIANCE_CONFIG = Object.freeze({
   ac: { label: 'AC (1 ton)', watts: 1000, hours: 6, peak: 1500 }
 });
 
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
 export default {
   name: 'SolerCalculator',
-  mixins: [rbacMixin],
   data() {
     return {
       showResults: false,
@@ -182,9 +180,6 @@ export default {
     };
   },
   computed: {
-    canCreateProjects() {
-      return this.can(PERMISSIONS.PROJECTS_CREATE);
-    },
     maxApplianceCount() {
       return VALIDATION_CONFIG.MAX_APPLIANCE_COUNT;
     },
@@ -203,11 +198,15 @@ export default {
         const rate = this.billType === 'domestic' ? ELECTRICITY_RATES.DOMESTIC_RATE : ELECTRICITY_RATES.COMMERCIAL_RATE;
         return rate > 0 ? ((finiteNumber(this.activeElectricityBill) * 12) / 365) / rate : 0;
       }
-      return Object.entries(APPLIANCE_CONFIG).reduce((total, [key, config]) => total + config.watts * config.hours * finiteNumber(this.appliances[key]), 0) / 1000;
+      return Object.entries(APPLIANCE_CONFIG).reduce((total, [key, config]) => {
+        return total + config.watts * config.hours * finiteNumber(this.appliances[key]);
+      }, 0) / 1000;
     },
     computedPeakLoad() {
       if (this.inputMethodType === 'appliances') {
-        return Object.entries(APPLIANCE_CONFIG).reduce((total, [key, config]) => total + config.peak * finiteNumber(this.appliances[key]), 0) / 1000;
+        return Object.entries(APPLIANCE_CONFIG).reduce((total, [key, config]) => {
+          return total + config.peak * finiteNumber(this.appliances[key]);
+        }, 0) / 1000;
       }
       return finiteNumber(this.peakLoad) > 0 ? (finiteNumber(this.peakLoad) * 220) / 1000 : 0;
     },
@@ -222,24 +221,34 @@ export default {
       if (units <= 24) return 8;
       return Math.ceil(units / 3);
     },
-    readinessLabel() {
-      return this.recommendation.inventoryAssessment.status === 'ready'
-        ? 'Stock ready'
-        : `${this.recommendation.inventoryAssessment.shortItemCount} short item(s)`;
-    },
     resultMetrics() {
       return [
         { label: 'Daily energy', value: `${this.unitPerDay.toFixed(2)} kWh` },
         { label: 'Peak load', value: `${this.computedPeakLoad.toFixed(2)} kW` },
-        { label: 'Offer estimate', value: `Rs ${this.formatMoney(this.recommendation.offerPrice)}` }
+        { label: 'Estimated offer', value: `Rs ${this.formatMoney(this.recommendation.offerPrice)}` }
       ];
     },
     equipmentSummary() {
       const battery = this.recommendation.battery;
       return [
-        { label: 'Panel', icon: 'fas fa-solar-panel', name: this.recommendation.panel.name, detail: `${finiteNumber(this.recommendation.panel.wattage || this.recommendation.panel.specs?.wattage)} W · ${this.recommendation.panelCount} units` },
-        { label: 'Inverter', icon: 'fas fa-bolt', name: this.recommendation.inverter.name, detail: `${finiteNumber(this.recommendation.inverter.peakLoad || this.recommendation.inverter.specs?.peakLoad)} KVA` },
-        { label: 'Battery', icon: 'fas fa-car-battery', name: battery.selectedBattery?.name || 'Not required', detail: battery.selectedBattery ? `${battery.quantity} unit(s)` : 'Grid-tie configuration' }
+        {
+          label: 'Solar panels',
+          icon: 'fas fa-solar-panel',
+          name: this.recommendation.panel.name,
+          detail: `${finiteNumber(this.recommendation.panel.wattage)} W · ${this.recommendation.panelCount} units`
+        },
+        {
+          label: 'Inverter',
+          icon: 'fas fa-bolt',
+          name: this.recommendation.inverter.name,
+          detail: `${finiteNumber(this.recommendation.inverter.peakLoad)} KVA`
+        },
+        {
+          label: 'Battery',
+          icon: 'fas fa-car-battery',
+          name: battery.selectedBattery?.name || 'Not required',
+          detail: battery.selectedBattery ? `${battery.quantity} unit(s)` : 'Grid-tie configuration'
+        }
       ];
     }
   },
@@ -248,7 +257,14 @@ export default {
       return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(finiteNumber(value));
     },
     typeLabel(type) {
-      return { panel: 'Panel', inverter: 'Inverter', battery: 'Battery', wiring: 'Wiring', mounting: 'Mounting', other: 'Accessory' }[type] || 'Equipment';
+      return {
+        panel: 'Solar panel',
+        inverter: 'Solar inverter',
+        battery: 'Battery',
+        wiring: 'Wiring and cable',
+        mounting: 'Mounting structure',
+        other: 'System accessory'
+      }[type] || 'Equipment';
     },
     validateInputs() {
       if (this.inputMethodType === 'monthly' && finiteNumber(this.monthlyConsumption) <= 0) return 'Monthly consumption must be greater than zero.';
@@ -272,23 +288,27 @@ export default {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 12000);
       try {
-        const response = await fetch('/.netlify/functions/getData', { signal: controller.signal });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || 'Unable to load live inventory.');
-        const result = buildSystemRecommendation({
-          unitPerDay: this.unitPerDay,
-          peakLoad: this.computedPeakLoad,
-          panelCount: this.panelCount,
-          panels: Array.isArray(payload.panels) ? payload.panels : [],
-          inverters: Array.isArray(payload.inverters) ? payload.inverters : [],
-          batteries: Array.isArray(payload.batteries) ? payload.batteries : [],
-          accessories: Array.isArray(payload.accessories) ? payload.accessories : []
+        const response = await fetch('/.netlify/functions/recommendSystem', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'customer',
+            unitPerDay: this.unitPerDay,
+            peakLoad: this.computedPeakLoad,
+            panelCount: this.panelCount
+          }),
+          signal: controller.signal,
+          cache: 'no-store'
         });
-        if (!result.success) throw new Error(result.error || 'No suitable system could be built from inventory.');
-        this.recommendation = result;
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'Unable to calculate a suitable system.');
+        if (!payload.recommendation?.recommendationId) throw new Error('The calculation could not be completed. Please try again.');
+        this.recommendation = payload.recommendation;
         this.showResults = true;
       } catch (error) {
-        this.errorMessage = error.name === 'AbortError' ? 'The inventory request timed out. Please try again.' : error.message || 'Unable to calculate the system.';
+        this.errorMessage = error.name === 'AbortError'
+          ? 'The calculation took too long. Please try again.'
+          : error.message || 'Unable to calculate the system.';
       } finally {
         window.clearTimeout(timeoutId);
         this.loading = false;
@@ -297,19 +317,15 @@ export default {
     openQuotation() {
       if (!this.recommendation) return;
       this.$store.dispatch('updateSolerResults', {
-        costWith: this.recommendation.totalCostWithMarkup,
-        costWithout: this.recommendation.totalCostWithoutMarkup,
-        materialCost: this.recommendation.materialCost,
-        laborCost: this.recommendation.laborCost,
-        profit: this.recommendation.profitPercentage,
+        recommendationId: this.recommendation.recommendationId,
+        costWith: this.recommendation.estimatedInstalledPrice,
         special: this.recommendation.offerPrice,
         panelCount: this.recommendation.panelCount,
         panel: this.recommendation.panel,
         inverter: this.recommendation.inverter,
         battery: this.recommendation.battery,
-        billOfMaterials: this.recommendation.billOfMaterials,
-        inventoryAssessment: this.recommendation.inventoryAssessment,
-        calculationInput: { unitPerDay: this.unitPerDay, peakLoad: this.computedPeakLoad, inputMethod: this.inputMethodType }
+        requirements: this.recommendation.requirements,
+        calculationInput: this.recommendation.calculationInput
       });
       this.$router.push({ name: 'SubmitQuotation' });
     },
@@ -333,17 +349,15 @@ export default {
 .method-option span, .summary-box, .equipment-result { display: flex; flex-direction: column; }
 .method-option small, .summary-box small, .equipment-result small, .price-panel span { color: var(--ant-slate-500); }
 .method-option.active { border-color: var(--ant-blue-600); background: rgba(37, 99, 235, 0.06); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08); }
-.summary-box, .equipment-result, .price-panel { border: 1px solid var(--ant-slate-200); border-radius: 12px; background: var(--ant-slate-50); }
+.summary-box, .equipment-result, .price-panel, .requirement-section { border: 1px solid var(--ant-slate-200); border-radius: 12px; background: var(--ant-slate-50); }
 .summary-box, .equipment-result { padding: 1rem; }
 .summary-box strong { color: var(--ant-blue-700); font-size: 1.45rem; }
 .equipment-result { gap: 0.25rem; }
 .equipment-result__icon { color: var(--ant-blue-700); margin-bottom: 0.4rem; }
-.stock-readiness { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.55rem 0.8rem; border-radius: 999px; font-weight: 700; }
-.stock-readiness.is-ready { background: #dcfce7; color: #166534; }
-.stock-readiness.is-short { background: #fef3c7; color: #92400e; }
 .price-panel { padding: 1rem 1.25rem; display: grid; gap: 0.7rem; }
 .price-panel > div { display: flex; justify-content: space-between; gap: 1rem; }
-.inventory-bom-table th { white-space: nowrap; }
+.requirement-section { padding: 1rem 1.25rem; }
+.requirement-table th { white-space: nowrap; }
 @media (max-width: 767.98px) {
   .method-grid { grid-template-columns: 1fr; }
   .price-panel > div { align-items: flex-start; flex-direction: column; gap: 0.1rem; }

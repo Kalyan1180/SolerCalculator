@@ -5,11 +5,38 @@ import { PAYMENT_STATUS, PROJECT_STATUS } from '@/constants/businessConstants';
 import { LOW_STOCK_THRESHOLD, STOCK_STATUS } from '@/constants/inventoryConstants';
 
 const PROJECTS_COLLECTION = 'projects';
+const PROJECT_OPERATIONS_COLLECTION = 'projectOperations';
 const INVENTORY_COLLECTION = 'inventory';
 
 function numberValue(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function mergeProjectOperations(project, operations) {
+  return {
+    ...project,
+    ...(operations || {}),
+    id: project.id || operations?.id,
+    projectId: project.projectId || operations?.projectId || project.id || operations?.id
+  };
+}
+
+async function loadProjectsWithOperations() {
+  const [projectsSnapshot, operationsSnapshot] = await Promise.all([
+    getDocs(collection(db, PROJECTS_COLLECTION)),
+    getDocs(collection(db, PROJECT_OPERATIONS_COLLECTION))
+  ]);
+  const operationsById = new Map(
+    operationsSnapshot.docs.map(operationDoc => [operationDoc.id, {
+      id: operationDoc.id,
+      ...operationDoc.data()
+    }])
+  );
+  return projectsSnapshot.docs.map(projectDoc => mergeProjectOperations(
+    { id: projectDoc.id, ...projectDoc.data() },
+    operationsById.get(projectDoc.id)
+  ));
 }
 
 function projectCost(project) {
@@ -38,12 +65,10 @@ function paidAmount(project) {
 
 export async function getAnalyticsDashboard() {
   try {
-    const [projectsSnapshot, inventorySnapshot] = await Promise.all([
-      getDocs(collection(db, PROJECTS_COLLECTION)),
+    const [allProjects, inventorySnapshot] = await Promise.all([
+      loadProjectsWithOperations(),
       getDocs(collection(db, INVENTORY_COLLECTION))
     ]);
-
-    const allProjects = projectsSnapshot.docs.map(projectDoc => ({ id: projectDoc.id, ...projectDoc.data() }));
     const inventory = inventorySnapshot.docs.map(itemDoc => ({ id: itemDoc.id, ...itemDoc.data() }));
     const validStatuses = new Set(Object.values(PROJECT_STATUS));
     const projects = allProjects.filter(project => project.projectId && validStatuses.has(project.status));
@@ -114,10 +139,10 @@ export async function getAnalyticsDashboard() {
 
 export async function getProjectsByStatus() {
   try {
-    const projectsSnapshot = await getDocs(collection(db, PROJECTS_COLLECTION));
+    const projects = await loadProjectsWithOperations();
     const statusBreakdown = {};
-    projectsSnapshot.forEach(projectDoc => {
-      const status = projectDoc.data().status;
+    projects.forEach(project => {
+      const status = project.status;
       if (!status) return;
       statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
     });
@@ -131,10 +156,8 @@ export async function getProjectsByStatus() {
 export async function getTopProjects(limit = 10) {
   try {
     const safeLimit = Math.min(100, Math.max(1, Math.trunc(numberValue(limit) || 10)));
-    const projectsSnapshot = await getDocs(collection(db, PROJECTS_COLLECTION));
     const validStatuses = new Set(Object.values(PROJECT_STATUS));
-    const projects = projectsSnapshot.docs
-      .map(projectDoc => ({ id: projectDoc.id, ...projectDoc.data() }))
+    const projects = (await loadProjectsWithOperations())
       .filter(project => validStatuses.has(project.status))
       .map(project => ({
         ...project,

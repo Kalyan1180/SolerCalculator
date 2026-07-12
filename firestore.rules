@@ -89,16 +89,6 @@ service cloud.firestore {
       return activeSession() && request.auth.uid == userId;
     }
 
-    function validNewProject(projectId) {
-      return projectId == request.resource.data.projectId
-        && request.resource.data.status == 'quote_pending'
-        && request.resource.data.paymentStatus == 'not_started'
-        && request.resource.data.panelCount is number
-        && request.resource.data.panelCount > 0
-        && request.resource.data.quotedPrice is number
-        && request.resource.data.quotedPrice > 0;
-    }
-
     function projectIdentityUnchanged() {
       return request.resource.data.projectId == resource.data.projectId
         && request.resource.data.customerId == resource.data.customerId
@@ -109,10 +99,7 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status',
         'updatedAt',
-        'adminNotes',
-        'technicalNotes',
         'sitePhotos',
-        'techniciansAssigned',
         'customerSignoff',
         'completionNotes',
         'finalPrice',
@@ -130,6 +117,30 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'paymentStatus',
         'paymentHistory',
+        'updatedAt'
+      ]);
+    }
+
+    function validOperationsCreate(projectId) {
+      return request.resource.data.projectId == projectId
+        && request.resource.data.keys().hasOnly([
+          'projectId',
+          'adminNotes',
+          'technicalNotes',
+          'techniciansAssigned',
+          'updatedAt'
+        ]);
+    }
+
+    function operationsIdentityUnchanged() {
+      return request.resource.data.projectId == resource.data.projectId;
+    }
+
+    function operationsUpdateFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'adminNotes',
+        'technicalNotes',
+        'techniciansAssigned',
         'updatedAt'
       ]);
     }
@@ -172,14 +183,15 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow read: if hasPermission('projects.read') || (
-        activeSession() && resource.data.customerId == request.auth.uid
-      );
-      allow create: if validNewProject(projectId) && (
-        hasPermission('projects.create') || (
-          activeSession() && request.resource.data.customerId == request.auth.uid
-        )
-      );
+      // Staff may use Firestore directly. Customer reads go through getMyProjects,
+      // which returns a strict allowlist and sanitizes legacy project documents.
+      allow read: if hasPermission('projects.read');
+
+      // Quotation and project creation is performed only by the authenticated
+      // createQuotation Netlify function. Browser clients cannot inject prices,
+      // equipment identifiers, demand quantities or internal planning fields.
+      allow create: if false;
+
       allow update: if projectIdentityUnchanged() && (
         (
           hasPermission('projects.update')
@@ -193,13 +205,28 @@ service cloud.firestore {
       allow delete: if hasPermission('projects.delete');
     }
 
+    match /projectOperations/{projectId} {
+      allow read: if hasPermission('projects.read');
+      allow create: if hasPermission('projects.update') && validOperationsCreate(projectId);
+      allow update: if hasPermission('projects.update')
+        && operationsIdentityUnchanged()
+        && operationsUpdateFieldsOnly();
+      allow delete: if false;
+    }
+
     match /inventory/{itemId} {
       allow read: if hasPermission('inventory.read');
       allow create, update: if hasPermission('inventory.write') && validInventoryItem(itemId);
       allow delete: if hasPermission('inventory.write');
     }
 
-    // Legacy equipment collections remain readable only through trusted Admin SDK
+    // Temporary recommendation documents contain protected planning data and
+    // are never readable or writable by browser clients.
+    match /recommendations/{recommendationId} {
+      allow read, write: if false;
+    }
+
+    // Legacy equipment collections remain accessible only through trusted Admin SDK
     // migration code. The inventory collection is the sole mutable source of truth.
     match /inverters/{itemId} {
       allow read, write: if false;

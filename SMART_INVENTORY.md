@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Equipment and stock now use the same Firestore `inventory` collection. An inverter, battery, panel, cable or mounting kit is entered once and can simultaneously provide:
+Equipment and stock use the same Firestore `inventory` collection. An inverter, battery, panel, cable or mounting kit is entered once and can simultaneously provide:
 
 - calculator technical specifications;
 - purchasing and selling prices;
@@ -12,6 +12,31 @@ Equipment and stock now use the same Firestore `inventory` collection. An invert
 - stock shortfall and restock priority.
 
 The old `inverters` and `batteries` collections are retained only as a temporary migration source. They are no longer editable by the application.
+
+## Privacy boundary
+
+Operational planning is confidential business information.
+
+Customers and public visitors receive only:
+
+- their calculated energy and peak-load requirement;
+- recommended panel quantity;
+- recommended inverter and battery configuration;
+- required equipment quantities;
+- estimated installed price and offer estimate.
+
+They do **not** receive:
+
+- on-hand or available quantities;
+- committed-project or quotation demand;
+- shortages, shortfalls or restock priority;
+- supplier, lead-time, SKU or purchasing information;
+- cost price, labour cost, margin or profit data;
+- administration links or administration-route error messages.
+
+The public calculator calls `recommendSystem`, which performs planning with the Firebase Admin SDK and returns a sanitized customer response. Detailed planning fields never enter the customer browser state. The older detailed `getData` endpoint now requires `inventory.read`.
+
+A full recommendation is stored temporarily in the server-only `recommendations` collection. The browser receives only an unpredictable recommendation reference. When the customer submits a request, the authenticated `createQuotation` function consumes that reference and creates the project with the protected bill of materials. Browser clients cannot create projects directly.
 
 ## Inventory record
 
@@ -45,18 +70,13 @@ An item cannot be enabled for calculator use until its required technical values
 
 ## Recommendation behaviour
 
-The calculator first identifies technically compatible equipment, then ranks candidates by:
+The server first identifies technically compatible equipment, then ranks candidates by:
 
-1. stock shortfall after committed-project demand;
+1. shortfall after committed-project demand;
 2. whether the record is a temporary legacy fallback;
 3. total equipment cost.
 
-Out-of-stock equipment can still be recommended when it is the best or only technically valid option. The result clearly displays:
-
-- required quantity;
-- currently available quantity;
-- shortfall;
-- stock-ready or restock-required state.
+Out-of-stock equipment can still be selected internally when it is the best or only technically valid option. Customers receive the valid system requirement without operational availability commentary. Authorized project and inventory workspaces show the detailed quantities and purchasing implications.
 
 The generated quotation stores an immutable `billOfMaterials` snapshot so later catalogue edits do not silently change an existing quotation.
 
@@ -96,17 +116,21 @@ The score also increases for longer supplier lead times and more urgent project 
 
 The recommendation quantity restores stock to the configured target **after both committed and current quotation demand are covered**. This intentionally provides a safety buffer rather than ordering only the immediate shortage.
 
-## Project stock readiness
+## Project supply readiness
 
-Every new calculator or custom-project quotation stores its inventory BOM. The project workspace recalculates live availability and shows:
+Every new calculator or managed-project quotation stores its internal BOM. The authorized project workspace recalculates live availability and shows:
 
 - each required SKU;
-- quantity needed for this quotation;
+- quantity needed for the quotation;
 - quantity available after other committed projects;
 - project-specific shortfall;
 - current restock priority.
 
 Older projects that have no inventory IDs cannot be reliably matched by name. They are marked **Inventory mapping required** instead of using unsafe fuzzy matching.
+
+## Managed-project workflow
+
+The administration managed-project form uses `recommendSystem` with `mode: staff`. The request requires `projects.create` or `inventory.read`, and the response may include internal planning details. The resulting recommendation is bound to the staff user and can be consumed only by that same identity.
 
 ## Migrating existing equipment
 
@@ -123,14 +147,14 @@ Imported records deliberately start at quantity `0`; the old catalogue had price
 
 ## Firestore Rules deployment
 
-This change updates the inventory schema and disables browser writes to the old equipment collections. Publish the rules after merging:
+This change updates the inventory schema, blocks browser project creation, protects recommendation drafts and disables browser writes to old equipment collections. Publish the rules after merging:
 
 ```bash
 npx firebase-tools login
 npx firebase-tools deploy --only firestore:rules
 ```
 
-Deploying only the Netlify frontend is not sufficient for the new inventory write validation.
+Deploying only the Netlify frontend is not sufficient.
 
 ## Validation
 
@@ -141,21 +165,23 @@ npm run validate:rbac
 npm run validate:session
 npm run validate:ui-access
 npm run validate:inventory
+npm run validate:customer-privacy
 npm run lint
 npm run build
 ```
 
-The smart-inventory validator checks the single-source architecture, protected planning endpoints, BOM persistence, deleted duplicate equipment paths, Firestore schema enforcement and known demand/shortfall calculations.
+The privacy validator checks that public calculator and quotation pages contain no operational availability, purchasing, cost or administration details; that detailed planning endpoints require authorization; and that project creation goes through the protected server workflow.
 
 ## Operational test matrix
 
-1. Add an in-stock panel, inverter and battery with calculator access enabled.
-2. Calculate a system and confirm all selected products come from inventory.
-3. Reduce one quantity below the required amount and confirm the calculator still recommends it with an explicit shortfall.
-4. Create a quotation and confirm its BOM appears in the project workspace.
-5. Approve the project and confirm its demand moves from quotation to committed without being double-counted.
-6. Create a second quotation using the same SKU and confirm quotation shortfall increases.
-7. Verify Restock Planner rank, recommended order, supplier and lead time.
-8. Complete or cancel a project and confirm its future demand is removed.
-9. Confirm an analyst sees planning information but no add, edit, delete or migration controls.
-10. Confirm discontinued items disappear from calculator suggestions and restock orders.
+1. Add an enabled panel, inverter and battery.
+2. Calculate as a signed-out visitor and confirm only system requirements and customer pricing are shown.
+3. Inspect the public recommendation response and confirm it contains no SKU, quantity-on-hand, availability, shortfall, supplier, cost or margin fields.
+4. Sign in as a customer and submit the requirement; confirm the project contains the internal BOM while the customer page does not show operational planning.
+5. Visit an administration URL as a customer and confirm the application returns to the public home page without an administration-specific message.
+6. Generate a managed-project recommendation as a project manager and confirm authorized shortage details are visible.
+7. Approve the project and confirm demand moves from quotation to committed without being double-counted.
+8. Verify Restock Planner rank, recommended order, supplier and lead time.
+9. Complete or cancel a project and confirm its future demand is removed.
+10. Confirm an analyst sees planning information but no add, edit, delete or migration controls.
+11. Confirm discontinued items disappear from recommendations and restock orders.
