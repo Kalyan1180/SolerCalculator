@@ -41,6 +41,9 @@ jobs:
       - name: Validate customer privacy
         run: npm run validate:customer-privacy
 
+      - name: Validate project operations
+        run: npm run validate:operations
+
       - name: Lint
         run: npm run lint
 
