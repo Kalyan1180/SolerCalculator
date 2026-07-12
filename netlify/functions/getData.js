@@ -5,6 +5,7 @@ const {
   inventoryDocuments,
   legacyEquipmentItems
 } = require('./_inventoryPlanning');
+const { mergeProjectOperations } = require('./_projectPrivacy');
 
 function numberValue(value) {
   const number = Number(value);
@@ -50,9 +51,16 @@ exports.handler = async event => {
 
   try {
     const { db } = getAdminServices();
-    const [inventorySnapshot, projectsSnapshot, inverterSnapshot, batterySnapshot] = await Promise.all([
+    const [
+      inventorySnapshot,
+      projectsSnapshot,
+      operationsSnapshot,
+      inverterSnapshot,
+      batterySnapshot
+    ] = await Promise.all([
       db.collection('inventory').get(),
       db.collection('projects').get(),
+      db.collection('projectOperations').get(),
       db.collection('inverters').get(),
       db.collection('batteries').get()
     ]);
@@ -64,10 +72,13 @@ exports.handler = async event => {
       unifiedInventory
     );
     const inventory = [...unifiedInventory, ...legacyFallback];
-    const projects = projectsSnapshot.docs.map(projectDoc => ({
-      id: projectDoc.id,
-      ...projectDoc.data()
-    }));
+    const operationsById = new Map(
+      operationsSnapshot.docs.map(operationDoc => [operationDoc.id, operationDoc.data()])
+    );
+    const projects = projectsSnapshot.docs.map(projectDoc => mergeProjectOperations(
+      { id: projectDoc.id, ...projectDoc.data() },
+      operationsById.get(projectDoc.id)
+    ));
     const plan = buildInventoryPlan(inventory, projects);
     const catalog = calculatorCatalog(plan.items);
 
