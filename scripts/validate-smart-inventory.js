@@ -39,6 +39,8 @@ if (inventoryModel.includes("collection(db, 'inverters')") || inventoryModel.inc
 requireText('netlify/functions/getData.js', [
   "requirePermission(event, 'inventory.read')",
   "db.collection('inventory').get()",
+  "db.collection('projectOperations').get()",
+  'mergeProjectOperations',
   'buildInventoryPlan',
   'calculatorCatalog'
 ]);
@@ -46,19 +48,26 @@ requireText('netlify/functions/recommendSystem.js', [
   'buildInventoryPlan',
   'calculatorCatalog',
   'buildSystemRecommendation',
-  'customerRecommendation'
+  'customerRecommendation',
+  "db.collection('projectOperations').get()",
+  'mergeProjectOperations'
 ]);
 requireText('netlify/functions/createQuotation.js', [
   'billOfMaterials: recommendation.billOfMaterials',
   'inventoryAssessment: recommendation.inventoryAssessment',
+  "db.collection('projectOperations').doc(projectId)",
   'recommendationId'
 ]);
 requireText('netlify/functions/getInventoryPlan.js', [
   "requirePermission(event, 'inventory.read')",
+  "db.collection('projectOperations').get()",
+  'mergeProjectOperations',
   'buildInventoryPlan'
 ]);
 requireText('netlify/functions/getProjectStockPlan.js', [
   "requirePermission(event, 'projects.read')",
+  "db.collection('projectOperations').doc(projectId).get()",
+  'mergeProjectOperations',
   'projectStockPlan'
 ]);
 requireText('netlify/functions/migrateLegacyEquipment.js', [
@@ -72,9 +81,10 @@ requireText('netlify/functions/_systemRecommendation.js', [
   'shortfall'
 ]);
 requireText('src/models/projectModel.js', [
-  'billOfMaterials',
-  'inventoryAssessment',
-  'sanitizeBomLine'
+  "const PROJECT_OPERATIONS_COLLECTION = 'projectOperations'",
+  'mergeProjectOperations',
+  '/.netlify/functions/getMyProjects',
+  'Direct project creation is disabled'
 ]);
 requireText('src/components/ManageInventory.vue', [
   'getInventoryPlan',
@@ -105,6 +115,7 @@ if (!navigation.includes('Smart Inventory & Equipment')) fail('unified inventory
 const rules = requireText('firestore.rules', [
   'validInventoryItem',
   "match /inventory/{itemId}",
+  "match /projectOperations/{projectId}",
   "match /inverters/{itemId}",
   "match /batteries/{itemId}",
   "match /recommendations/{recommendationId}",
