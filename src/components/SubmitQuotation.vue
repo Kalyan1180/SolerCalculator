@@ -6,9 +6,9 @@
           <div class="col-xl-9">
             <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
               <div>
-                <span class="marketing-eyebrow"><i class="fas fa-file-signature" aria-hidden="true"></i>Quotation workflow</span>
-                <h1 class="h2 mb-2">{{ canCreateProjects ? 'Create a customer project' : 'Submit your solar requirement' }}</h1>
-                <p class="text-muted mb-0">Review the calculator result and provide the details needed to continue.</p>
+                <span class="marketing-eyebrow"><i class="fas fa-file-signature" aria-hidden="true"></i>Quotation request</span>
+                <h1 class="h2 mb-2">Submit your solar requirement</h1>
+                <p class="text-muted mb-0">Review the recommended system and provide the details needed for a quotation.</p>
               </div>
               <router-link to="/solercalc" class="btn btn-outline-secondary">
                 <i class="fas fa-arrow-left me-2" aria-hidden="true"></i>Back to calculator
@@ -18,7 +18,7 @@
             <div v-if="loading" class="loader-overlay" role="status" aria-live="polite">
               <div class="card p-4 text-center">
                 <div class="spinner-border text-primary mx-auto mb-3"></div>
-                <strong>Submitting quotation</strong>
+                <strong>Submitting your requirement</strong>
                 <span class="text-muted">Please keep this page open.</span>
               </div>
             </div>
@@ -48,11 +48,11 @@
                       </div>
                       <div class="col-md-6">
                         <label for="custPhone" class="form-label">Phone number *</label>
-                        <input v-model.trim="formData.phone" type="tel" id="custPhone" class="form-control" maxlength="20" autocomplete="tel" required />
+                        <input v-model.trim="formData.phone" type="tel" id="custPhone" class="form-control" maxlength="30" autocomplete="tel" required />
                       </div>
                       <div class="col-12">
                         <label for="custEmail" class="form-label">Email address *</label>
-                        <input v-model.trim="formData.email" type="email" id="custEmail" class="form-control" autocomplete="email" required />
+                        <input v-model.trim="formData.email" type="email" id="custEmail" class="form-control" maxlength="160" autocomplete="email" required />
                       </div>
                       <div class="col-12">
                         <label for="custAddress" class="form-label">Installation address *</label>
@@ -62,25 +62,12 @@
                         <label for="additionalNotes" class="form-label">Additional notes</label>
                         <textarea v-model.trim="formData.additionalNotes" id="additionalNotes" class="form-control" rows="3" maxlength="1000"></textarea>
                       </div>
-                      <div v-if="canCreateProjects" class="col-12">
-                        <label for="suggestedPrice" class="form-label">Final quoted price (Rs) *</label>
-                        <input
-                          v-model.number="formData.suggestedPrice"
-                          type="number"
-                          id="suggestedPrice"
-                          class="form-control"
-                          min="1"
-                          step="1"
-                          required
-                        />
-                      </div>
                     </div>
 
                     <button type="submit" class="btn btn-primary w-100 mt-4" :disabled="loading || !hasCalculatorResults">
-                      <i :class="canCreateProjects ? 'fas fa-folder-plus' : 'fas fa-paper-plane'" class="me-2" aria-hidden="true"></i>
-                      {{ canCreateProjects ? 'Create project' : 'Submit requirement' }}
+                      <i class="fas fa-paper-plane me-2" aria-hidden="true"></i>Submit requirement
                     </button>
-                    <small v-if="!hasCalculatorResults" class="d-block text-danger mt-2">Calculator results are missing. Return to the calculator and generate a recommendation first.</small>
+                    <small v-if="!hasCalculatorResults" class="d-block text-danger mt-2">The calculator result is missing. Return to the calculator and calculate your requirement again.</small>
                   </div>
                 </form>
               </div>
@@ -104,14 +91,19 @@
                       <div class="spec-card mb-3">
                         <small class="text-muted d-block">Battery</small>
                         <strong>{{ solerResults.battery?.selectedBattery?.name || 'Not required' }}</strong>
-                      </div>
-                      <div class="border-top pt-3 mt-3">
-                        <div class="d-flex justify-content-between mb-2"><span class="text-muted">Installed estimate</span><strong>Rs {{ formatMoney(solerResults.costWith) }}</strong></div>
-                        <div class="d-flex justify-content-between"><span class="text-muted">Offer price</span><strong class="text-success">Rs {{ formatMoney(solerResults.special) }}</strong></div>
+                        <span v-if="solerResults.battery?.selectedBattery" class="d-block small text-muted">{{ solerResults.battery.quantity }} unit(s)</span>
                       </div>
 
-                      <div v-if="canCreateProjects" class="alert alert-info mt-4 mb-0">
-                        Internal cost before profit: <strong>Rs {{ formatMoney(solerResults.costWithout) }}</strong>
+                      <div v-if="solerResults.requirements?.length" class="border-top pt-3 mt-3">
+                        <div v-for="line in solerResults.requirements" :key="`${line.type}-${line.name}`" class="d-flex justify-content-between gap-3 py-1">
+                          <span class="text-muted">{{ line.name }}</span>
+                          <strong>{{ line.requiredQuantity }} {{ line.unit }}</strong>
+                        </div>
+                      </div>
+
+                      <div class="border-top pt-3 mt-3">
+                        <div class="d-flex justify-content-between mb-2"><span class="text-muted">Installed estimate</span><strong>Rs {{ formatMoney(solerResults.costWith) }}</strong></div>
+                        <div class="d-flex justify-content-between"><span class="text-muted">Estimated offer</span><strong class="text-success">Rs {{ formatMoney(solerResults.special) }}</strong></div>
                       </div>
                     </template>
                     <div v-else class="enterprise-empty-state py-4">
@@ -133,13 +125,10 @@
 import { mapGetters } from 'vuex';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/firebase';
-import { createProject } from '@/models/projectModel';
-import rbacMixin from '@/mixins/rbacMixin';
-import { PERMISSIONS } from '@/constants/rbac';
+import { authenticatedJsonRequest } from '@/utils/authenticatedRequest';
 
 export default {
   name: 'SubmitQuotation',
-  mixins: [rbacMixin],
   data() {
     return {
       currentUser: null,
@@ -149,8 +138,7 @@ export default {
         address: '',
         phone: '',
         email: '',
-        additionalNotes: '',
-        suggestedPrice: 0
+        additionalNotes: ''
       },
       message: '',
       error: '',
@@ -161,22 +149,18 @@ export default {
   },
   computed: {
     ...mapGetters(['solerResults']),
-    canCreateProjects() {
-      return this.can(PERMISSIONS.PROJECTS_CREATE);
-    },
     hasCalculatorResults() {
-      return Number(this.solerResults?.panelCount) > 0 && Boolean(this.solerResults?.inverter);
+      return Boolean(this.solerResults?.recommendationId)
+        && Number(this.solerResults?.panelCount) > 0
+        && Boolean(this.solerResults?.inverter);
     }
   },
   created() {
-    this.unsubscribeAuth = onAuthStateChanged(auth, async user => {
+    this.unsubscribeAuth = onAuthStateChanged(auth, user => {
       this.currentUser = user;
       if (!user) return;
-
-      await this.loadUserAccess(true);
       this.formData.email = user.email || '';
       this.formData.name = user.displayName || this.formData.name;
-      this.formData.suggestedPrice = Number(this.solerResults?.special) || 0;
     });
   },
   beforeUnmount() {
@@ -186,16 +170,13 @@ export default {
   methods: {
     formatMoney(value) {
       const number = Number(value);
-      return Number.isFinite(number) ? number.toFixed(0) : '0';
+      return Number.isFinite(number) ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(number) : '0';
     },
     validateForm() {
-      if (!this.currentUser) return 'Please log in before submitting a requirement.';
-      if (!this.hasCalculatorResults) return 'Calculator results are missing. Please calculate the system again.';
+      if (!this.currentUser) return 'Please sign in before submitting a requirement.';
+      if (!this.hasCalculatorResults) return 'The calculator result is missing. Please calculate the system again.';
       if (!this.formData.name || !this.formData.address || !this.formData.phone || !this.formData.email) {
         return 'Please complete all required customer fields.';
-      }
-      if (this.canCreateProjects && Number(this.formData.suggestedPrice) <= 0) {
-        return 'Quoted price must be greater than zero.';
       }
       return null;
     },
@@ -209,30 +190,29 @@ export default {
 
       this.loading = true;
       try {
-        const projectData = {
-          ...this.formData,
-          suggestedPrice: this.canCreateProjects
-            ? Number(this.formData.suggestedPrice)
-            : Number(this.solerResults.special)
-        };
-        const customerId = this.canCreateProjects ? null : this.currentUser.uid;
-        const result = await createProject(customerId, projectData, this.solerResults);
-        if (!result.success) throw new Error(result.error || 'Unable to create project');
+        const result = await authenticatedJsonRequest('/.netlify/functions/createQuotation', {
+          method: 'POST',
+          body: JSON.stringify({
+            recommendationId: this.solerResults.recommendationId,
+            ...this.formData,
+            managedProject: false
+          })
+        });
 
-        this.message = `Project ${result.projectId} created successfully. Redirecting in ${this.redirectCountdown} seconds...`;
+        this.message = `${result.message} Reference ${result.projectId}. Redirecting in ${this.redirectCountdown} seconds...`;
         this.countdownInterval = setInterval(() => {
           this.redirectCountdown -= 1;
           if (this.redirectCountdown <= 0) {
             clearInterval(this.countdownInterval);
             this.countdownInterval = null;
-            this.$router.push(this.canCreateProjects ? '/admin/projects' : '/customer/my-projects');
+            this.$router.push('/customer/my-projects');
             return;
           }
-          this.message = `Project ${result.projectId} created successfully. Redirecting in ${this.redirectCountdown} seconds...`;
+          this.message = `${result.message} Reference ${result.projectId}. Redirecting in ${this.redirectCountdown} seconds...`;
         }, 1000);
       } catch (error) {
-        console.error('Error creating project:', error);
-        this.error = error.message || 'Error creating project.';
+        console.error('Error submitting requirement:', error);
+        this.error = error.message || 'Unable to submit your requirement.';
       } finally {
         this.loading = false;
       }
