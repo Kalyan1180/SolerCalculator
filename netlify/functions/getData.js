@@ -1,4 +1,4 @@
-const { getAdminServices, jsonResponse } = require('./_firebaseAdmin');
+const { getAdminServices, jsonResponse, requirePermission } = require('./_firebaseAdmin');
 const {
   buildInventoryPlan,
   calculatorCatalog,
@@ -44,6 +44,9 @@ exports.handler = async event => {
   if (event.httpMethod !== 'GET') {
     return jsonResponse(405, { error: 'Method not allowed' }, { Allow: 'GET' });
   }
+
+  const authorization = await requirePermission(event, 'inventory.read');
+  if (!authorization.authorized) return authorization.response;
 
   try {
     const { db } = getAdminServices();
@@ -94,22 +97,18 @@ exports.handler = async event => {
       .filter(item => item.specs?.autoInclude)
       .sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
 
-    return jsonResponse(
-      200,
-      {
-        source: 'inventory',
-        inverters,
-        batteries,
-        panels,
-        accessories,
-        inventory: catalog,
-        hasLegacyFallback: legacyFallback.length > 0,
-        planningUpdatedAt: new Date().toISOString()
-      },
-      { 'Cache-Control': 'public, max-age=20, stale-while-revalidate=60' }
-    );
+    return jsonResponse(200, {
+      source: 'inventory',
+      inverters,
+      batteries,
+      panels,
+      accessories,
+      inventory: catalog,
+      hasLegacyFallback: legacyFallback.length > 0,
+      planningUpdatedAt: new Date().toISOString()
+    });
   } catch (error) {
-    console.error('Error fetching calculator inventory:', error);
-    return jsonResponse(500, { error: 'Unable to load calculator inventory data' });
+    console.error('Error fetching protected planning data:', error);
+    return jsonResponse(500, { error: 'Unable to load planning data' });
   }
 };
