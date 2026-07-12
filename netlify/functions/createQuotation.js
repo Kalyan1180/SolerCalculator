@@ -117,6 +117,9 @@ exports.handler = async event => {
       if (suggestedPrice <= 0) fail(400, 'INVALID_PRICE', 'Quoted price must be greater than zero.');
 
       const publicView = stored.publicRecommendation || {};
+      const advancePercentage = 50;
+      const advanceAmount = Math.round((suggestedPrice * advancePercentage / 100) * 100) / 100;
+      const balanceAmount = Math.max(0, Math.round((suggestedPrice - advanceAmount) * 100) / 100);
       const now = fieldValue.serverTimestamp();
       const customerProject = {
         projectId,
@@ -127,6 +130,7 @@ exports.handler = async event => {
         address: customer.address,
 
         status: 'quote_pending',
+        statusHistory: [{ from: null, to: 'quote_pending', message: 'Project created', changedAt: now }],
         panelCount: Math.max(1, Math.ceil(finiteNumber(recommendation.panelCount))),
         panel: publicView.panel || publicEquipment(recommendation.panel, 'panel'),
         inverter: publicView.inverter || publicEquipment(recommendation.inverter, 'inverter'),
@@ -135,9 +139,11 @@ exports.handler = async event => {
 
         quotedPrice: suggestedPrice,
         finalPrice: null,
-        advancePercentage: 50,
-        advanceAmount: null,
-        balanceAmount: null,
+        advancePercentage,
+        advanceAmount,
+        balanceAmount,
+        amountPaid: 0,
+        amountDue: suggestedPrice,
         paymentStatus: 'not_started',
         paymentHistory: [],
 
@@ -152,7 +158,8 @@ exports.handler = async event => {
         customerNotes: customer.additionalNotes,
         sitePhotos: [],
         customerSignoff: false,
-        completionNotes: ''
+        completionNotes: '',
+        revision: 0
       };
 
       const projectOperations = {
@@ -173,9 +180,21 @@ exports.handler = async event => {
         adminNotes: '',
         technicalNotes: '',
         techniciansAssigned: [],
+        salesOwner: authorization.user.email || '',
+        installationCoordinator: '',
+        targetCompletionDate: null,
+        paymentLedger: [],
+        activityLog: [{
+          activityId: `ACT-${Date.now()}`,
+          type: 'project_created',
+          actorUid: authorization.user.uid,
+          actorEmail: authorization.user.email || '',
+          createdAt: now
+        }],
         createdByUid: authorization.user.uid,
         createdByRole: authorization.role,
         managedProject,
+        revision: 0,
         createdAt: now,
         updatedAt: now
       };
