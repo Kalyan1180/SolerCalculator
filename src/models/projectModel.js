@@ -40,9 +40,46 @@ function timestampToMillis(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function cleanText(value, maxLength = 200) {
+  return String(value || '').trim().slice(0, maxLength);
+}
+
 function createProjectId() {
   const randomPart = Math.random().toString(36).slice(2, 11);
   return `PRJ-${Date.now()}-${randomPart}`;
+}
+
+function sanitizeBomLine(line) {
+  if (!line || typeof line !== 'object') return null;
+  const itemId = cleanText(line.itemId || line.inventoryId || line.id, 200);
+  const requiredQuantity = Math.max(0, Math.ceil(numberOrZero(line.requiredQuantity ?? line.quantity)));
+  if (!itemId || requiredQuantity <= 0) return null;
+  return {
+    itemId,
+    sku: cleanText(line.sku, 80),
+    type: cleanText(line.type, 40).toLowerCase() || 'other',
+    name: cleanText(line.name, 150) || 'Inventory item',
+    unit: cleanText(line.unit, 40) || 'piece',
+    requiredQuantity,
+    unitCost: Math.max(0, numberOrZero(line.unitCost ?? line.costPrice)),
+    sellingPrice: Math.max(0, numberOrZero(line.sellingPrice)),
+    availableQuantity: Math.max(0, Math.floor(numberOrZero(line.availableQuantity))),
+    shortfall: Math.max(0, Math.ceil(numberOrZero(line.shortfall))),
+    stockStatus: cleanText(line.stockStatus || line.status, 40),
+    legacySourceId: cleanText(line.legacySourceId, 200)
+  };
+}
+
+function sanitizeInventoryAssessment(value, billOfMaterials) {
+  const lines = Array.isArray(billOfMaterials) ? billOfMaterials : [];
+  const totalShortfall = lines.reduce((sum, line) => sum + numberOrZero(line.shortfall), 0);
+  return {
+    status: cleanText(value?.status, 40) || (totalShortfall > 0 ? 'shortfall' : 'ready'),
+    totalShortfall,
+    shortItemCount: lines.filter(line => numberOrZero(line.shortfall) > 0).length,
+    requiredItemCount: lines.length,
+    assessedAt: cleanText(value?.assessedAt, 80) || new Date().toISOString()
+  };
 }
 
 function validateProjectInput(projectData, calculatorResults) {
@@ -76,6 +113,13 @@ export async function createProject(customerId, projectData, calculatorResults) 
     const quotedPrice = numberOrZero(
       projectData.suggestedPrice || calculatorResults.special || calculatorResults.costWith
     );
+    const billOfMaterials = Array.isArray(calculatorResults.billOfMaterials)
+      ? calculatorResults.billOfMaterials.map(sanitizeBomLine).filter(Boolean)
+      : [];
+    const inventoryAssessment = sanitizeInventoryAssessment(
+      calculatorResults.inventoryAssessment,
+      billOfMaterials
+    );
 
     const newProject = {
       projectId,
@@ -87,8 +131,11 @@ export async function createProject(customerId, projectData, calculatorResults) 
 
       status: PROJECT_STATUS.QUOTE_PENDING,
       panelCount: numberOrZero(calculatorResults.panelCount),
+      panel: calculatorResults.panel || null,
       inverter: calculatorResults.inverter,
       battery: calculatorResults.battery || null,
+      billOfMaterials,
+      inventoryAssessment,
 
       materialCost,
       laborCost,
