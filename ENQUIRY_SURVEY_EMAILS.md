@@ -33,6 +33,8 @@ Inventory supports two explicit panel categories:
 
 Use **Smart Inventory & Equipment → Add panel starters** to create one starter record for each category. Starter records deliberately have zero stock, zero prices and calculator use disabled. Edit them with the actual brand, cell technology, wattage, supplier, cost, selling price and stock before enabling calculator recommendations.
 
+The starter action is idempotent: running it again skips records that already exist. Panel records remain available to authorized project staff even when out of stock, but zero-price starter records must be completed before operational use.
+
 ## Site survey gate
 
 A project starts with:
@@ -72,7 +74,7 @@ Failed messages remain in Project Workspace communication history and can be ret
 
 ## Deployment
 
-Deploy the Netlify site after merging so the new functions and `pdfkit` dependency are installed.
+Deploy the Netlify site after merging so the new functions and `pdfkit` dependency are installed. A full production deploy is required; republishing only the static `dist` directory would omit the enquiry, survey and PDF functions.
 
 No new browser permission is granted. Enquiries, project notifications and internal survey details remain inaccessible to customer browser code.
 
