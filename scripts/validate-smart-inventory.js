@@ -120,7 +120,7 @@ const router = requireText('src/router.js', [
 if (router.includes('import EquipmentCatalog')) fail('router still imports the removed duplicate equipment screen');
 
 const navigation = source('src/constants/adminNavigation.js');
-if (navigation.includes("routeName: 'EquipmentCatalog'")) fail('equipment is still exposed as a separate navigation module');
+if (navigation.includes("routeName: 'EquipmentCatalog'")) fail('equipment is still exposed as a separate administration module');
 if (!navigation.includes('Smart Inventory & Equipment')) fail('unified inventory navigation title is missing');
 
 const rules = requireText('firestore.rules', [
@@ -129,7 +129,9 @@ const rules = requireText('firestore.rules', [
   "match /projectOperations/{projectId}",
   "match /projectNotifications/{notificationId}",
   "match /deletedProjects/{projectId}",
-  'allow create, update, delete: if false;'
+  'allow create: if false;',
+  'allow update: if false;',
+  'allow delete: if false;'
 ]);
 if (!rules.includes('request.resource.data.reorderPoint is int')) fail('Firestore does not validate restock policy fields');
 
