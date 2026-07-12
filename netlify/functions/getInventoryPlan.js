@@ -4,6 +4,7 @@ const {
   inventoryDocuments,
   legacyEquipmentItems
 } = require('./_inventoryPlanning');
+const { mergeProjectOperations } = require('./_projectPrivacy');
 
 exports.handler = async event => {
   if (event.httpMethod !== 'GET') {
@@ -15,9 +16,16 @@ exports.handler = async event => {
 
   try {
     const { db } = authorization;
-    const [inventorySnapshot, projectsSnapshot, inverterSnapshot, batterySnapshot] = await Promise.all([
+    const [
+      inventorySnapshot,
+      projectsSnapshot,
+      operationsSnapshot,
+      inverterSnapshot,
+      batterySnapshot
+    ] = await Promise.all([
       db.collection('inventory').get(),
       db.collection('projects').get(),
+      db.collection('projectOperations').get(),
       db.collection('inverters').get(),
       db.collection('batteries').get()
     ]);
@@ -28,10 +36,13 @@ exports.handler = async event => {
       batterySnapshot,
       unifiedInventory
     );
-    const projects = projectsSnapshot.docs.map(projectDoc => ({
-      id: projectDoc.id,
-      ...projectDoc.data()
-    }));
+    const operationsById = new Map(
+      operationsSnapshot.docs.map(operationDoc => [operationDoc.id, operationDoc.data()])
+    );
+    const projects = projectsSnapshot.docs.map(projectDoc => mergeProjectOperations(
+      { id: projectDoc.id, ...projectDoc.data() },
+      operationsById.get(projectDoc.id)
+    ));
     const plan = buildInventoryPlan([...unifiedInventory, ...legacyFallback], projects);
 
     return jsonResponse(200, {
