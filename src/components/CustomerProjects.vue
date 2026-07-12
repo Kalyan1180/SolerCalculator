@@ -6,7 +6,7 @@
           <div>
             <span class="marketing-eyebrow"><i class="fas fa-folder-open" aria-hidden="true"></i>Customer workspace</span>
             <h1 class="h2 mb-2">My Solar Projects</h1>
-            <p class="text-muted mb-0">Track quotation, approval, payment and installation progress.</p>
+            <p class="text-muted mb-0">Track your quotation, payments, installation schedule and project updates.</p>
           </div>
           <button class="btn btn-outline-secondary" :disabled="loading" @click="loadProjects">
             <i class="fas fa-rotate me-2" aria-hidden="true"></i>Refresh
@@ -20,54 +20,73 @@
         <div v-if="error" class="alert alert-danger"><i class="fas fa-circle-exclamation me-2"></i>{{ error }}</div>
 
         <div v-if="!loading && projects.length" class="row g-4">
-          <div v-for="project in projects" :key="project.id || project.projectId" class="col-xl-6">
-            <article class="card h-100">
-              <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div v-for="project in projects" :key="project.id || project.projectId" class="col-12">
+            <article class="card project-card">
+              <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
                   <small class="text-muted d-block">Project</small>
                   <h2 class="h5 mb-0">#{{ shortId(project.projectId || project.id) }}</h2>
                 </div>
-                <span class="badge text-white" :style="{ backgroundColor: getStatusColor(project.status) }">{{ getStatusLabel(project.status) }}</span>
+                <span class="status-badge text-white" :style="{ backgroundColor: getStatusColor(project.status) }">{{ getStatusLabel(project.status) }}</span>
               </div>
 
               <div class="card-body">
+                <div class="next-step mb-4">
+                  <span class="next-step__icon"><i class="fas fa-compass"></i></span>
+                  <div><small>What happens next</small><strong>{{ nextStep(project.status) }}</strong></div>
+                </div>
+
                 <div class="row g-3 mb-4">
-                  <div class="col-sm-4"><div class="project-fact"><small>Panels</small><strong>{{ numberValue(project.panelCount) }}</strong></div></div>
-                  <div class="col-sm-4"><div class="project-fact"><small>Inverter</small><strong>{{ project.inverter?.name || 'N/A' }}</strong></div></div>
-                  <div class="col-sm-4"><div class="project-fact"><small>Battery</small><strong>{{ project.battery?.selectedBattery?.name || 'Not required' }}</strong></div></div>
+                  <div class="col-md-4"><div class="project-fact"><small>Solar panels</small><strong>{{ numberValue(project.panelCount) }} × {{ project.panel?.name || 'Solar panel' }}</strong></div></div>
+                  <div class="col-md-4"><div class="project-fact"><small>Inverter</small><strong>{{ project.inverter?.name || 'To be confirmed' }}</strong></div></div>
+                  <div class="col-md-4"><div class="project-fact"><small>Battery</small><strong>{{ project.battery?.selectedBattery ? `${numberValue(project.battery.quantity)} × ${project.battery.selectedBattery.name}` : 'Not required' }}</strong></div></div>
                 </div>
 
-                <div class="project-price mb-4">
-                  <span class="text-muted">Quoted price</span>
-                  <strong>Rs {{ formatCurrency(project.quotedPrice) }}</strong>
-                </div>
+                <div class="row g-4">
+                  <div class="col-lg-5">
+                    <section class="customer-panel h-100">
+                      <h3 class="h6 mb-3">Payment summary</h3>
+                      <div class="payment-row"><span>Project value</span><strong>Rs {{ formatCurrency(project.quotedPrice) }}</strong></div>
+                      <div class="payment-row"><span>Advance agreed</span><strong>Rs {{ formatCurrency(project.advanceAmount) }} <small>({{ numberValue(project.advancePercentage) }}%)</small></strong></div>
+                      <div class="payment-row"><span>Amount received</span><strong class="text-success">Rs {{ formatCurrency(amountPaid(project)) }}</strong></div>
+                      <div class="payment-row"><span>Amount remaining</span><strong :class="amountDue(project) > 0 ? 'text-danger' : 'text-success'">Rs {{ formatCurrency(amountDue(project)) }}</strong></div>
+                      <div class="progress mt-3" style="height:8px"><div class="progress-bar bg-success" :style="{ width: `${paymentProgress(project)}%` }"></div></div>
+                      <small class="text-muted">{{ paymentProgress(project).toFixed(0) }}% paid</small>
 
-                <div class="payment-grid mb-4">
-                  <div class="payment-item" :class="{ active: advancePaid(project) }">
-                    <span class="payment-icon"><i :class="advancePaid(project) ? 'fas fa-circle-check' : 'far fa-circle'" aria-hidden="true"></i></span>
-                    <div><small>Advance</small><strong>Rs {{ formatCurrency(project.advanceAmount) }}</strong></div>
+                      <div v-if="project.paymentHistory?.length" class="mt-4">
+                        <h4 class="small fw-bold">Payments received</h4>
+                        <div v-for="payment in project.paymentHistory" :key="payment.paymentId || `${payment.recordedAt}-${payment.amount}`" class="receipt-row">
+                          <div><strong>Rs {{ formatCurrency(payment.amount) }}</strong><small>{{ payment.method || 'Payment' }}<span v-if="payment.reference"> · {{ payment.reference }}</span></small></div>
+                          <span>{{ formatDate(payment.receivedAt || payment.recordedAt) }}</span>
+                        </div>
+                      </div>
+                    </section>
                   </div>
-                  <div class="payment-item" :class="{ active: project.paymentStatus === 'balance_paid' }">
-                    <span class="payment-icon"><i :class="project.paymentStatus === 'balance_paid' ? 'fas fa-circle-check' : 'far fa-circle'" aria-hidden="true"></i></span>
-                    <div><small>Balance</small><strong>Rs {{ formatCurrency(project.balanceAmount) }}</strong></div>
+
+                  <div class="col-lg-7">
+                    <section class="customer-panel h-100">
+                      <h3 class="h6 mb-3">Project updates</h3>
+                      <div v-if="project.statusHistory?.length" class="update-timeline">
+                        <div v-for="(entry, index) in orderedStatusHistory(project)" :key="`${entry.changedAt}-${index}`" class="update-entry">
+                          <span class="update-dot"><i class="fas fa-check"></i></span>
+                          <div><div class="d-flex flex-wrap justify-content-between gap-2"><strong>{{ getStatusLabel(entry.to) }}</strong><small class="text-muted">{{ formatDateTime(entry.changedAt) }}</small></div><p v-if="entry.message" class="mb-0 text-muted">{{ entry.message }}</p></div>
+                        </div>
+                      </div>
+                      <div v-else class="text-muted">Updates from our team will appear here.</div>
+                    </section>
                   </div>
                 </div>
 
-                <div class="project-timeline" aria-label="Project progress">
-                  <div v-for="step in timelineSteps(project)" :key="step.label" class="project-timeline__step" :class="{ completed: step.completed }">
-                    <span class="project-timeline__dot"><i v-if="step.completed" class="fas fa-check" aria-hidden="true"></i></span>
-                    <small>{{ step.label }}</small>
-                  </div>
+                <div v-if="project.installationScheduledDate" class="schedule-banner mt-4">
+                  <i class="fas fa-calendar-check"></i>
+                  <div><small>Installation scheduled</small><strong>{{ formatDate(project.installationScheduledDate) }}</strong></div>
                 </div>
-
-                <div v-if="project.customerNotes" class="alert alert-info mt-4 mb-0">
-                  <strong class="d-block mb-1">Your notes</strong>{{ project.customerNotes }}
-                </div>
+                <div v-if="project.customerNotes" class="alert alert-info mt-4 mb-0"><strong class="d-block mb-1">Your notes</strong>{{ project.customerNotes }}</div>
               </div>
 
-              <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center">
+              <div class="card-footer bg-white border-top d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <small class="text-muted">Created {{ formatDate(project.createdAt) }}</small>
-                <span class="small fw-semibold text-primary">{{ getStatusLabel(project.status) }}</span>
+                <span class="small fw-semibold text-primary">Need help? Contact ANT Solar and quote your project ID.</span>
               </div>
             </article>
           </div>
@@ -90,91 +109,58 @@ import { auth } from '@/firebase';
 import { getCustomerProjects } from '@/models/projectModel';
 import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/constants/businessConstants';
 
+const NEXT_STEPS = Object.freeze({
+  quote_pending: 'Our team is preparing your quotation.',
+  quote_sent: 'Review the quotation and contact us with any questions.',
+  quote_rejected: 'Contact us if you would like a revised solution.',
+  approved: 'Complete the agreed advance payment so scheduling can proceed.',
+  installation_scheduled: 'Keep the installation area accessible on the scheduled date.',
+  in_progress: 'Our team is installing and commissioning your solar system.',
+  completed: 'Your installation is complete. Contact us for service or warranty support.',
+  cancelled: 'Contact us if you would like to restart this project.'
+});
+
 export default {
   name: 'CustomerProjects',
-  data() {
-    return { projects: [], loading: false, error: '', currentUser: null, unsubscribeAuth: null };
-  },
+  data() { return { projects: [], loading: false, error: '', currentUser: null, unsubscribeAuth: null }; },
   created() {
     this.unsubscribeAuth = onAuthStateChanged(auth, async user => {
       this.currentUser = user;
       if (user) await this.loadProjects();
     });
   },
-  beforeUnmount() {
-    if (this.unsubscribeAuth) this.unsubscribeAuth();
-  },
+  beforeUnmount() { if (this.unsubscribeAuth) this.unsubscribeAuth(); },
   methods: {
-    numberValue(value) {
-      const number = Number(value);
-      return Number.isFinite(number) ? number : 0;
-    },
+    numberValue(value) { const number = Number(value); return Number.isFinite(number) ? number : 0; },
+    toDate(value) { if (!value) return null; if (typeof value.toDate === 'function') return value.toDate(); if (value._seconds) return new Date(value._seconds * 1000); const date = new Date(value); return Number.isNaN(date.getTime()) ? null : date; },
     async loadProjects() {
       if (!this.currentUser) return;
-      this.loading = true;
-      this.error = '';
-      try {
-        const result = await getCustomerProjects(this.currentUser.uid);
-        if (!result.success) throw new Error(result.error || 'Failed to load projects');
-        this.projects = result.projects;
-      } catch (error) {
-        this.error = error.message || 'Unable to load your projects.';
-      } finally {
-        this.loading = false;
-      }
+      this.loading = true; this.error = '';
+      try { const result = await getCustomerProjects(); if (!result.success) throw new Error(result.error || 'Failed to load projects'); this.projects = result.projects; }
+      catch (error) { this.error = error.message || 'Unable to load your projects.'; }
+      finally { this.loading = false; }
     },
-    shortId(value) {
-      return String(value || 'unknown').slice(0, 12);
-    },
-    advancePaid(project) {
-      return ['advance_paid', 'balance_paid'].includes(project.paymentStatus);
-    },
-    timelineSteps(project) {
-      return [
-        { label: 'Quote', completed: Boolean(project.quoteSentDate) },
-        { label: 'Approved', completed: Boolean(project.approvalDate) },
-        { label: 'Scheduled', completed: Boolean(project.installationScheduledDate) },
-        { label: 'Installed', completed: Boolean(project.completionDate) }
-      ];
-    },
-    getStatusLabel(status) {
-      return PROJECT_STATUS_LABELS[status] || status || 'Unknown';
-    },
-    getStatusColor(status) {
-      return PROJECT_STATUS_COLORS[status] || '#667085';
-    },
-    formatCurrency(value) {
-      return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(this.numberValue(value));
-    },
-    formatDate(timestamp) {
-      if (!timestamp) return 'N/A';
-      const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp);
-      return Number.isNaN(date.getTime()) ? 'N/A' : new Intl.DateTimeFormat('en-IN').format(date);
-    }
+    shortId(value) { return String(value || 'unknown').slice(0, 18); },
+    amountPaid(project) { const explicit = this.numberValue(project.amountPaid); return explicit || (project.paymentHistory || []).reduce((sum, payment) => sum + this.numberValue(payment.amount), 0); },
+    amountDue(project) { return Math.max(0, this.numberValue(project.quotedPrice) - this.amountPaid(project)); },
+    paymentProgress(project) { return this.numberValue(project.quotedPrice) > 0 ? Math.min(100, this.amountPaid(project) / this.numberValue(project.quotedPrice) * 100) : 0; },
+    orderedStatusHistory(project) { return [...(project.statusHistory || [])].sort((a, b) => (this.toDate(b.changedAt)?.getTime() || 0) - (this.toDate(a.changedAt)?.getTime() || 0)); },
+    nextStep(status) { return NEXT_STEPS[status] || 'Our team will contact you with the next update.'; },
+    getStatusLabel(status) { return PROJECT_STATUS_LABELS[status] || status || 'Unknown'; },
+    getStatusColor(status) { return PROJECT_STATUS_COLORS[status] || '#667085'; },
+    formatCurrency(value) { return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(this.numberValue(value)); },
+    formatDate(value) { const date = this.toDate(value); return date ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(date) : 'Not set'; },
+    formatDateTime(value) { const date = this.toDate(value); return date ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : 'Pending'; }
   }
 };
 </script>
 
 <style scoped>
-.project-fact { height: 100%; padding: 0.9rem; border: 1px solid var(--ant-slate-200); border-radius: 10px; background: var(--ant-slate-50); }
-.project-fact small, .project-fact strong { display: block; }
-.project-fact small { color: var(--ant-slate-500); }
-.project-fact strong { margin-top: 0.25rem; color: var(--ant-slate-800); }
-.project-price { display: flex; align-items: center; justify-content: space-between; padding: 1rem; border-radius: 10px; background: #eff4ff; }
-.project-price strong { color: var(--ant-blue-700); font-size: 1.15rem; }
-.payment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
-.payment-item { display: flex; align-items: center; gap: 0.65rem; padding: 0.9rem; border: 1px solid var(--ant-slate-200); border-radius: 10px; opacity: 0.7; }
-.payment-item.active { border-color: #abefc6; background: #ecfdf3; opacity: 1; }
-.payment-item small, .payment-item strong { display: block; }
-.payment-icon { color: var(--ant-slate-400); }
-.payment-item.active .payment-icon { color: var(--ant-green-600); }
-.project-timeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
-.project-timeline__step { position: relative; display: grid; justify-items: center; gap: 0.45rem; color: var(--ant-slate-400); text-align: center; }
-.project-timeline__step::before { position: absolute; top: 15px; left: calc(-50% + 15px); width: calc(100% - 30px); height: 2px; background: var(--ant-slate-200); content: ''; }
-.project-timeline__step:first-child::before { display: none; }
-.project-timeline__step.completed { color: var(--ant-green-600); }
-.project-timeline__step.completed::before { background: var(--ant-green-600); }
-.project-timeline__dot { z-index: 1; display: grid; place-items: center; width: 30px; height: 30px; border: 2px solid var(--ant-slate-300); border-radius: 50%; background: #fff; font-size: 0.68rem; }
-.project-timeline__step.completed .project-timeline__dot { border-color: var(--ant-green-600); color: #fff; background: var(--ant-green-600); }
-@media (max-width: 575.98px) { .payment-grid { grid-template-columns: 1fr; } }
+.project-card { overflow:hidden; }.status-badge { padding:.45rem .75rem; border-radius:999px; font-size:.78rem; font-weight:800; }
+.next-step { display:flex; align-items:center; gap:.8rem; padding:1rem; border:1px solid #bfdbfe; border-radius:12px; background:#eff6ff; }.next-step__icon { display:grid; place-items:center; width:42px; height:42px; border-radius:11px; background:#dbeafe; color:#1d4ed8; }.next-step small,.next-step strong { display:block; }.next-step small { color:#64748b; }
+.project-fact { height:100%; padding:1rem; border:1px solid var(--ant-slate-200); border-radius:12px; background:var(--ant-slate-50); }.project-fact small,.project-fact strong { display:block; }.project-fact small { color:var(--ant-slate-500); }.project-fact strong { margin-top:.3rem; }
+.customer-panel { padding:1rem; border:1px solid var(--ant-slate-200); border-radius:12px; }.payment-row { display:flex; justify-content:space-between; gap:1rem; padding:.5rem 0; border-bottom:1px solid var(--ant-slate-100); }.payment-row span { color:var(--ant-slate-500); }
+.receipt-row { display:flex; justify-content:space-between; gap:1rem; padding:.65rem 0; border-top:1px solid var(--ant-slate-100); }.receipt-row strong,.receipt-row small { display:block; }.receipt-row small,.receipt-row > span { color:var(--ant-slate-500); font-size:.8rem; }
+.update-timeline { display:grid; gap:1rem; }.update-entry { display:grid; grid-template-columns:30px 1fr; gap:.75rem; }.update-dot { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:#dcfce7; color:#166534; font-size:.7rem; }
+.schedule-banner { display:flex; align-items:center; gap:.8rem; padding:1rem; border-radius:12px; background:#f0fdf4; color:#166534; }.schedule-banner i { font-size:1.3rem; }.schedule-banner small,.schedule-banner strong { display:block; }
 </style>

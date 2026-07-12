@@ -89,62 +89,6 @@ service cloud.firestore {
       return activeSession() && request.auth.uid == userId;
     }
 
-    function projectIdentityUnchanged() {
-      return request.resource.data.projectId == resource.data.projectId
-        && request.resource.data.customerId == resource.data.customerId
-        && request.resource.data.createdAt == resource.data.createdAt;
-    }
-
-    function operationalProjectFieldsOnly() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'status',
-        'updatedAt',
-        'sitePhotos',
-        'customerSignoff',
-        'completionNotes',
-        'finalPrice',
-        'quoteSentDate',
-        'approvalDate',
-        'advanceAmount',
-        'balanceAmount',
-        'installationScheduledDate',
-        'installationStartDate',
-        'completionDate'
-      ]);
-    }
-
-    function paymentProjectFieldsOnly() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'paymentStatus',
-        'paymentHistory',
-        'updatedAt'
-      ]);
-    }
-
-    function validOperationsCreate(projectId) {
-      return request.resource.data.projectId == projectId
-        && request.resource.data.keys().hasOnly([
-          'projectId',
-          'adminNotes',
-          'technicalNotes',
-          'techniciansAssigned',
-          'updatedAt'
-        ]);
-    }
-
-    function operationsIdentityUnchanged() {
-      return request.resource.data.projectId == resource.data.projectId;
-    }
-
-    function operationsUpdateFieldsOnly() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'adminNotes',
-        'technicalNotes',
-        'techniciansAssigned',
-        'updatedAt'
-      ]);
-    }
-
     function validInventoryItem(itemId) {
       return request.resource.data.itemId == itemId
         && request.resource.data.type in ['panel', 'inverter', 'battery', 'wiring', 'mounting', 'other']
@@ -183,35 +127,30 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      // Staff may use Firestore directly. Customer reads go through getMyProjects,
-      // which returns a strict allowlist and sanitizes legacy project documents.
+      // Customer reads go through getMyProjects, which applies a strict allowlist.
       allow read: if hasPermission('projects.read');
 
-      // Quotation and project creation is performed only by the authenticated
-      // createQuotation Netlify function. Browser clients cannot inject prices,
-      // equipment identifiers, demand quantities or internal planning fields.
+      // The createQuotation Netlify function creates projects. All later editing,
+      // status, payment and deletion workflows are also authenticated functions.
       allow create: if false;
-
-      allow update: if projectIdentityUnchanged() && (
-        (
-          hasPermission('projects.update')
-          && operationalProjectFieldsOnly()
-        )
-        || (
-          hasPermission('projects.payments')
-          && paymentProjectFieldsOnly()
-        )
-      );
-      allow delete: if hasPermission('projects.delete');
+      allow update: if false;
+      allow delete: if false;
     }
 
     match /projectOperations/{projectId} {
+      // BOM, costs, stock planning, activity and internal notes are staff-only.
       allow read: if hasPermission('projects.read');
-      allow create: if hasPermission('projects.update') && validOperationsCreate(projectId);
-      allow update: if hasPermission('projects.update')
-        && operationsIdentityUnchanged()
-        && operationsUpdateFieldsOnly();
+      allow create: if false;
+      allow update: if false;
       allow delete: if false;
+    }
+
+    match /projectNotifications/{notificationId} {
+      allow read, write: if false;
+    }
+
+    match /deletedProjects/{projectId} {
+      allow read, write: if false;
     }
 
     match /inventory/{itemId} {
@@ -220,14 +159,10 @@ service cloud.firestore {
       allow delete: if hasPermission('inventory.write');
     }
 
-    // Temporary recommendation documents contain protected planning data and
-    // are never readable or writable by browser clients.
     match /recommendations/{recommendationId} {
       allow read, write: if false;
     }
 
-    // Legacy equipment collections remain accessible only through trusted Admin SDK
-    // migration code. The inventory collection is the sole mutable source of truth.
     match /inverters/{itemId} {
       allow read, write: if false;
     }

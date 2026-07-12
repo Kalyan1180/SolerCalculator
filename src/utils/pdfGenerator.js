@@ -10,7 +10,7 @@ function numberValue(value) {
 }
 
 function formatCurrency(value) {
-  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(numberValue(value));
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(numberValue(value));
 }
 
 function textValue(value, fallback = 'N/A') {
@@ -20,6 +20,14 @@ function textValue(value, fallback = 'N/A') {
 
 function safeFilePart(value) {
   return textValue(value, 'project').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+}
+
+function paidAmount(project) {
+  const explicit = Math.max(0, numberValue(project?.amountPaid));
+  const history = Array.isArray(project?.paymentHistory)
+    ? project.paymentHistory.reduce((sum, entry) => sum + Math.max(0, numberValue(entry?.amount)), 0)
+    : 0;
+  return Math.max(explicit, history);
 }
 
 function addPageIfNeeded(doc, yPosition, requiredHeight = 20) {
@@ -164,7 +172,12 @@ export async function downloadQuotationPDF(project) {
     yPosition = drawLabelValue(doc, 'Address', project.address, yPosition);
 
     yPosition = drawSectionTitle(doc, 'SYSTEM DETAILS', yPosition + 3);
-    yPosition = drawLabelValue(doc, 'Solar Panels', `${numberValue(project.panelCount)} unit(s)`, yPosition);
+    yPosition = drawLabelValue(
+      doc,
+      'Solar Panels',
+      `${numberValue(project.panelCount)} x ${project.panel?.name || 'Solar panel'}`,
+      yPosition
+    );
     yPosition = drawLabelValue(doc, 'Inverter', project.inverter?.name, yPosition);
     yPosition = drawLabelValue(
       doc,
@@ -175,19 +188,20 @@ export async function downloadQuotationPDF(project) {
       yPosition
     );
 
-    yPosition = drawSectionTitle(doc, 'COST BREAKDOWN', yPosition + 3);
+    const advancePercentage = numberValue(project.advancePercentage) || 50;
+    yPosition = drawSectionTitle(doc, 'COMMERCIAL SUMMARY', yPosition + 3);
     yPosition = drawTwoColumnTable(doc, [
-      ['Equipment/material', `Rs. ${formatCurrency(project.materialCost)}`],
-      ['Installation/labour', `Rs. ${formatCurrency(project.laborCost)}`],
-      ['Cost before profit', `Rs. ${formatCurrency(project.totalCostWithoutMarkup)}`],
-      ['QUOTED PRICE', `Rs. ${formatCurrency(project.quotedPrice)}`]
+      [`Advance (${formatCurrency(advancePercentage)}%)`, `Rs. ${formatCurrency(project.advanceAmount)}`],
+      ['Balance after advance', `Rs. ${formatCurrency(project.balanceAmount)}`],
+      ['TOTAL QUOTED PRICE', `Rs. ${formatCurrency(project.quotedPrice)}`]
     ], yPosition);
 
     yPosition = drawSectionTitle(doc, 'TERMS AND CONDITIONS', yPosition + 3);
     const terms = [
       'This quotation is valid for seven days from the date shown above.',
-      'A 50% advance payment is required before installation scheduling.',
-      'The final specification and price remain subject to site-survey confirmation.'
+      `An advance payment of ${formatCurrency(advancePercentage)}% (Rs. ${formatCurrency(project.advanceAmount)}) is required according to the agreed project terms.`,
+      'Installation scheduling is subject to receipt of the agreed advance and site readiness.',
+      'The final specification and price remain subject to site-survey confirmation before material allocation.'
     ];
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -198,9 +212,9 @@ export async function downloadQuotationPDF(project) {
       yPosition += lines.length * LINE_HEIGHT;
     });
 
-    if (project.adminNotes) {
-      yPosition = drawSectionTitle(doc, 'NOTES', yPosition + 3);
-      const lines = doc.splitTextToSize(textValue(project.adminNotes), doc.internal.pageSize.getWidth() - (PAGE_MARGIN * 2));
+    if (project.customerNotes) {
+      yPosition = drawSectionTitle(doc, 'CUSTOMER REQUIREMENT NOTES', yPosition + 3);
+      const lines = doc.splitTextToSize(textValue(project.customerNotes), doc.internal.pageSize.getWidth() - (PAGE_MARGIN * 2));
       yPosition = addPageIfNeeded(doc, yPosition, lines.length * LINE_HEIGHT);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
@@ -241,18 +255,20 @@ export async function downloadInvoicePDF(project) {
       ? `${panelCount} solar panel(s), ${inverterName}, ${batteryQuantity} x ${batteryName}`
       : `${panelCount} solar panel(s) and ${inverterName}`;
     const rows = [
-      ['Solar equipment/material package', 1, `Rs. ${formatCurrency(project.materialCost)}`, `Rs. ${formatCurrency(project.materialCost)}`],
-      [equipmentDescription, 1, 'Included', 'Included'],
-      ['Installation and labour', 1, `Rs. ${formatCurrency(project.laborCost)}`, `Rs. ${formatCurrency(project.laborCost)}`]
+      ['Solar system supply and installation', 1, `Rs. ${formatCurrency(project.quotedPrice)}`, `Rs. ${formatCurrency(project.quotedPrice)}`],
+      [equipmentDescription, 1, 'Included', 'Included']
     ];
 
     yPosition = drawSectionTitle(doc, 'INVOICE ITEMS', yPosition + 3);
     yPosition = drawFourColumnTable(doc, rows, yPosition);
     yPosition = drawSectionTitle(doc, 'PAYMENT SUMMARY', yPosition + 3);
+    const received = paidAmount(project);
+    const due = Math.max(0, numberValue(project.quotedPrice) - received);
     drawTwoColumnTable(doc, [
-      ['Total invoice amount', `Rs. ${formatCurrency(project.quotedPrice)}`],
-      ['Advance amount', `Rs. ${formatCurrency(project.advanceAmount)}`],
-      ['Balance amount', `Rs. ${formatCurrency(project.balanceAmount)}`]
+      [`Agreed advance (${formatCurrency(project.advancePercentage || 50)}%)`, `Rs. ${formatCurrency(project.advanceAmount)}`],
+      ['Amount received', `Rs. ${formatCurrency(received)}`],
+      ['Amount due', `Rs. ${formatCurrency(due)}`],
+      ['TOTAL INVOICE AMOUNT', `Rs. ${formatCurrency(project.quotedPrice)}`]
     ], yPosition);
 
     addPageNumbers(doc);

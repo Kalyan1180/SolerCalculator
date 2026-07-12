@@ -13,7 +13,8 @@
     "validate:session": "node scripts/validate-session.js",
     "validate:ui-access": "node scripts/validate-ui-access.js",
     "validate:inventory": "node scripts/validate-smart-inventory.js",
-    "validate:customer-privacy": "node scripts/validate-customer-privacy.js"
+    "validate:customer-privacy": "node scripts/validate-customer-privacy.js",
+    "validate:operations": "node scripts/validate-project-operations.js"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",

@@ -1,467 +1,416 @@
 <template>
-  <div class="project-approval container-fluid py-4">
+  <div class="project-workspace container-fluid py-4">
     <div v-if="loading" class="text-center my-5" role="status">
       <div class="spinner-border text-primary"></div>
-      <p class="mt-2 text-muted">Loading project…</p>
+      <p class="mt-3 text-muted">Loading project workspace…</p>
     </div>
 
     <div v-if="error" class="alert alert-danger alert-dismissible fade show" role="alert">
-      {{ error }}
+      <i class="fas fa-circle-exclamation me-2"></i>{{ error }}
       <button type="button" class="btn-close" aria-label="Close" @click="error = ''"></button>
     </div>
-    <div v-if="successMessage" class="alert alert-success" role="status">{{ successMessage }}</div>
+    <div v-if="successMessage" class="alert alert-success" role="status">
+      <i class="fas fa-circle-check me-2"></i>{{ successMessage }}
+    </div>
+    <div v-if="warningMessage" class="alert alert-warning" role="status">
+      <i class="fas fa-triangle-exclamation me-2"></i>{{ warningMessage }}
+    </div>
 
-    <div v-if="!loading && project" class="row g-4">
-      <div class="col-lg-8">
-        <div class="card mb-4">
-          <div class="card-header bg-primary text-white d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div>
-              <small class="text-white-50 d-block">Project workspace</small>
-              <h4 class="mb-0">#{{ shortProjectId }}</h4>
-            </div>
-            <span class="badge" :style="{ backgroundColor: getStatusColor(project.status) }">
+    <template v-if="!loading && project">
+      <header class="workspace-header mb-4">
+        <div>
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="eyebrow">Project workspace</span>
+            <span class="status-pill" :style="{ backgroundColor: getStatusColor(project.status) }">
               {{ getStatusLabel(project.status) }}
             </span>
           </div>
-          <div class="card-body">
-            <h5>Customer Information</h5>
-            <div class="row mb-4">
-              <div class="col-md-6">
-                <p><strong>Name:</strong> {{ project.customerName || 'N/A' }}</p>
-                <p><strong>Email:</strong> <a :href="`mailto:${project.customerEmail}`">{{ project.customerEmail || 'N/A' }}</a></p>
-                <p><strong>Phone:</strong> <a :href="`tel:${project.customerPhone}`">{{ project.customerPhone || 'N/A' }}</a></p>
-              </div>
-              <div class="col-md-6">
-                <p><strong>Address:</strong> {{ project.address || 'N/A' }}</p>
-                <p><strong>Created:</strong> {{ formatDate(project.createdAt) }}</p>
-              </div>
-            </div>
+          <h1 class="h3 mb-1">#{{ shortProjectId }}</h1>
+          <p class="text-muted mb-0">Customer, quotation, equipment, payment, stock and communication control.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button v-if="canUpdateProject" class="btn btn-primary" :disabled="busyAction" @click="toggleEdit">
+            <i :class="editMode ? 'fas fa-xmark' : 'fas fa-pen-to-square'" class="me-2"></i>
+            {{ editMode ? 'Close editor' : 'Edit project' }}
+          </button>
+          <router-link :to="{ name: 'ProjectManagement' }" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Projects
+          </router-link>
+        </div>
+      </header>
 
-            <hr />
-            <h5>Solar Specifications</h5>
+      <section v-if="canUpdateProject && editMode" class="card border-primary mb-4">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <h2 class="h5 mb-1">Edit project and quotation</h2>
+            <p class="small text-muted mb-0">Equipment lists include low-stock and out-of-stock products. Stock is not deducted until your operational process allocates it.</p>
+          </div>
+          <span class="badge bg-light text-dark">Revision {{ project.revision || 0 }}</span>
+        </div>
+        <div class="card-body">
+          <form @submit.prevent="saveProject">
+            <div class="section-title"><span>Customer and ownership</span></div>
             <div class="row g-3 mb-4">
-              <div class="col-md-4">
-                <div class="spec-card h-100">
-                  <div class="text-muted">Panels</div>
-                  <h3>{{ numberValue(project.panelCount) }}</h3>
-                  <small>{{ project.panel?.name || 'Legacy/default panel' }}</small>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="spec-card h-100">
-                  <div class="text-muted">Inverter</div>
-                  <h5>{{ project.inverter?.name || 'N/A' }}</h5>
-                  <small>{{ numberValue(project.inverter?.peakLoad || project.inverter?.specs?.peakLoad) }} KVA</small>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="spec-card h-100">
-                  <div class="text-muted">Battery</div>
-                  <h5>{{ project.battery?.selectedBattery?.name || 'Not required' }}</h5>
-                  <small v-if="project.battery?.selectedBattery">{{ numberValue(project.battery?.quantity) }} unit(s)</small>
-                </div>
-              </div>
+              <div class="col-md-6"><label class="form-label">Customer name</label><input v-model.trim="editForm.customerName" class="form-control" maxlength="100" required /></div>
+              <div class="col-md-6"><label class="form-label">Customer email</label><input v-model.trim="editForm.customerEmail" type="email" class="form-control" required /></div>
+              <div class="col-md-6"><label class="form-label">Phone</label><input v-model.trim="editForm.customerPhone" class="form-control" maxlength="30" required /></div>
+              <div class="col-md-6"><label class="form-label">Installation address</label><input v-model.trim="editForm.address" class="form-control" maxlength="500" required /></div>
+              <div class="col-md-6"><label class="form-label">Sales owner</label><input v-model.trim="editForm.salesOwner" class="form-control" maxlength="150" placeholder="Name or team" /></div>
+              <div class="col-md-6"><label class="form-label">Installation coordinator</label><input v-model.trim="editForm.installationCoordinator" class="form-control" maxlength="150" placeholder="Name or team" /></div>
             </div>
 
-            <hr />
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-              <div>
-                <h5 class="mb-1">Quotation Stock Readiness</h5>
-                <p class="small text-muted mb-0">Live availability after other committed projects are considered.</p>
+            <div class="section-title"><span>System equipment</span></div>
+            <div class="row g-3 mb-2">
+              <div class="col-md-4">
+                <label class="form-label">Panel model</label>
+                <select v-model="editForm.panelId" class="form-select" required>
+                  <option v-for="item in equipment.panels" :key="item.id" :value="item.id" :disabled="item.discontinued && item.id !== selectedIds.panelId">
+                    {{ optionLabel(item) }}
+                  </option>
+                </select>
               </div>
+              <div class="col-md-2"><label class="form-label">Panel quantity</label><input v-model.number="editForm.panelCount" type="number" min="1" max="500" step="1" class="form-control" required /></div>
+              <div class="col-md-6">
+                <label class="form-label">Inverter</label>
+                <select v-model="editForm.inverterId" class="form-select" required @change="handleInverterChange">
+                  <option v-for="item in equipment.inverters" :key="item.id" :value="item.id" :disabled="item.discontinued && item.id !== selectedIds.inverterId">
+                    {{ optionLabel(item, inverterSpecification(item)) }}
+                  </option>
+                </select>
+              </div>
+              <div class="col-md-8">
+                <label class="form-label">Battery</label>
+                <select v-model="editForm.batteryId" class="form-select" :disabled="selectedInverterBatteryVoltage <= 0">
+                  <option value="">{{ selectedInverterBatteryVoltage <= 0 ? 'Not supported / grid-tie configuration' : 'Select compatible battery' }}</option>
+                  <option v-for="item in equipment.batteries" :key="item.id" :value="item.id" :disabled="item.discontinued && item.id !== selectedIds.batteryId">
+                    {{ optionLabel(item, batterySpecification(item)) }}
+                  </option>
+                </select>
+              </div>
+              <div class="col-md-4"><label class="form-label">Battery quantity</label><input v-model.number="editForm.batteryQuantity" type="number" min="0" step="1" class="form-control" :disabled="!editForm.batteryId" /></div>
+            </div>
+            <div v-if="selectedEquipmentWarning" class="alert alert-warning py-2">{{ selectedEquipmentWarning }}</div>
+
+            <div class="section-title mt-4"><span>Price and advance terms</span></div>
+            <div class="row g-3 mb-2">
+              <div class="col-md-4"><label class="form-label">Quoted price (Rs)</label><input v-model.number="editForm.quotedPrice" type="number" min="1" step="0.01" class="form-control" :disabled="commercialsLocked" required @input="syncAdvanceFromSelectedMode" /></div>
+              <div class="col-md-4">
+                <label class="form-label">Advance input method</label>
+                <select v-model="editForm.advanceMode" class="form-select" :disabled="commercialsLocked" @change="syncAdvanceFromSelectedMode">
+                  <option value="percentage">Percentage</option><option value="amount">Amount in rupees</option>
+                </select>
+              </div>
+              <div v-if="editForm.advanceMode === 'percentage'" class="col-md-4"><label class="form-label">Advance percentage</label><div class="input-group"><input v-model.number="editForm.advancePercentage" type="number" min="50" max="100" step="0.01" class="form-control" :disabled="commercialsLocked" required @input="syncAdvanceAmount" /><span class="input-group-text">%</span></div></div>
+              <div v-else class="col-md-4"><label class="form-label">Advance amount (Rs)</label><input v-model.number="editForm.advanceAmount" type="number" :min="minimumAdvance" :max="numberValue(editForm.quotedPrice)" step="0.01" class="form-control" :disabled="commercialsLocked" required @input="syncAdvancePercentage" /></div>
+            </div>
+            <div class="commercial-preview mb-4">
+              <div><span>Advance</span><strong>Rs {{ formatCurrency(calculatedAdvanceAmount) }} ({{ calculatedAdvancePercentage.toFixed(2) }}%)</strong></div>
+              <div><span>Balance</span><strong>Rs {{ formatCurrency(calculatedBalanceAmount) }}</strong></div>
+            </div>
+            <div v-if="commercialsLocked" class="alert alert-info py-2">Price and advance terms are locked because payments have already been recorded.</div>
+
+            <div class="section-title"><span>Schedule and internal operation</span></div>
+            <div class="row g-3">
+              <div class="col-md-6"><label class="form-label">Scheduled installation date</label><input v-model="editForm.installationScheduledDate" type="date" class="form-control" /></div>
+              <div class="col-md-6"><label class="form-label">Target completion date</label><input v-model="editForm.targetCompletionDate" type="date" class="form-control" /></div>
+              <div class="col-12"><label class="form-label">Customer notes</label><textarea v-model.trim="editForm.customerNotes" class="form-control" rows="2" maxlength="1000"></textarea></div>
+              <div class="col-12"><label class="form-label">Internal notes</label><textarea v-model.trim="editForm.adminNotes" class="form-control" rows="3" maxlength="2000"></textarea></div>
+              <div class="col-12"><label class="form-label">Technical notes</label><textarea v-model.trim="editForm.technicalNotes" class="form-control" rows="3" maxlength="3000"></textarea></div>
+            </div>
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4">
+              <label class="form-check" v-if="canSendNotifications">
+                <input v-model="editForm.notifyCustomer" class="form-check-input" type="checkbox" />
+                <span class="form-check-label">Email customer when customer-visible details change</span>
+              </label>
+              <div class="d-flex gap-2 ms-auto">
+                <button type="button" class="btn btn-outline-secondary" @click="resetEditForm">Reset</button>
+                <button type="submit" class="btn btn-primary" :disabled="busyAction">
+                  <span v-if="busyAction" class="spinner-border spinner-border-sm me-2"></span>Save project
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <div class="row g-4">
+        <div class="col-xl-8">
+          <section class="card mb-4">
+            <div class="card-header"><h2 class="h5 mb-1">Customer and system</h2><p class="small text-muted mb-0">Customer-visible specification and commercial summary.</p></div>
+            <div class="card-body">
+              <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                  <dl class="detail-list">
+                    <div><dt>Name</dt><dd>{{ project.customerName || 'N/A' }}</dd></div>
+                    <div><dt>Email</dt><dd><a :href="`mailto:${project.customerEmail}`">{{ project.customerEmail || 'N/A' }}</a></dd></div>
+                    <div><dt>Phone</dt><dd><a :href="`tel:${project.customerPhone}`">{{ project.customerPhone || 'N/A' }}</a></dd></div>
+                  </dl>
+                </div>
+                <div class="col-md-6">
+                  <dl class="detail-list">
+                    <div><dt>Address</dt><dd>{{ project.address || 'N/A' }}</dd></div>
+                    <div><dt>Created</dt><dd>{{ formatDate(project.createdAt) }}</dd></div>
+                    <div><dt>Scheduled</dt><dd>{{ formatDate(project.installationScheduledDate) }}</dd></div>
+                  </dl>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-4"><div class="spec-card h-100"><small>Panels</small><strong>{{ numberValue(project.panelCount) }} × {{ project.panel?.name || 'Panel' }}</strong><span>{{ numberValue(project.panel?.wattage || project.panel?.specs?.wattage) }} W each</span></div></div>
+                <div class="col-md-4"><div class="spec-card h-100"><small>Inverter</small><strong>{{ project.inverter?.name || 'N/A' }}</strong><span>{{ numberValue(project.inverter?.peakLoad || project.inverter?.specs?.peakLoad) }} KVA</span></div></div>
+                <div class="col-md-4"><div class="spec-card h-100"><small>Battery</small><strong>{{ project.battery?.selectedBattery?.name || 'Not required' }}</strong><span>{{ project.battery?.selectedBattery ? `${numberValue(project.battery.quantity)} unit(s)` : 'Grid-tie / no battery' }}</span></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card mb-4">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <div><h2 class="h5 mb-1">Quotation stock readiness</h2><p class="small text-muted mb-0">Availability after other committed work is considered.</p></div>
               <span v-if="stockPlan" class="stock-readiness" :class="stockPlan.status === 'ready' ? 'is-ready' : 'is-short'">
-                <i :class="stockPlan.status === 'ready' ? 'fas fa-circle-check' : 'fas fa-triangle-exclamation'" aria-hidden="true"></i>
-                {{ stockPlan.status === 'ready' ? 'Ready to supply' : stockPlan.status === 'unmapped' ? 'Inventory mapping required' : `${stockPlan.shortItemCount} short item(s)` }}
+                {{ stockPlan.status === 'ready' ? 'Ready to supply' : `${stockPlan.shortItemCount || 0} item(s) need action` }}
               </span>
             </div>
-
-            <div v-if="stockLoading" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div><span class="ms-2 text-muted">Calculating stock requirement…</span></div>
-            <div v-else-if="stockError" class="alert alert-warning">{{ stockError }}</div>
-            <div v-else-if="stockPlan?.lines?.length" class="table-responsive mb-4">
-              <table class="table table-hover align-middle stock-plan-table">
-                <thead><tr><th>Item</th><th>Required</th><th>Available</th><th>Shortfall</th><th>Restock priority</th></tr></thead>
-                <tbody>
-                  <tr v-for="line in stockPlan.lines" :key="`${line.itemId}-${line.type}`">
-                    <td><strong>{{ line.name }}</strong><br /><small class="text-muted">{{ line.sku || 'No SKU' }} · {{ line.type }}</small></td>
-                    <td>{{ line.requiredQuantity }} {{ line.unit }}</td>
-                    <td>{{ line.availableQuantity }} {{ line.unit }}</td>
-                    <td><strong :class="line.shortfall > 0 ? 'text-danger' : 'text-success'">{{ line.shortfall }}</strong></td>
-                    <td><span class="priority-chip" :class="`is-${line.restockPriority}`">{{ priorityLabel(line.restockPriority) }}</span></td>
-                  </tr>
-                </tbody>
+            <div v-if="stockPlan?.lines?.length" class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Item</th><th>Required</th><th>Available</th><th>Shortfall</th><th>Priority</th></tr></thead>
+                <tbody><tr v-for="line in stockPlan.lines" :key="`${line.itemId}-${line.type}`"><td><strong>{{ line.name }}</strong><br /><small class="text-muted">{{ line.sku || 'No SKU' }}</small></td><td>{{ line.requiredQuantity }} {{ line.unit }}</td><td>{{ line.availableQuantity }} {{ line.unit }}</td><td><strong :class="line.shortfall ? 'text-danger' : 'text-success'">{{ line.shortfall }}</strong></td><td><span class="priority-chip" :class="`is-${line.restockPriority}`">{{ priorityLabel(line.restockPriority) }}</span></td></tr></tbody>
               </table>
-              <div v-if="stockPlan.totalShortfall > 0" class="alert alert-warning mb-0">
-                This quotation can remain active, but purchasing should cover the listed shortfall before installation is scheduled.
+            </div>
+            <div v-else class="card-body"><div class="alert alert-secondary mb-0">No mapped inventory bill of materials is available for this project.</div></div>
+          </section>
+
+          <section class="card mb-4">
+            <div class="card-header"><h2 class="h5 mb-1">Activity and communication</h2><p class="small text-muted mb-0">Status updates are emailed automatically. Failed messages remain available for retry.</p></div>
+            <div class="card-body">
+              <div v-if="notifications.length" class="notification-list">
+                <article v-for="notification in notifications" :key="notification.id" class="notification-item">
+                  <div class="notification-icon" :class="`is-${notification.status}`"><i :class="notificationIcon(notification.type)"></i></div>
+                  <div class="flex-grow-1"><div class="d-flex flex-wrap justify-content-between gap-2"><strong>{{ notificationLabel(notification.type) }}</strong><span class="badge" :class="notificationBadge(notification.status)">{{ notification.status }}</span></div><small class="text-muted">{{ formatDateTime(notification.createdAt) }} · {{ notification.to || project.customerEmail }}</small><p v-if="notification.error" class="small text-danger mb-0 mt-1">{{ notification.error }}</p></div>
+                  <button v-if="canSendNotifications && notification.status === 'failed'" class="btn btn-sm btn-outline-primary" :disabled="busyAction" @click="retryNotification(notification.id)">Retry</button>
+                </article>
               </div>
+              <div v-else class="text-muted">No automated email activity has been recorded yet.</div>
             </div>
-            <div v-else class="alert alert-secondary">
-              This older project has no mapped inventory bill of materials. Recreate or revise the quotation using the unified inventory calculator to enable live shortfall planning.
-            </div>
+          </section>
 
-            <hr />
-            <h5>Cost Breakdown</h5>
-            <table class="table table-borderless">
-              <tbody>
-                <tr><td>Equipment/material</td><td class="text-end">Rs {{ formatCurrency(project.materialCost) }}</td></tr>
-                <tr><td>Installation/labour</td><td class="text-end">Rs {{ formatCurrency(project.laborCost) }}</td></tr>
-                <tr><td>Cost before profit</td><td class="text-end">Rs {{ formatCurrency(project.totalCostWithoutMarkup) }}</td></tr>
-                <tr class="table-primary"><th>Quoted price</th><th class="text-end">Rs {{ formatCurrency(project.quotedPrice) }}</th></tr>
-              </tbody>
-            </table>
-
-            <div v-if="canUpdateProject" class="mt-4">
-              <label for="adminNotes" class="form-label fw-bold">Internal Notes</label>
-              <textarea id="adminNotes" v-model.trim="adminNotes" class="form-control" rows="3" maxlength="2000"></textarea>
-              <button class="btn btn-outline-primary mt-3" :disabled="busyAction" @click="saveNotes">Save Notes</button>
-            </div>
-          </div>
+          <section class="card">
+            <div class="card-header"><h2 class="h5 mb-0">Operational notes</h2></div>
+            <div class="card-body"><div class="row g-3"><div class="col-md-6"><small class="text-muted d-block">Sales owner</small><strong>{{ project.salesOwner || 'Not assigned' }}</strong></div><div class="col-md-6"><small class="text-muted d-block">Installation coordinator</small><strong>{{ project.installationCoordinator || 'Not assigned' }}</strong></div><div class="col-12"><small class="text-muted d-block">Internal notes</small><p class="mb-0 pre-wrap">{{ project.adminNotes || 'No internal notes.' }}</p></div><div class="col-12"><small class="text-muted d-block">Technical notes</small><p class="mb-0 pre-wrap">{{ project.technicalNotes || 'No technical notes.' }}</p></div></div></div>
+          </section>
         </div>
 
-        <div class="card">
-          <div class="card-header"><h5 class="mb-0">Site Photos</h5></div>
-          <div class="card-body">
-            <p class="mb-2">Photo upload is disabled so this application can operate without a paid Firebase Storage plan.</p>
-            <small class="text-muted">Projects, quotations, payments, inventory and status updates are unaffected.</small>
-
-            <div v-if="project.sitePhotos?.length" class="row g-3 mt-2">
-              <div v-for="(photo, index) in project.sitePhotos" :key="`${photo}-${index}`" class="col-6 col-md-3">
-                <a :href="photo" target="_blank" rel="noopener noreferrer">
-                  <img :src="photo" class="img-fluid rounded photo-thumbnail" alt="Solar installation site" />
-                </a>
-              </div>
+        <div class="col-xl-4">
+          <section class="card mb-4 sticky-card">
+            <div class="card-header"><h2 class="h5 mb-1">Commercial position</h2><p class="small text-muted mb-0">Contract value, payment target and collections.</p></div>
+            <div class="card-body">
+              <div class="commercial-row"><span>Quoted price</span><strong>Rs {{ formatCurrency(project.quotedPrice) }}</strong></div>
+              <div class="commercial-row"><span>Advance target</span><strong>Rs {{ formatCurrency(project.advanceAmount) }} <small>({{ numberValue(project.advancePercentage) }}%)</small></strong></div>
+              <div class="commercial-row"><span>Contract balance</span><strong>Rs {{ formatCurrency(project.balanceAmount) }}</strong></div>
+              <hr />
+              <div class="commercial-row"><span>Amount received</span><strong class="text-success">Rs {{ formatCurrency(amountPaid) }}</strong></div>
+              <div class="commercial-row"><span>Amount due</span><strong :class="amountDue > 0 ? 'text-danger' : 'text-success'">Rs {{ formatCurrency(amountDue) }}</strong></div>
+              <div class="progress mt-3" style="height: 9px"><div class="progress-bar bg-success" :style="{ width: `${paymentProgress}%` }"></div></div>
+              <small class="text-muted">{{ paymentProgress.toFixed(0) }}% collected</small>
             </div>
-          </div>
+          </section>
+
+          <section v-if="canUpdateProject" class="card mb-4">
+            <div class="card-header"><h2 class="h5 mb-1">Move project forward</h2><p class="small text-muted mb-0">Every status change creates an audit entry and customer email.</p></div>
+            <div class="card-body">
+              <label class="form-label">Customer update message</label>
+              <textarea v-model.trim="statusCustomerMessage" class="form-control mb-3" rows="3" maxlength="1000" placeholder="Add specific timing, preparation or next-step details."></textarea>
+              <div v-if="availableStatusActions.some(action => action.status === 'installation_scheduled')" class="mb-3"><label class="form-label">Installation date</label><input v-model="statusInstallationDate" type="date" class="form-control" /></div>
+              <div class="d-grid gap-2"><button v-for="action in availableStatusActions" :key="action.status" class="btn" :class="action.className" :disabled="busyAction" @click="updateStatus(action.status)">{{ action.label }}</button><span v-if="!availableStatusActions.length" class="text-muted">This status has no further workflow actions.</span></div>
+            </div>
+          </section>
+
+          <section v-if="canManagePayments" class="card mb-4">
+            <div class="card-header"><h2 class="h5 mb-1">Record payment</h2><p class="small text-muted mb-0">Supports partial payments and automatically emails a receipt.</p></div>
+            <div class="card-body">
+              <div class="mb-3"><label class="form-label">Amount received (Rs)</label><input v-model.number="paymentForm.amount" type="number" min="0.01" :max="amountDue" step="0.01" class="form-control" :disabled="amountDue <= 0 || !paymentReady" /></div>
+              <div class="mb-3"><label class="form-label">Method</label><select v-model="paymentForm.method" class="form-select"><option value="bank_transfer">Bank transfer</option><option value="upi">UPI</option><option value="cash">Cash</option><option value="cheque">Cheque</option><option value="card">Card</option><option value="other">Other</option></select></div>
+              <div class="mb-3"><label class="form-label">Reference / transaction ID</label><input v-model.trim="paymentForm.reference" class="form-control" maxlength="120" /></div>
+              <div class="mb-3"><label class="form-label">Payment date</label><input v-model="paymentForm.receivedAt" type="date" class="form-control" /></div>
+              <div class="mb-3"><label class="form-label">Internal note</label><textarea v-model.trim="paymentForm.note" class="form-control" rows="2" maxlength="500"></textarea></div>
+              <button class="btn btn-success w-100" :disabled="busyAction || !paymentReady || amountDue <= 0 || numberValue(paymentForm.amount) <= 0" @click="recordPayment">Record payment and email receipt</button>
+              <small v-if="!paymentReady" class="d-block text-muted mt-2">Approve the quotation before recording payment.</small>
+            </div>
+          </section>
+
+          <section v-if="canGenerateDocuments || canSendNotifications" class="card mb-4">
+            <div class="card-header"><h2 class="h5 mb-0">Documents</h2></div>
+            <div class="list-group list-group-flush"><button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" @click="downloadQuotation"><i class="fas fa-file-pdf me-2"></i>Download quotation PDF</button><button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" @click="downloadInvoice"><i class="fas fa-file-invoice me-2"></i>Download invoice PDF</button></div>
+          </section>
+
+          <section v-if="canDeleteProject" class="card border-danger">
+            <div class="card-header text-danger"><h2 class="h5 mb-1">Delete project</h2><p class="small mb-0">Removes it from active operations and preserves an audit archive.</p></div>
+            <div class="card-body"><button class="btn btn-outline-danger w-100" @click="deletePanelOpen = !deletePanelOpen"><i class="fas fa-trash me-2"></i>Delete project</button><div v-if="deletePanelOpen" class="mt-3"><label class="form-label">Reason</label><textarea v-model.trim="deleteForm.reason" class="form-control mb-3" rows="2" maxlength="1000"></textarea><label class="form-label">Type the full project ID</label><input v-model.trim="deleteForm.confirmation" class="form-control mb-3" :placeholder="project.projectId" /><button class="btn btn-danger w-100" :disabled="busyAction || deleteForm.confirmation !== project.projectId || deleteForm.reason.length < 5" @click="deleteProject">Confirm deletion</button></div></div>
+          </section>
         </div>
       </div>
-
-      <div class="col-lg-4">
-        <div class="card mb-4">
-          <div class="card-header bg-success text-white"><h5 class="mb-0">Payment Status</h5></div>
-          <div class="card-body">
-            <div class="payment-milestone mb-3">
-              <div class="d-flex justify-content-between">
-                <span>Advance</span>
-                <span class="badge" :class="advancePaid ? 'bg-success' : 'bg-warning text-dark'">{{ advancePaid ? 'Paid' : 'Pending' }}</span>
-              </div>
-              <strong>Rs {{ formatCurrency(project.advanceAmount) }}</strong>
-            </div>
-            <div class="payment-milestone">
-              <div class="d-flex justify-content-between">
-                <span>Balance</span>
-                <span class="badge" :class="balancePaid ? 'bg-success' : 'bg-secondary'">{{ balancePaid ? 'Paid' : 'Pending' }}</span>
-              </div>
-              <strong>Rs {{ formatCurrency(project.balanceAmount) }}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="canUpdateProject" class="card mb-4">
-          <div class="card-header bg-warning"><h5 class="mb-0">Update Status</h5></div>
-          <div class="card-body d-grid gap-2">
-            <button
-              v-for="action in availableStatusActions"
-              :key="action.status"
-              class="btn"
-              :class="action.className"
-              :disabled="busyAction"
-              @click="updateStatus(action.status)"
-            >
-              {{ action.label }}
-            </button>
-            <span v-if="!availableStatusActions.length" class="text-muted">No further status action is available.</span>
-          </div>
-        </div>
-
-        <div v-if="canManagePayments" class="card mb-4">
-          <div class="card-header bg-info text-white"><h5 class="mb-0">Record Payment</h5></div>
-          <div class="card-body">
-            <div class="mb-3">
-              <label for="paymentType" class="form-label">Payment</label>
-              <select id="paymentType" v-model="paymentType" class="form-select" :disabled="busyAction || !paymentReady">
-                <option value="advance">Advance</option>
-                <option value="balance" :disabled="!advancePaid">Balance</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label for="paymentMethod" class="form-label">Method</label>
-              <select id="paymentMethod" v-model="paymentMethod" class="form-select" :disabled="busyAction || !paymentReady">
-                <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank transfer</option>
-                <option value="cheque">Cheque</option>
-                <option value="upi">UPI</option>
-              </select>
-            </div>
-            <button class="btn btn-success w-100" :disabled="!canRecordPayment || busyAction" @click="recordPayment">
-              Record {{ paymentType }} payment
-            </button>
-            <small v-if="!paymentReady" class="d-block text-muted mt-2">Approve the quotation before recording payment.</small>
-          </div>
-        </div>
-
-        <div v-if="canGenerateDocuments || canSendNotifications" class="card">
-          <div class="card-header bg-secondary text-white"><h5 class="mb-0">Documents & Notifications</h5></div>
-          <div class="list-group list-group-flush">
-            <button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadQuotation">
-              <i class="fas fa-file-pdf me-2" aria-hidden="true"></i>Download quotation PDF
-            </button>
-            <button v-if="canGenerateDocuments" class="list-group-item list-group-item-action" :disabled="busyAction" @click="downloadInvoice">
-              <i class="fas fa-file-invoice me-2" aria-hidden="true"></i>Download invoice PDF
-            </button>
-            <button v-if="canSendNotifications" class="list-group-item list-group-item-action" :disabled="busyAction" @click="sendEmailUpdate">
-              <i class="fas fa-envelope me-2" aria-hidden="true"></i>Send email update
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <script>
-import {
-  getProject,
-  updatePaymentStatus,
-  updateProjectFields,
-  updateProjectStatus
-} from '@/models/projectModel';
-import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/constants/businessConstants';
-import { sendCompletionEmail, sendProjectUpdateEmail } from '@/utils/emailService';
-import { downloadInvoicePDF, downloadQuotationPDF } from '@/utils/pdfGenerator';
 import { authenticatedJsonRequest } from '@/utils/authenticatedRequest';
+import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/constants/businessConstants';
+import { downloadInvoicePDF, downloadQuotationPDF } from '@/utils/pdfGenerator';
 import rbacMixin from '@/mixins/rbacMixin';
 import { PERMISSIONS } from '@/constants/rbac';
 
 export default {
   name: 'ProjectApproval',
   mixins: [rbacMixin],
-  props: {
-    projectId: { type: String, required: true }
-  },
+  props: { projectId: { type: String, required: true } },
   data() {
     return {
       project: null,
+      equipment: { panels: [], inverters: [], batteries: [] },
       stockPlan: null,
-      stockLoading: false,
-      stockError: '',
-      adminNotes: '',
+      notifications: [],
       loading: false,
       busyAction: false,
-      error: '',
-      successMessage: '',
-      paymentType: 'advance',
-      paymentMethod: 'bank_transfer'
+      error: '', successMessage: '', warningMessage: '',
+      editMode: false,
+      editForm: {},
+      statusCustomerMessage: '',
+      statusInstallationDate: '',
+      paymentForm: { amount: 0, method: 'bank_transfer', reference: '', note: '', receivedAt: new Date().toISOString().slice(0, 10) },
+      deletePanelOpen: false,
+      deleteForm: { reason: '', confirmation: '' }
     };
   },
   computed: {
-    canUpdateProject() {
-      return this.can(PERMISSIONS.PROJECTS_UPDATE);
+    canUpdateProject() { return this.can(PERMISSIONS.PROJECTS_UPDATE); },
+    canManagePayments() { return this.can(PERMISSIONS.PROJECTS_PAYMENTS); },
+    canGenerateDocuments() { return this.can(PERMISSIONS.PROJECTS_DOCUMENTS); },
+    canSendNotifications() { return this.can(PERMISSIONS.NOTIFICATIONS_SEND); },
+    canDeleteProject() { return this.can(PERMISSIONS.PROJECTS_DELETE); },
+    shortProjectId() { return String(this.project?.projectId || this.projectId).slice(0, 18); },
+    selectedIds() { return { panelId: this.itemId(this.project?.panel), inverterId: this.itemId(this.project?.inverter), batteryId: this.itemId(this.project?.battery?.selectedBattery) }; },
+    selectedInverter() { return this.equipment.inverters.find(item => item.id === this.editForm.inverterId); },
+    selectedBattery() { return this.equipment.batteries.find(item => item.id === this.editForm.batteryId); },
+    selectedInverterBatteryVoltage() { return this.numberValue(this.selectedInverter?.specs?.batterySupported); },
+    selectedEquipmentWarning() {
+      const selected = [this.equipment.panels.find(item => item.id === this.editForm.panelId), this.selectedInverter, this.selectedBattery].filter(Boolean);
+      const unavailable = selected.filter(item => item.outOfStock).map(item => item.name);
+      return unavailable.length ? `Selected but currently out of stock: ${unavailable.join(', ')}. The project can still be saved and will appear in restock planning.` : '';
     },
-    canManagePayments() {
-      return this.can(PERMISSIONS.PROJECTS_PAYMENTS);
-    },
-    canGenerateDocuments() {
-      return this.can(PERMISSIONS.PROJECTS_DOCUMENTS);
-    },
-    canSendNotifications() {
-      return this.can(PERMISSIONS.NOTIFICATIONS_SEND);
-    },
-    shortProjectId() {
-      return String(this.project?.projectId || this.projectId).slice(0, 16);
-    },
-    advancePaid() {
-      return ['advance_paid', 'balance_paid'].includes(this.project?.paymentStatus);
-    },
-    balancePaid() {
-      return this.project?.paymentStatus === 'balance_paid';
-    },
-    paymentReady() {
-      return Boolean(this.project?.approvalDate && this.project?.advanceAmount != null);
-    },
-    canRecordPayment() {
-      if (!this.canManagePayments || !this.paymentReady) return false;
-      if (this.paymentType === 'advance') return !this.advancePaid;
-      return this.advancePaid && !this.balancePaid;
-    },
+    amountPaid() { return this.numberValue(this.project?.amountPaid) || (this.project?.paymentHistory || []).reduce((sum, entry) => sum + this.numberValue(entry.amount), 0); },
+    amountDue() { return Math.max(0, this.numberValue(this.project?.quotedPrice) - this.amountPaid); },
+    paymentProgress() { return this.numberValue(this.project?.quotedPrice) > 0 ? Math.min(100, (this.amountPaid / this.numberValue(this.project.quotedPrice)) * 100) : 0; },
+    paymentReady() { return Boolean(this.project?.approvalDate); },
+    commercialsLocked() { return this.amountPaid > 0; },
+    minimumAdvance() { return this.numberValue(this.editForm.quotedPrice) * 0.5; },
+    calculatedAdvancePercentage() { return this.editForm.advanceMode === 'amount' ? (this.numberValue(this.editForm.advanceAmount) / Math.max(1, this.numberValue(this.editForm.quotedPrice))) * 100 : this.numberValue(this.editForm.advancePercentage); },
+    calculatedAdvanceAmount() { return this.editForm.advanceMode === 'amount' ? this.numberValue(this.editForm.advanceAmount) : this.numberValue(this.editForm.quotedPrice) * this.numberValue(this.editForm.advancePercentage) / 100; },
+    calculatedBalanceAmount() { return Math.max(0, this.numberValue(this.editForm.quotedPrice) - this.calculatedAdvanceAmount); },
     availableStatusActions() {
       if (!this.canUpdateProject) return [];
       const actions = {
-        quote_pending: [{ status: 'quote_sent', label: 'Send Quote', className: 'btn-outline-primary' }],
-        quote_sent: [{ status: 'approved', label: 'Approve Quote', className: 'btn-success' }],
-        approved: [{ status: 'installation_scheduled', label: 'Schedule Installation', className: 'btn-info' }],
-        installation_scheduled: [{ status: 'in_progress', label: 'Start Installation', className: 'btn-warning' }],
-        in_progress: [{ status: 'completed', label: 'Mark Complete', className: 'btn-success' }]
+        quote_pending: [{ status: 'quote_sent', label: 'Send quotation', className: 'btn-primary' }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-danger' }],
+        quote_sent: [{ status: 'approved', label: 'Approve quotation', className: 'btn-success' }, { status: 'quote_rejected', label: 'Mark quotation rejected', className: 'btn-outline-danger' }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-secondary' }],
+        approved: [{ status: 'installation_scheduled', label: 'Schedule installation', className: 'btn-info' }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-danger' }],
+        installation_scheduled: [{ status: 'in_progress', label: 'Start installation', className: 'btn-warning' }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-danger' }],
+        in_progress: [{ status: 'completed', label: 'Complete installation', className: 'btn-success' }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-danger' }]
       };
       return actions[this.project?.status] || [];
     }
   },
-  created() {
-    this.loadProject();
-  },
+  created() { this.loadWorkspace(); },
   methods: {
-    numberValue(value) {
-      const number = Number(value);
-      return Number.isFinite(number) ? number : 0;
-    },
-    priorityLabel(value) {
-      return { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' }[value] || 'Low';
-    },
-    async loadProject() {
-      this.loading = true;
-      this.error = '';
+    numberValue(value) { const number = Number(value); return Number.isFinite(number) ? number : 0; },
+    itemId(item) { return String(item?.id || item?.inventoryId || item?.itemId || ''); },
+    dateInput(value) { const date = this.toDate(value); return date ? date.toISOString().slice(0, 10) : ''; },
+    toDate(value) { if (!value) return null; if (typeof value.toDate === 'function') return value.toDate(); if (value._seconds) return new Date(value._seconds * 1000); const date = new Date(value); return Number.isNaN(date.getTime()) ? null : date; },
+    async loadWorkspace() {
+      this.loading = true; this.error = '';
       try {
-        const result = await getProject(this.projectId);
-        if (!result.success) throw new Error(result.error || 'Project not found');
-        this.project = result.project;
-        this.adminNotes = result.project.adminNotes || '';
-        if (this.balancePaid) this.paymentType = 'balance';
-        await this.loadStockPlan();
-      } catch (error) {
-        this.project = null;
-        this.error = error.message || 'Unable to load project.';
-      } finally {
-        this.loading = false;
-      }
+        const result = await authenticatedJsonRequest(`/.netlify/functions/getProjectWorkspace?projectId=${encodeURIComponent(this.projectId)}`, { method: 'GET' });
+        this.project = result.project; this.equipment = result.equipment || { panels: [], inverters: [], batteries: [] }; this.stockPlan = result.stockPlan || null; this.notifications = result.notifications || [];
+        this.resetEditForm(); this.preparePaymentAmount();
+      } catch (error) { this.project = null; this.error = error.message || 'Unable to load the project workspace.'; }
+      finally { this.loading = false; }
     },
-    async loadStockPlan() {
-      this.stockLoading = true;
-      this.stockError = '';
+    resetEditForm() {
+      if (!this.project) return;
+      this.editForm = {
+        customerName: this.project.customerName || '', customerEmail: this.project.customerEmail || '', customerPhone: this.project.customerPhone || '', address: this.project.address || '',
+        panelId: this.itemId(this.project.panel), panelCount: this.numberValue(this.project.panelCount), inverterId: this.itemId(this.project.inverter), batteryId: this.itemId(this.project.battery?.selectedBattery), batteryQuantity: this.numberValue(this.project.battery?.quantity),
+        quotedPrice: this.numberValue(this.project.quotedPrice), advanceMode: 'percentage', advancePercentage: this.numberValue(this.project.advancePercentage) || 50, advanceAmount: this.numberValue(this.project.advanceAmount),
+        installationScheduledDate: this.dateInput(this.project.installationScheduledDate), targetCompletionDate: this.dateInput(this.project.targetCompletionDate), customerNotes: this.project.customerNotes || '', adminNotes: this.project.adminNotes || '', technicalNotes: this.project.technicalNotes || '', salesOwner: this.project.salesOwner || '', installationCoordinator: this.project.installationCoordinator || '', notifyCustomer: true
+      };
+      if (!this.editForm.advanceAmount) this.syncAdvanceAmount();
+    },
+    toggleEdit() { this.editMode = !this.editMode; if (this.editMode) this.resetEditForm(); },
+    syncAdvanceFromSelectedMode() { if (this.editForm.advanceMode === 'amount') this.syncAdvancePercentage(); else this.syncAdvanceAmount(); },
+    syncAdvanceAmount() { this.editForm.advanceAmount = Math.round(this.numberValue(this.editForm.quotedPrice) * this.numberValue(this.editForm.advancePercentage) / 100 * 100) / 100; },
+    syncAdvancePercentage() { this.editForm.advancePercentage = this.numberValue(this.editForm.quotedPrice) > 0 ? Math.round(this.numberValue(this.editForm.advanceAmount) / this.numberValue(this.editForm.quotedPrice) * 10000) / 100 : 0; },
+    handleInverterChange() { if (this.selectedInverterBatteryVoltage <= 0) { this.editForm.batteryId = ''; this.editForm.batteryQuantity = 0; } },
+    optionLabel(item, specification = '') { const state = item.discontinued ? 'Discontinued' : item.outOfStock ? 'Out of stock' : item.lowStock ? `Low stock (${item.availableQuantity})` : `Available ${item.availableQuantity}`; return `${item.name}${specification ? ` · ${specification}` : ''} — ${state}`; },
+    inverterSpecification(item) { return `${this.numberValue(item.specs?.peakLoad)} KVA · max ${this.numberValue(item.specs?.maxPanels)} panels`; },
+    batterySpecification(item) { return `${this.numberValue(item.specs?.capacity)} Ah · ${this.numberValue(item.specs?.energy)} kWh`; },
+    showSuccess(message) { this.successMessage = message; window.setTimeout(() => { this.successMessage = ''; }, 4500); },
+    async saveProject() {
+      this.busyAction = true; this.error = ''; this.warningMessage = '';
       try {
-        const result = await authenticatedJsonRequest(
-          `/.netlify/functions/getProjectStockPlan?projectId=${encodeURIComponent(this.projectId)}`,
-          { method: 'GET' }
-        );
-        this.stockPlan = result.plan || null;
-      } catch (error) {
-        this.stockPlan = null;
-        this.stockError = error.message || 'Unable to calculate live stock readiness.';
-      } finally {
-        this.stockLoading = false;
-      }
+        const result = await authenticatedJsonRequest('/.netlify/functions/updateProjectDetails', { method: 'PUT', body: JSON.stringify({ projectId: this.projectId, expectedRevision: this.numberValue(this.project.revision), ...this.editForm }) });
+        await this.loadWorkspace(); this.editMode = false; this.showSuccess('Project and quotation details updated successfully.');
+        if (result.email?.attempted && !result.email.sent) this.warningMessage = result.email.error;
+      } catch (error) { this.error = error.message; }
+      finally { this.busyAction = false; }
     },
-    showSuccess(message) {
-      this.successMessage = message;
-      window.setTimeout(() => { this.successMessage = ''; }, 3500);
-    },
-    async updateStatus(newStatus) {
-      if (!this.canUpdateProject) return;
-      this.busyAction = true;
-      this.error = '';
+    async updateStatus(status) {
+      if (status === 'installation_scheduled' && !this.statusInstallationDate) { this.error = 'Choose an installation date before scheduling.'; return; }
+      if (['cancelled', 'quote_rejected'].includes(status) && !window.confirm(`Confirm ${this.getStatusLabel(status)}? The customer will receive an email.`)) return;
+      this.busyAction = true; this.error = ''; this.warningMessage = '';
       try {
-        const result = await updateProjectStatus(this.projectId, newStatus, this.adminNotes);
-        if (!result.success) throw new Error(result.error || 'Unable to update project status');
-        await this.loadProject();
-        this.showSuccess(`Status updated to ${this.getStatusLabel(newStatus)}.`);
-
-        if (this.canSendNotifications) {
-          let emailResult = { success: true };
-          if (newStatus === 'completed') emailResult = await sendCompletionEmail(this.project);
-          else if (['quote_sent', 'approved'].includes(newStatus)) {
-            emailResult = await sendProjectUpdateEmail(this.project, `Your project status is now ${this.getStatusLabel(newStatus)}.`);
-          }
-          if (!emailResult.success) this.error = `Status saved, but the email could not be sent: ${emailResult.error}`;
-        }
-      } catch (error) {
-        this.error = error.message || 'Unable to update project status.';
-      } finally {
-        this.busyAction = false;
-      }
+        const result = await authenticatedJsonRequest('/.netlify/functions/updateProjectStatus', { method: 'POST', body: JSON.stringify({ projectId: this.projectId, status, customerMessage: this.statusCustomerMessage, installationScheduledDate: this.statusInstallationDate || null, expectedRevision: this.numberValue(this.project.revision) }) });
+        await this.loadWorkspace(); this.statusCustomerMessage = ''; this.showSuccess(`Status updated to ${this.getStatusLabel(status)}.`); if (!result.email?.sent) this.warningMessage = result.email?.error || 'Customer email delivery is pending.';
+      } catch (error) { this.error = error.message; }
+      finally { this.busyAction = false; }
     },
-    async saveNotes() {
-      if (!this.canUpdateProject) return;
-      this.busyAction = true;
-      this.error = '';
-      try {
-        const result = await updateProjectFields(this.projectId, { adminNotes: this.adminNotes });
-        if (!result.success) throw new Error(result.error || 'Unable to save notes');
-        this.showSuccess('Notes saved.');
-      } catch (error) {
-        this.error = error.message;
-      } finally {
-        this.busyAction = false;
-      }
-    },
+    preparePaymentAmount() { if (!this.project) return; const remainingAdvance = Math.max(0, this.numberValue(this.project.advanceAmount) - this.amountPaid); this.paymentForm.amount = remainingAdvance > 0 ? remainingAdvance : this.amountDue; },
     async recordPayment() {
-      if (!this.canManagePayments) return;
-      this.busyAction = true;
-      this.error = '';
+      this.busyAction = true; this.error = ''; this.warningMessage = '';
       try {
-        const paymentStatus = this.paymentType === 'advance' ? 'advance_paid' : 'balance_paid';
-        const result = await updatePaymentStatus(
-          this.projectId,
-          paymentStatus,
-          `${this.paymentType} payment received`,
-          this.paymentMethod
-        );
-        if (!result.success) throw new Error(result.error || 'Unable to record payment');
-        await this.loadProject();
-        this.showSuccess('Payment recorded successfully.');
-      } catch (error) {
-        this.error = error.message;
-      } finally {
-        this.busyAction = false;
-      }
+        const result = await authenticatedJsonRequest('/.netlify/functions/recordProjectPayment', { method: 'POST', body: JSON.stringify({ projectId: this.projectId, expectedRevision: this.numberValue(this.project.revision), ...this.paymentForm }) });
+        await this.loadWorkspace(); this.paymentForm.reference = ''; this.paymentForm.note = ''; this.showSuccess('Payment recorded and receipt workflow completed.'); if (!result.email?.sent) this.warningMessage = result.email?.error;
+      } catch (error) { this.error = error.message; }
+      finally { this.busyAction = false; }
     },
-    async downloadQuotation() {
-      if (!this.canGenerateDocuments) return;
-      const result = await downloadQuotationPDF(this.project);
-      if (!result.success) this.error = result.error || 'Unable to generate quotation PDF.';
-    },
-    async downloadInvoice() {
-      if (!this.canGenerateDocuments) return;
-      const result = await downloadInvoicePDF(this.project);
-      if (!result.success) this.error = result.error || 'Unable to generate invoice PDF.';
-    },
-    async sendEmailUpdate() {
-      if (!this.canSendNotifications) return;
-      this.busyAction = true;
-      this.error = '';
-      try {
-        const result = await sendProjectUpdateEmail(this.project, 'Please find the latest update for your solar project.');
-        if (!result.success) throw new Error(result.error || 'Unable to send email');
-        this.showSuccess('Email sent successfully.');
-      } catch (error) {
-        this.error = error.message;
-      } finally {
-        this.busyAction = false;
-      }
-    },
-    getStatusLabel(status) {
-      return PROJECT_STATUS_LABELS[status] || status || 'Unknown';
-    },
-    getStatusColor(status) {
-      return PROJECT_STATUS_COLORS[status] || '#6c757d';
-    },
-    formatCurrency(value) {
-      return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(this.numberValue(value));
-    },
-    formatDate(timestamp) {
-      if (!timestamp) return 'N/A';
-      const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp);
-      return Number.isNaN(date.getTime()) ? 'N/A' : new Intl.DateTimeFormat('en-IN').format(date);
-    }
+    async retryNotification(notificationId) { this.busyAction = true; this.error = ''; try { const result = await authenticatedJsonRequest('/.netlify/functions/retryProjectNotification', { method: 'POST', body: JSON.stringify({ notificationId }) }); await this.loadWorkspace(); this.showSuccess(result.message || 'Customer email sent.'); } catch (error) { this.error = error.message; } finally { this.busyAction = false; } },
+    async deleteProject() { if (!window.confirm('This removes the project from active operations. Continue?')) return; this.busyAction = true; this.error = ''; try { await authenticatedJsonRequest('/.netlify/functions/deleteProject', { method: 'DELETE', body: JSON.stringify({ projectId: this.projectId, ...this.deleteForm }) }); this.$router.replace({ name: 'ProjectManagement', query: { deleted: this.projectId } }); } catch (error) { this.error = error.message; } finally { this.busyAction = false; } },
+    async downloadQuotation() { const result = await downloadQuotationPDF(this.project); if (!result.success) this.error = result.error; },
+    async downloadInvoice() { const result = await downloadInvoicePDF(this.project); if (!result.success) this.error = result.error; },
+    notificationLabel(type) { return { status_changed: 'Status update email', project_changed: 'Project revision email', payment_received: 'Payment receipt' }[type] || 'Customer email'; },
+    notificationIcon(type) { return { status_changed: 'fas fa-route', project_changed: 'fas fa-pen-to-square', payment_received: 'fas fa-receipt' }[type] || 'fas fa-envelope'; },
+    notificationBadge(status) { return { sent: 'bg-success', failed: 'bg-danger', pending: 'bg-warning text-dark' }[status] || 'bg-secondary'; },
+    priorityLabel(value) { return { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' }[value] || 'Low'; },
+    getStatusLabel(status) { return PROJECT_STATUS_LABELS[status] || status || 'Unknown'; },
+    getStatusColor(status) { return PROJECT_STATUS_COLORS[status] || '#64748b'; },
+    formatCurrency(value) { return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(this.numberValue(value)); },
+    formatDate(value) { const date = this.toDate(value); return date ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(date) : 'Not set'; },
+    formatDateTime(value) { const date = this.toDate(value); return date ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : 'Pending'; }
   }
 };
 </script>
 
 <style scoped>
-.spec-card,
-.payment-milestone {
-  padding: 1rem;
-  border: 1px solid var(--ant-slate-200);
-  border-radius: 10px;
-  background: var(--ant-slate-50);
-}
-.spec-card { border-left: 4px solid var(--ant-blue-700); }
-.payment-milestone { border-left: 4px solid var(--ant-green-600); }
-.photo-thumbnail { width: 100%; aspect-ratio: 1; object-fit: cover; }
-.list-group-item-action { padding: 0.9rem 1rem; color: var(--ant-slate-700); }
-.stock-readiness { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.7rem; border-radius: 999px; font-size: 0.85rem; font-weight: 800; }
-.stock-readiness.is-ready { background: #dcfce7; color: #166534; }
-.stock-readiness.is-short { background: #fef3c7; color: #92400e; }
-.priority-chip { display: inline-flex; padding: 0.25rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
-.priority-chip.is-critical { background: #fee2e2; color: #991b1b; }
-.priority-chip.is-high { background: #ffedd5; color: #9a3412; }
-.priority-chip.is-medium { background: #fef3c7; color: #92400e; }
-.priority-chip.is-low { background: #e2e8f0; color: #475569; }
-.stock-plan-table th { white-space: nowrap; }
+.project-workspace { max-width: 1600px; }
+.workspace-header { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; padding:1.4rem; border:1px solid var(--ant-slate-200); border-radius:16px; background:linear-gradient(135deg,#fff,#f8fafc); }
+.eyebrow { color:var(--ant-blue-700); font-size:.75rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.status-pill { display:inline-flex; padding:.35rem .65rem; border-radius:999px; color:#fff; font-size:.75rem; font-weight:800; }
+.section-title { display:flex; align-items:center; gap:.8rem; margin-bottom:1rem; color:var(--ant-slate-800); font-weight:800; }
+.section-title::after { height:1px; flex:1; background:var(--ant-slate-200); content:''; }
+.detail-list { margin:0; }.detail-list div { display:grid; grid-template-columns:130px 1fr; gap:1rem; padding:.55rem 0; border-bottom:1px solid var(--ant-slate-100); }.detail-list dt { color:var(--ant-slate-500); font-weight:600; }.detail-list dd { margin:0; font-weight:600; }
+.spec-card { display:flex; flex-direction:column; gap:.25rem; padding:1rem; border:1px solid var(--ant-slate-200); border-left:4px solid var(--ant-blue-700); border-radius:12px; background:var(--ant-slate-50); }.spec-card small,.spec-card span { color:var(--ant-slate-500); }.spec-card strong { color:var(--ant-slate-900); }
+.commercial-preview { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; margin-top:1rem; }.commercial-preview div { display:flex; justify-content:space-between; gap:1rem; padding:.85rem 1rem; border-radius:10px; background:var(--ant-slate-50); }
+.commercial-row { display:flex; justify-content:space-between; gap:1rem; padding:.55rem 0; }.commercial-row span { color:var(--ant-slate-500); }
+.stock-readiness { display:inline-flex; padding:.45rem .7rem; border-radius:999px; font-size:.8rem; font-weight:800; }.stock-readiness.is-ready { background:#dcfce7;color:#166534; }.stock-readiness.is-short { background:#fef3c7;color:#92400e; }
+.priority-chip { display:inline-flex; padding:.25rem .5rem; border-radius:999px; font-size:.7rem; font-weight:800; text-transform:uppercase; }.priority-chip.is-critical{background:#fee2e2;color:#991b1b}.priority-chip.is-high{background:#ffedd5;color:#9a3412}.priority-chip.is-medium{background:#fef3c7;color:#92400e}.priority-chip.is-low{background:#e2e8f0;color:#475569}
+.notification-list { display:grid; gap:.8rem; }.notification-item { display:flex; align-items:flex-start; gap:.8rem; padding:.85rem; border:1px solid var(--ant-slate-200); border-radius:12px; }.notification-icon { display:grid; place-items:center; width:38px; height:38px; flex:0 0 38px; border-radius:10px; background:var(--ant-slate-100); color:var(--ant-slate-600); }.notification-icon.is-sent{background:#dcfce7;color:#166534}.notification-icon.is-failed{background:#fee2e2;color:#991b1b}.notification-icon.is-pending{background:#fef3c7;color:#92400e}
+.sticky-card { position:sticky; top:92px; }.pre-wrap { white-space:pre-wrap; }
+@media (max-width:1199.98px){.sticky-card{position:static}.workspace-header{align-items:flex-start;flex-direction:column}}@media (max-width:767.98px){.commercial-preview{grid-template-columns:1fr}.detail-list div{grid-template-columns:1fr;gap:.2rem}}
 </style>
