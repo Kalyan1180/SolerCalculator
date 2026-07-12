@@ -49,17 +49,31 @@ function publicBattery(value) {
 function sanitizePaymentHistory(history) {
   if (!Array.isArray(history)) return [];
   return history.slice(-100).map(entry => ({
+    paymentId: text(entry?.paymentId, 200),
     status: text(entry?.status, 50),
     amount: Math.max(0, numberValue(entry?.amount)),
     method: text(entry?.method, 50),
-    note: text(entry?.note, 500),
+    reference: text(entry?.reference, 120),
+    receivedAt: entry?.receivedAt || null,
     recordedAt: entry?.recordedAt || null
+  }));
+}
+
+function sanitizeStatusHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history.slice(-100).map(entry => ({
+    from: text(entry?.from, 50),
+    to: text(entry?.to, 50),
+    message: text(entry?.message, 1000),
+    changedAt: entry?.changedAt || null
   }));
 }
 
 function sanitizeCustomerProject(project, id = '') {
   const publicPanel = publicEquipment(project.panel, 'panel');
   const publicInverter = publicEquipment(project.inverter, 'inverter');
+  const quotedPrice = Math.max(0, numberValue(project.quotedPrice));
+  const amountPaid = Math.max(0, numberValue(project.amountPaid));
   return {
     id: id || text(project.id, 200),
     projectId: text(project.projectId || id, 200),
@@ -69,15 +83,18 @@ function sanitizeCustomerProject(project, id = '') {
     customerPhone: text(project.customerPhone, 30),
     address: text(project.address, 500),
     status: text(project.status, 50),
+    statusHistory: sanitizeStatusHistory(project.statusHistory),
     panelCount: Math.max(0, Math.ceil(numberValue(project.panelCount))),
     panel: publicPanel,
     inverter: publicInverter,
     battery: publicBattery(project.battery),
-    quotedPrice: Math.max(0, numberValue(project.quotedPrice)),
+    quotedPrice,
     finalPrice: project.finalPrice == null ? null : Math.max(0, numberValue(project.finalPrice)),
     advancePercentage: Math.max(0, numberValue(project.advancePercentage)),
     advanceAmount: project.advanceAmount == null ? null : Math.max(0, numberValue(project.advanceAmount)),
     balanceAmount: project.balanceAmount == null ? null : Math.max(0, numberValue(project.balanceAmount)),
+    amountPaid,
+    amountDue: project.amountDue == null ? Math.max(0, quotedPrice - amountPaid) : Math.max(0, numberValue(project.amountDue)),
     paymentStatus: text(project.paymentStatus, 50),
     paymentHistory: sanitizePaymentHistory(project.paymentHistory),
     createdAt: project.createdAt || null,
