@@ -16,7 +16,6 @@ import { ensureActiveSession } from '@/utils/sessionManager';
 import { PERMISSIONS } from '@/constants/rbac';
 import SubmitQuotation from '@/components/SubmitQuotation.vue';
 import ManageInventory from '@/components/ManageInventory.vue';
-import EquipmentCatalog from '@/components/EquipmentCatalog.vue';
 import ProjectManagement from '@/components/ProjectManagement.vue';
 import UserManagement from '@/components/UserManagement.vue';
 import AdminInvestigate from '@/components/AdminInvestigate.vue';
@@ -65,18 +64,18 @@ const routes = [
     component: ManageInventory,
     meta: protectedMeta(
       PERMISSIONS.INVENTORY_READ,
-      'Stock Inventory',
-      'Track stock levels, costs, suppliers and selling prices.'
+      'Smart Inventory & Equipment',
+      'Manage equipment, quotation demand, shortfalls and restock priority.'
     )
   },
   {
     path: '/admin/equipment',
     name: 'EquipmentCatalog',
-    component: EquipmentCatalog,
+    redirect: { name: 'ManageInventory' },
     meta: protectedMeta(
-      PERMISSIONS.EQUIPMENT_READ,
-      'Equipment Catalog',
-      'Manage the inverter and battery records used by the calculator.'
+      PERMISSIONS.INVENTORY_READ,
+      'Smart Inventory & Equipment',
+      'Equipment and stock now use one inventory source of truth.'
     )
   },
   {
@@ -107,7 +106,7 @@ const routes = [
     meta: protectedMeta(
       PERMISSIONS.PROJECTS_READ,
       'Project Workspace',
-      'Review project specifications, payments and authorized actions.'
+      'Review project specifications, stock readiness, payments and authorized actions.'
     )
   },
   {
@@ -230,8 +229,6 @@ router.beforeEach(async to => {
       : [to.meta.requiredPermission];
 
     try {
-      // Protected navigation always re-reads the Firestore role. This makes
-      // privilege revocation effective immediately instead of waiting for cache expiry.
       const access = await getUserAccess(currentUser.uid, { force: true });
       if (!hasEveryPermission(access, requiredPermissions)) {
         return {
