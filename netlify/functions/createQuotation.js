@@ -120,7 +120,8 @@ exports.handler = async event => {
       const advancePercentage = 50;
       const advanceAmount = Math.round((suggestedPrice * advancePercentage / 100) * 100) / 100;
       const balanceAmount = Math.max(0, Math.round((suggestedPrice - advanceAmount) * 100) / 100);
-      const now = fieldValue.serverTimestamp();
+      const eventTime = new Date();
+      const serverTime = fieldValue.serverTimestamp();
       const customerProject = {
         projectId,
         customerId: managedProject ? null : authorization.user.uid,
@@ -130,7 +131,7 @@ exports.handler = async event => {
         address: customer.address,
 
         status: 'quote_pending',
-        statusHistory: [{ from: null, to: 'quote_pending', message: 'Project created', changedAt: now }],
+        statusHistory: [{ from: null, to: 'quote_pending', message: 'Project created', changedAt: eventTime }],
         panelCount: Math.max(1, Math.ceil(finiteNumber(recommendation.panelCount))),
         panel: publicView.panel || publicEquipment(recommendation.panel, 'panel'),
         inverter: publicView.inverter || publicEquipment(recommendation.inverter, 'inverter'),
@@ -147,8 +148,8 @@ exports.handler = async event => {
         paymentStatus: 'not_started',
         paymentHistory: [],
 
-        createdAt: now,
-        updatedAt: now,
+        createdAt: serverTime,
+        updatedAt: serverTime,
         quoteSentDate: null,
         approvalDate: null,
         installationScheduledDate: null,
@@ -189,20 +190,20 @@ exports.handler = async event => {
           type: 'project_created',
           actorUid: authorization.user.uid,
           actorEmail: authorization.user.email || '',
-          createdAt: now
+          createdAt: eventTime
         }],
         createdByUid: authorization.user.uid,
         createdByRole: authorization.role,
         managedProject,
         revision: 0,
-        createdAt: now,
-        updatedAt: now
+        createdAt: serverTime,
+        updatedAt: serverTime
       };
 
       transaction.set(projectRef, customerProject);
       transaction.set(operationsRef, projectOperations);
       transaction.update(recommendationRef, {
-        consumedAt: now,
+        consumedAt: serverTime,
         consumedBy: authorization.user.uid,
         projectId
       });
