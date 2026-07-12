@@ -12,17 +12,24 @@ const {
   loadProjectBundle,
   notificationRecord,
   numberValue,
-  paymentTotal,
   text,
-  timestampMillis,
   workflowError
 } = require('./_projectWorkflow');
 
 function validDate(value) {
   if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value._seconds) return new Date(Number(value._seconds) * 1000);
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw workflowError(400, 'INVALID_DATE', 'Installation date is invalid.');
+  if (Number.isNaN(date.getTime())) throw workflowError(400, 'INVALID_DATE', 'Project date is invalid.');
   return date;
+}
+
+function paidAmount(project) {
+  const historyTotal = Array.isArray(project?.paymentHistory)
+    ? project.paymentHistory.reduce((sum, entry) => sum + Math.max(0, numberValue(entry?.amount)), 0)
+    : 0;
+  return Math.max(historyTotal, Math.max(0, numberValue(project?.amountPaid)));
 }
 
 function customerFields(payload, current) {
@@ -61,7 +68,7 @@ exports.handler = async event => {
     ]);
 
     const expectedRevision = Number(payload.expectedRevision ?? merged.revision ?? 0);
-    const currentPaid = paymentTotal(project);
+    const currentPaid = paidAmount(project);
     const requestedTerms = calculateTerms({
       quotedPrice: payload.quotedPrice ?? project.quotedPrice,
       advancePercentage: payload.advancePercentage ?? project.advancePercentage ?? 50,
@@ -74,7 +81,7 @@ exports.handler = async event => {
       || Math.abs(requestedTerms.advanceAmount - numberValue(project.advanceAmount)) > 0.009
     );
     if (currentPaid > 0 && commercialChanged) {
-      throw workflowError(409, 'PAYMENTS_LOCK_COMMERCIALS', 'Price and advance terms cannot be changed after a payment has been recorded. Reverse or correct the payment first.');
+      throw workflowError(409, 'PAYMENTS_LOCK_COMMERCIALS', 'Price and advance terms cannot be changed after a payment has been recorded. Correct the payment ledger before revising commercial terms.');
     }
 
     const system = buildEditedSystem({ project, operations, plan: inventoryContext.plan, payload });
@@ -87,6 +94,7 @@ exports.handler = async event => {
       ...requestedTerms,
       finalPrice: project.approvalDate ? requestedTerms.quotedPrice : project.finalPrice || null,
       amountPaid: currentPaid,
+      amountDue: Math.max(0, requestedTerms.quotedPrice - currentPaid),
       installationScheduledDate: scheduledDate,
       customerNotes: text(payload.customerNotes ?? project.customerNotes, 1000),
       updatedAt: now,
