@@ -43,7 +43,6 @@ const requiredNavigationRoutes = [
   'AdminControl',
   'ProjectManagement',
   'ManageInventory',
-  'EquipmentCatalog',
   'AdminInvestigate',
   'UserManagement',
   'AuditLog'
@@ -51,6 +50,13 @@ const requiredNavigationRoutes = [
 for (const routeName of requiredNavigationRoutes) {
   if (!navigationRouteNames.has(routeName)) fail(`protected module ${routeName} is missing from central navigation`);
   if (!routerSource.includes(`name: '${routeName}'`)) fail(`central navigation route ${routeName} is missing from router`);
+}
+
+if (navigationRouteNames.has('EquipmentCatalog')) {
+  fail('equipment must not be exposed as a separate administration module');
+}
+if (!routerSource.includes("name: 'EquipmentCatalog'") || !routerSource.includes("redirect: { name: 'ManageInventory' }")) {
+  fail('legacy equipment URL must redirect to unified inventory');
 }
 
 if (!adminShellSource.includes('group.items.filter(item => this.can(item.permission))')) {
@@ -63,8 +69,6 @@ if (!navbarSource.includes('v-if="canOpenDashboard"')) {
   fail('public account navigation does not hide the administration link');
 }
 
-// Object data such as `user.role === 'admin'` may be used for reporting counts.
-// Access decisions must not use standalone role/currentRole/userRole comparisons.
 const forbiddenRoleChecks = [
   /\buserRole\s*={2,3}\s*['"]admin['"]/,
   /\bcurrentRole\s*={2,3}\s*['"]admin['"]/,
@@ -82,11 +86,7 @@ const requiredVisibilityChecks = {
     'v-if="canCreateProjects"'
   ],
   'src/components/ManageInventory.vue': [
-    'v-if="canWriteInventory"',
-    'v-if="canViewEquipment"'
-  ],
-  'src/components/EquipmentCatalog.vue': [
-    'v-if="canWriteEquipment"'
+    'v-if="canWriteInventory"'
   ],
   'src/components/ProjectApproval.vue': [
     'v-if="canUpdateProject"',
