@@ -1,8 +1,43 @@
 const { getAdminServices, jsonResponse } = require('./_firebaseAdmin');
+const {
+  buildInventoryPlan,
+  calculatorCatalog,
+  inventoryDocuments,
+  legacyEquipmentItems
+} = require('./_inventoryPlanning');
 
 function numberValue(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function inverterShape(item) {
+  return {
+    ...item,
+    peakLoad: numberValue(item.specs?.peakLoad),
+    maxPanels: numberValue(item.specs?.maxPanels),
+    batterySupported: numberValue(item.specs?.batterySupported),
+    cost: numberValue(item.costPrice)
+  };
+}
+
+function batteryShape(item) {
+  return {
+    ...item,
+    capacity: numberValue(item.specs?.capacity),
+    energy: numberValue(item.specs?.energy),
+    voltage: numberValue(item.specs?.voltage) || 12,
+    price: numberValue(item.costPrice)
+  };
+}
+
+function panelShape(item) {
+  return {
+    ...item,
+    wattage: numberValue(item.specs?.wattage),
+    technology: String(item.specs?.technology || ''),
+    cost: numberValue(item.costPrice)
+  };
 }
 
 exports.handler = async event => {
@@ -12,47 +47,69 @@ exports.handler = async event => {
 
   try {
     const { db } = getAdminServices();
-    const [inverterSnapshot, batterySnapshot] = await Promise.all([
+    const [inventorySnapshot, projectsSnapshot, inverterSnapshot, batterySnapshot] = await Promise.all([
+      db.collection('inventory').get(),
+      db.collection('projects').get(),
       db.collection('inverters').get(),
       db.collection('batteries').get()
     ]);
 
-    const inverters = inverterSnapshot.docs
-      .map(itemDoc => {
-        const data = itemDoc.data();
-        return {
-          id: itemDoc.id,
-          name: String(data.name || '').trim(),
-          peakLoad: numberValue(data.peakLoad),
-          maxPanels: numberValue(data.maxPanels),
-          batterySupported: numberValue(data.batterySupported),
-          cost: numberValue(data.cost)
-        };
-      })
-      .filter(item => item.name && item.peakLoad > 0 && item.maxPanels > 0)
-      .sort((a, b) => a.cost - b.cost || a.peakLoad - b.peakLoad);
+    const unifiedInventory = inventoryDocuments(inventorySnapshot);
+    const legacyFallback = legacyEquipmentItems(
+      inverterSnapshot,
+      batterySnapshot,
+      unifiedInventory
+    );
+    const inventory = [...unifiedInventory, ...legacyFallback];
+    const projects = projectsSnapshot.docs.map(projectDoc => ({
+      id: projectDoc.id,
+      ...projectDoc.data()
+    }));
+    const plan = buildInventoryPlan(inventory, projects);
+    const catalog = calculatorCatalog(plan.items);
 
-    const batteries = batterySnapshot.docs
-      .map(itemDoc => {
-        const data = itemDoc.data();
-        return {
-          id: itemDoc.id,
-          name: String(data.name || '').trim(),
-          energy: numberValue(data.energy),
-          capacity: numberValue(data.capacity),
-          price: numberValue(data.price)
-        };
-      })
+    const inverters = catalog
+      .filter(item => item.type === 'inverter')
+      .map(inverterShape)
+      .filter(item => item.name && item.peakLoad > 0 && item.maxPanels > 0)
+      .sort((a, b) => {
+        const shortageDifference = Math.max(0, 1 - a.availableQuantity) - Math.max(0, 1 - b.availableQuantity);
+        return shortageDifference || a.cost - b.cost || a.peakLoad - b.peakLoad;
+      });
+
+    const batteries = catalog
+      .filter(item => item.type === 'battery')
+      .map(batteryShape)
       .filter(item => item.name && item.energy > 0 && item.capacity > 0)
-      .sort((a, b) => a.price - b.price || a.capacity - b.capacity);
+      .sort((a, b) => b.availableQuantity - a.availableQuantity || a.price - b.price);
+
+    const panels = catalog
+      .filter(item => item.type === 'panel')
+      .map(panelShape)
+      .filter(item => item.name && item.wattage > 0)
+      .sort((a, b) => b.availableQuantity - a.availableQuantity || a.cost - b.cost);
+
+    const accessories = catalog
+      .filter(item => ['wiring', 'mounting', 'other'].includes(item.type))
+      .filter(item => item.specs?.autoInclude)
+      .sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
 
     return jsonResponse(
       200,
-      { inverters, batteries },
-      { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' }
+      {
+        source: 'inventory',
+        inverters,
+        batteries,
+        panels,
+        accessories,
+        inventory: catalog,
+        hasLegacyFallback: legacyFallback.length > 0,
+        planningUpdatedAt: new Date().toISOString()
+      },
+      { 'Cache-Control': 'public, max-age=20, stale-while-revalidate=60' }
     );
   } catch (error) {
-    console.error('Error fetching calculator data:', error);
-    return jsonResponse(500, { error: 'Unable to load calculator equipment data' });
+    console.error('Error fetching calculator inventory:', error);
+    return jsonResponse(500, { error: 'Unable to load calculator inventory data' });
   }
 };
