@@ -127,30 +127,29 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      // Staff can read the customer-safe project record. Customer reads use the
-      // getMyProjects function, which applies a strict field allowlist.
+      // Customer reads go through getMyProjects, which applies a strict allowlist.
       allow read: if hasPermission('projects.read');
 
-      // Creation, editing, status changes, payments and deletion are server-only.
-      // Netlify functions verify the Firebase JWT, current permission, revision,
-      // audit record and customer notification workflow before using Admin SDK.
-      allow create, update, delete: if false;
+      // The createQuotation Netlify function creates projects. All later editing,
+      // status, payment and deletion workflows are also authenticated functions.
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     match /projectOperations/{projectId} {
       // BOM, costs, stock planning, activity and internal notes are staff-only.
       allow read: if hasPermission('projects.read');
-      allow create, update, delete: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     match /projectNotifications/{notificationId} {
-      // Contains retryable email payloads and delivery errors. Read through the
-      // protected project workspace function; never expose it directly to clients.
       allow read, write: if false;
     }
 
     match /deletedProjects/{projectId} {
-      // Deletion is an audited archive rather than an unrecoverable client delete.
       allow read, write: if false;
     }
 
