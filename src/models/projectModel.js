@@ -1,20 +1,22 @@
 // src/models/projectModel.js
 import { db } from '@/firebase';
 import {
+  arrayUnion,
   collection,
   doc,
-  setDoc,
   getDoc,
-  updateDoc,
-  query,
-  where,
   getDocs,
+  query,
+  setDoc,
   Timestamp,
-  arrayUnion
+  updateDoc,
+  where
 } from 'firebase/firestore';
 import { PAYMENT_STATUS, PROJECT_STATUS } from '@/constants/businessConstants';
+import { authenticatedJsonRequest } from '@/utils/authenticatedRequest';
 
 const PROJECTS_COLLECTION = 'projects';
+const PROJECT_OPERATIONS_COLLECTION = 'projectOperations';
 
 const STATUS_TRANSITIONS = {
   [PROJECT_STATUS.QUOTE_PENDING]: [PROJECT_STATUS.QUOTE_SENT, PROJECT_STATUS.CANCELLED],
@@ -40,165 +42,62 @@ function timestampToMillis(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function cleanText(value, maxLength = 200) {
-  return String(value || '').trim().slice(0, maxLength);
-}
-
-function createProjectId() {
-  const randomPart = Math.random().toString(36).slice(2, 11);
-  return `PRJ-${Date.now()}-${randomPart}`;
-}
-
-function sanitizeBomLine(line) {
-  if (!line || typeof line !== 'object') return null;
-  const itemId = cleanText(line.itemId || line.inventoryId || line.id, 200);
-  const requiredQuantity = Math.max(0, Math.ceil(numberOrZero(line.requiredQuantity ?? line.quantity)));
-  if (!itemId || requiredQuantity <= 0) return null;
+function mergeProjectOperations(project, operations) {
   return {
-    itemId,
-    sku: cleanText(line.sku, 80),
-    type: cleanText(line.type, 40).toLowerCase() || 'other',
-    name: cleanText(line.name, 150) || 'Inventory item',
-    unit: cleanText(line.unit, 40) || 'piece',
-    requiredQuantity,
-    unitCost: Math.max(0, numberOrZero(line.unitCost ?? line.costPrice)),
-    sellingPrice: Math.max(0, numberOrZero(line.sellingPrice)),
-    availableQuantity: Math.max(0, Math.floor(numberOrZero(line.availableQuantity))),
-    shortfall: Math.max(0, Math.ceil(numberOrZero(line.shortfall))),
-    stockStatus: cleanText(line.stockStatus || line.status, 40),
-    legacySourceId: cleanText(line.legacySourceId, 200)
+    ...project,
+    ...(operations || {}),
+    id: project.id || operations?.id,
+    projectId: project.projectId || operations?.projectId || project.id || operations?.id
   };
 }
 
-function sanitizeInventoryAssessment(value, billOfMaterials) {
-  const lines = Array.isArray(billOfMaterials) ? billOfMaterials : [];
-  const totalShortfall = lines.reduce((sum, line) => sum + numberOrZero(line.shortfall), 0);
-  return {
-    status: cleanText(value?.status, 40) || (totalShortfall > 0 ? 'shortfall' : 'ready'),
-    totalShortfall,
-    shortItemCount: lines.filter(line => numberOrZero(line.shortfall) > 0).length,
-    requiredItemCount: lines.length,
-    assessedAt: cleanText(value?.assessedAt, 80) || new Date().toISOString()
-  };
-}
-
-function validateProjectInput(projectData, calculatorResults) {
-  if (!projectData?.name?.trim()) return 'Customer name is required';
-  if (!projectData?.email?.trim()) return 'Customer email is required';
-  if (!projectData?.phone?.trim()) return 'Customer phone is required';
-  if (!projectData?.address?.trim()) return 'Customer address is required';
-  if (numberOrZero(calculatorResults?.panelCount) <= 0) return 'Panel count must be greater than zero';
-  if (!calculatorResults?.inverter) return 'A valid inverter is required';
-
-  const quotedPrice = numberOrZero(
-    projectData.suggestedPrice || calculatorResults.special || calculatorResults.costWith
-  );
-  if (quotedPrice <= 0) return 'Quoted price must be greater than zero';
-
-  return null;
+async function operationsMap() {
+  const snapshot = await getDocs(collection(db, PROJECT_OPERATIONS_COLLECTION));
+  return new Map(snapshot.docs.map(operationDoc => [operationDoc.id, {
+    id: operationDoc.id,
+    ...operationDoc.data()
+  }]));
 }
 
 /**
- * Create a project using the canonical schema consumed by all dashboards.
+ * Project creation is intentionally server-only. The protected createQuotation
+ * function consumes a server-side recommendation and writes the customer-safe
+ * project plus its staff-only operations record in one transaction.
  */
-export async function createProject(customerId, projectData, calculatorResults) {
-  try {
-    const validationError = validateProjectInput(projectData, calculatorResults);
-    if (validationError) return { success: false, error: validationError };
-
-    const projectId = createProjectId();
-    const totalCostWithoutMarkup = numberOrZero(calculatorResults.costWithout);
-    const materialCost = numberOrZero(calculatorResults.materialCost) || totalCostWithoutMarkup;
-    const laborCost = numberOrZero(calculatorResults.laborCost);
-    const quotedPrice = numberOrZero(
-      projectData.suggestedPrice || calculatorResults.special || calculatorResults.costWith
-    );
-    const billOfMaterials = Array.isArray(calculatorResults.billOfMaterials)
-      ? calculatorResults.billOfMaterials.map(sanitizeBomLine).filter(Boolean)
-      : [];
-    const inventoryAssessment = sanitizeInventoryAssessment(
-      calculatorResults.inventoryAssessment,
-      billOfMaterials
-    );
-
-    const newProject = {
-      projectId,
-      customerId: customerId || null,
-      customerName: projectData.name.trim(),
-      customerEmail: projectData.email.trim(),
-      customerPhone: projectData.phone.trim(),
-      address: projectData.address.trim(),
-
-      status: PROJECT_STATUS.QUOTE_PENDING,
-      panelCount: numberOrZero(calculatorResults.panelCount),
-      panel: calculatorResults.panel || null,
-      inverter: calculatorResults.inverter,
-      battery: calculatorResults.battery || null,
-      billOfMaterials,
-      inventoryAssessment,
-
-      materialCost,
-      laborCost,
-      totalCostWithoutMarkup,
-      totalCostWithMarkup: numberOrZero(calculatorResults.costWith),
-      quotedPrice,
-      finalPrice: null,
-
-      advancePercentage: 50,
-      advanceAmount: null,
-      balanceAmount: null,
-      paymentStatus: PAYMENT_STATUS.NOT_STARTED,
-      paymentHistory: [],
-
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-      quoteSentDate: null,
-      approvalDate: null,
-      installationScheduledDate: null,
-      installationStartDate: null,
-      completionDate: null,
-
-      adminNotes: '',
-      customerNotes: projectData.additionalNotes?.trim() || '',
-      technicalNotes: '',
-      sitePhotos: [],
-      techniciansAssigned: [],
-      customerSignoff: false,
-      completionNotes: ''
-    };
-
-    await setDoc(doc(db, PROJECTS_COLLECTION, projectId), newProject);
-    return { success: true, projectId, project: newProject };
-  } catch (error) {
-    console.error('Error creating project:', error);
-    return { success: false, error: error.message };
-  }
+export async function createProject() {
+  return {
+    success: false,
+    error: 'Direct project creation is disabled. Use the protected quotation workflow.'
+  };
 }
 
 export async function getProject(projectId) {
   try {
     if (!projectId) return { success: false, error: 'Project ID is required' };
-    const projectSnap = await getDoc(doc(db, PROJECTS_COLLECTION, String(projectId)));
+    const normalizedId = String(projectId);
+    const [projectSnap, operationsSnap] = await Promise.all([
+      getDoc(doc(db, PROJECTS_COLLECTION, normalizedId)),
+      getDoc(doc(db, PROJECT_OPERATIONS_COLLECTION, normalizedId))
+    ]);
     if (!projectSnap.exists()) return { success: false, error: 'Project not found' };
-    return { success: true, project: { id: projectSnap.id, ...projectSnap.data() } };
+
+    const project = { id: projectSnap.id, ...projectSnap.data() };
+    const operations = operationsSnap.exists()
+      ? { id: operationsSnap.id, ...operationsSnap.data() }
+      : null;
+    return { success: true, project: mergeProjectOperations(project, operations) };
   } catch (error) {
     console.error('Error fetching project:', error);
     return { success: false, error: error.message };
   }
 }
 
-export async function getCustomerProjects(customerId) {
+export async function getCustomerProjects() {
   try {
-    if (!customerId) return { success: false, error: 'Customer ID is required' };
-    const projectsQuery = query(
-      collection(db, PROJECTS_COLLECTION),
-      where('customerId', '==', customerId)
-    );
-    const querySnapshot = await getDocs(projectsQuery);
-    const projects = querySnapshot.docs.map(projectDoc => ({
-      id: projectDoc.id,
-      ...projectDoc.data()
-    }));
+    const result = await authenticatedJsonRequest('/.netlify/functions/getMyProjects', {
+      method: 'GET'
+    });
+    const projects = Array.isArray(result.projects) ? result.projects : [];
     projects.sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
     return { success: true, projects };
   } catch (error) {
@@ -213,7 +112,8 @@ export async function updateProjectStatus(projectId, newStatus, adminNotes = '')
       return { success: false, error: 'Invalid project status' };
     }
 
-    const projectRef = doc(db, PROJECTS_COLLECTION, String(projectId));
+    const normalizedId = String(projectId);
+    const projectRef = doc(db, PROJECTS_COLLECTION, normalizedId);
     const projectSnap = await getDoc(projectRef);
     if (!projectSnap.exists()) return { success: false, error: 'Project not found' };
 
@@ -231,7 +131,6 @@ export async function updateProjectStatus(projectId, newStatus, adminNotes = '')
       status: newStatus,
       updatedAt: now
     };
-    if (adminNotes.trim()) updates.adminNotes = adminNotes.trim();
 
     if (newStatus === PROJECT_STATUS.QUOTE_SENT) {
       updates.quoteSentDate = now;
@@ -251,6 +150,13 @@ export async function updateProjectStatus(projectId, newStatus, adminNotes = '')
     }
 
     await updateDoc(projectRef, updates);
+    if (String(adminNotes || '').trim()) {
+      await setDoc(doc(db, PROJECT_OPERATIONS_COLLECTION, normalizedId), {
+        projectId: normalizedId,
+        adminNotes: String(adminNotes).trim(),
+        updatedAt: now
+      }, { merge: true });
+    }
     return { success: true };
   } catch (error) {
     console.error('Error updating project status:', error);
@@ -298,27 +204,49 @@ export async function updatePaymentStatus(projectId, paymentStatus, paymentNote 
   }
 }
 
-export async function updateProjectFields(projectId, updates) {
+export async function updateProjectFields(projectId, requestedUpdates) {
   try {
-    const allowedFields = new Set([
-      'adminNotes',
-      'technicalNotes',
+    const normalizedId = String(projectId);
+    const publicFields = new Set([
       'sitePhotos',
-      'techniciansAssigned',
       'customerSignoff',
       'completionNotes',
       'finalPrice'
     ]);
-    const safeUpdates = {};
-    Object.entries(updates || {}).forEach(([key, value]) => {
-      if (allowedFields.has(key)) safeUpdates[key] = value;
+    const operationalFields = new Set([
+      'adminNotes',
+      'technicalNotes',
+      'techniciansAssigned'
+    ]);
+    const publicUpdates = {};
+    const operationalUpdates = {};
+
+    Object.entries(requestedUpdates || {}).forEach(([key, value]) => {
+      if (publicFields.has(key)) publicUpdates[key] = value;
+      if (operationalFields.has(key)) operationalUpdates[key] = value;
     });
-    if (!Object.keys(safeUpdates).length) {
+
+    if (!Object.keys(publicUpdates).length && !Object.keys(operationalUpdates).length) {
       return { success: false, error: 'No supported project fields were provided' };
     }
 
-    safeUpdates.updatedAt = Timestamp.now();
-    await updateDoc(doc(db, PROJECTS_COLLECTION, String(projectId)), safeUpdates);
+    const now = Timestamp.now();
+    const writes = [];
+    if (Object.keys(publicUpdates).length) {
+      publicUpdates.updatedAt = now;
+      writes.push(updateDoc(doc(db, PROJECTS_COLLECTION, normalizedId), publicUpdates));
+    }
+    if (Object.keys(operationalUpdates).length) {
+      operationalUpdates.projectId = normalizedId;
+      operationalUpdates.updatedAt = now;
+      writes.push(setDoc(
+        doc(db, PROJECT_OPERATIONS_COLLECTION, normalizedId),
+        operationalUpdates,
+        { merge: true }
+      ));
+    }
+
+    await Promise.all(writes);
     return { success: true };
   } catch (error) {
     console.error('Error updating project fields:', error);
@@ -333,11 +261,14 @@ export async function getAllProjects(filters = {}) {
       projectsQuery = query(projectsQuery, where('status', '==', filters.status));
     }
 
-    const querySnapshot = await getDocs(projectsQuery);
-    const projects = querySnapshot.docs.map(projectDoc => ({
-      id: projectDoc.id,
-      ...projectDoc.data()
-    }));
+    const [querySnapshot, operationRecords] = await Promise.all([
+      getDocs(projectsQuery),
+      operationsMap()
+    ]);
+    const projects = querySnapshot.docs.map(projectDoc => {
+      const project = { id: projectDoc.id, ...projectDoc.data() };
+      return mergeProjectOperations(project, operationRecords.get(projectDoc.id));
+    });
     projects.sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
     return { success: true, projects };
   } catch (error) {
