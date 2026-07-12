@@ -132,6 +132,11 @@ exports.handler = async event => {
 
         status: 'quote_pending',
         statusHistory: [{ from: null, to: 'quote_pending', message: 'Project created', changedAt: eventTime }],
+        siteSurveyStatus: 'not_scheduled',
+        siteSurveyScheduledDate: null,
+        siteSurveyCompletedDate: null,
+        siteSurveySummary: '',
+        siteSurveyHistory: [],
         panelCount: Math.max(1, Math.ceil(finiteNumber(recommendation.panelCount))),
         panel: publicView.panel || publicEquipment(recommendation.panel, 'panel'),
         inverter: publicView.inverter || publicEquipment(recommendation.inverter, 'inverter'),
@@ -178,6 +183,18 @@ exports.handler = async event => {
         totalCostWithoutMarkup: finiteNumber(recommendation.totalCostWithoutMarkup),
         totalCostWithMarkup: finiteNumber(recommendation.totalCostWithMarkup),
 
+        siteSurvey: {
+          status: 'not_scheduled',
+          scheduledDate: null,
+          completedDate: null,
+          surveyor: '',
+          findings: '',
+          roofType: '',
+          meterType: '',
+          shadowAssessment: '',
+          sanctionedLoad: '',
+          recommendedCapacity: ''
+        },
         adminNotes: '',
         technicalNotes: '',
         techniciansAssigned: [],
