@@ -37,6 +37,7 @@ exports.handler = async event => {
         sentAt: new Date(),
         lastAttemptAt: new Date(),
         messageId: delivery.messageId,
+        attachmentName: delivery.attachmentName || '',
         error: '',
         lastRetriedByUid: authorization.user.uid
       }, { merge: true });
@@ -44,12 +45,18 @@ exports.handler = async event => {
         action: 'project.notification.retried',
         projectId: notification.projectId,
         notificationId,
+        attachmentName: delivery.attachmentName || '',
         outcome: 'sent',
         actorUid: authorization.user.uid,
         actorEmail: authorization.user.email || '',
         createdAt: new Date()
       });
-      return jsonResponse(200, { success: true, message: 'Customer email sent successfully.' });
+      return jsonResponse(200, {
+        success: true,
+        message: delivery.attachmentName
+          ? `Customer email sent with ${delivery.attachmentName}.`
+          : 'Customer email sent successfully.'
+      });
     } catch (mailError) {
       await notificationRef.set({
         status: 'failed',
@@ -58,7 +65,7 @@ exports.handler = async event => {
         error: String(mailError.message || 'Email delivery failed').slice(0, 1000),
         lastRetriedByUid: authorization.user.uid
       }, { merge: true });
-      throw workflowError(502, 'EMAIL_DELIVERY_FAILED', 'The email provider could not deliver this update. Check the email configuration and try again.');
+      throw workflowError(502, 'EMAIL_DELIVERY_FAILED', 'The email provider could not deliver this update or its attachment. Check the email configuration and try again.');
     }
   } catch (error) {
     console.error('Notification retry failed:', error);

@@ -153,20 +153,31 @@ exports.handler = async event => {
     try {
       const delivery = await sendProjectNotification(notification);
       await notificationRef.set({
-        status: 'sent', attempts: 1, sentAt: new Date(), lastAttemptAt: new Date(),
-        messageId: delivery.messageId, error: ''
+        status: 'sent',
+        attempts: 1,
+        sentAt: new Date(),
+        lastAttemptAt: new Date(),
+        messageId: delivery.messageId,
+        attachmentName: delivery.attachmentName || '',
+        error: ''
       }, { merge: true });
-      email = { sent: true, notificationId: notification.notificationId };
+      email = {
+        sent: true,
+        notificationId: notification.notificationId,
+        attachmentName: delivery.attachmentName || ''
+      };
     } catch (mailError) {
       console.error('Payment receipt email failed:', mailError);
       await notificationRef.set({
-        status: 'failed', attempts: 1, lastAttemptAt: new Date(),
+        status: 'failed',
+        attempts: 1,
+        lastAttemptAt: new Date(),
         error: String(mailError.message || 'Email delivery failed').slice(0, 1000)
       }, { merge: true });
       email = {
         sent: false,
         notificationId: notification.notificationId,
-        error: 'Payment recorded, but the receipt email could not be delivered. Retry it from the notification history.'
+        error: 'Payment recorded, but the PDF receipt email could not be delivered. Retry it from the notification history.'
       };
     }
 

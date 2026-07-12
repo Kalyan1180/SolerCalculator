@@ -6,7 +6,7 @@
           <div>
             <span class="marketing-eyebrow"><i class="fas fa-folder-open" aria-hidden="true"></i>Customer workspace</span>
             <h1 class="h2 mb-2">My Solar Projects</h1>
-            <p class="text-muted mb-0">Track your quotation, payments, installation schedule and project updates.</p>
+            <p class="text-muted mb-0">Track your quotation, site survey, payments, installation schedule and project updates.</p>
           </div>
           <button class="btn btn-outline-secondary" :disabled="loading" @click="loadProjects">
             <i class="fas fa-rotate me-2" aria-hidden="true"></i>Refresh
@@ -23,23 +23,30 @@
           <div v-for="project in projects" :key="project.id || project.projectId" class="col-12">
             <article class="card project-card">
               <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
-                <div>
-                  <small class="text-muted d-block">Project</small>
-                  <h2 class="h5 mb-0">#{{ shortId(project.projectId || project.id) }}</h2>
-                </div>
+                <div><small class="text-muted d-block">Project</small><h2 class="h5 mb-0">#{{ shortId(project.projectId || project.id) }}</h2></div>
                 <span class="status-badge text-white" :style="{ backgroundColor: getStatusColor(project.status) }">{{ getStatusLabel(project.status) }}</span>
               </div>
 
               <div class="card-body">
                 <div class="next-step mb-4">
                   <span class="next-step__icon"><i class="fas fa-compass"></i></span>
-                  <div><small>What happens next</small><strong>{{ nextStep(project.status) }}</strong></div>
+                  <div><small>What happens next</small><strong>{{ nextStepForProject(project) }}</strong></div>
                 </div>
 
                 <div class="row g-3 mb-4">
-                  <div class="col-md-4"><div class="project-fact"><small>Solar panels</small><strong>{{ numberValue(project.panelCount) }} × {{ project.panel?.name || 'Solar panel' }}</strong></div></div>
+                  <div class="col-md-4"><div class="project-fact"><small>Solar panels</small><strong>{{ numberValue(project.panelCount) }} × {{ project.panel?.name || 'Solar panel' }}</strong><span v-if="project.panel?.technology || project.panel?.panelType" class="text-muted small">{{ project.panel?.panelType || project.panel?.technology }}</span></div></div>
                   <div class="col-md-4"><div class="project-fact"><small>Inverter</small><strong>{{ project.inverter?.name || 'To be confirmed' }}</strong></div></div>
                   <div class="col-md-4"><div class="project-fact"><small>Battery</small><strong>{{ project.battery?.selectedBattery ? `${numberValue(project.battery.quantity)} × ${project.battery.selectedBattery.name}` : 'Not required' }}</strong></div></div>
+                </div>
+
+                <div class="survey-banner mb-4" :class="`is-${project.siteSurveyStatus || 'not_scheduled'}`">
+                  <span class="survey-banner__icon"><i class="fas fa-clipboard-check"></i></span>
+                  <div class="flex-grow-1">
+                    <small>Site survey</small>
+                    <strong>{{ surveyLabel(project.siteSurveyStatus) }}</strong>
+                    <span v-if="project.siteSurveyScheduledDate">{{ formatDate(project.siteSurveyScheduledDate) }}</span>
+                    <p v-if="project.siteSurveySummary" class="mb-0 mt-1">{{ project.siteSurveySummary }}</p>
+                  </div>
                 </div>
 
                 <div class="row g-4">
@@ -77,10 +84,7 @@
                   </div>
                 </div>
 
-                <div v-if="project.installationScheduledDate" class="schedule-banner mt-4">
-                  <i class="fas fa-calendar-check"></i>
-                  <div><small>Installation scheduled</small><strong>{{ formatDate(project.installationScheduledDate) }}</strong></div>
-                </div>
+                <div v-if="project.installationScheduledDate" class="schedule-banner mt-4"><i class="fas fa-calendar-check"></i><div><small>Installation scheduled</small><strong>{{ formatDate(project.installationScheduledDate) }}</strong></div></div>
                 <div v-if="project.customerNotes" class="alert alert-info mt-4 mb-0"><strong class="d-block mb-1">Your notes</strong>{{ project.customerNotes }}</div>
               </div>
 
@@ -111,9 +115,9 @@ import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS } from '@/constants/busine
 
 const NEXT_STEPS = Object.freeze({
   quote_pending: 'Our team is preparing your quotation.',
-  quote_sent: 'Review the quotation and contact us with any questions.',
+  quote_sent: 'Review the quotation PDF and contact us with any questions.',
   quote_rejected: 'Contact us if you would like a revised solution.',
-  approved: 'Complete the agreed advance payment so scheduling can proceed.',
+  approved: 'Review the invoice and complete the agreed payment so scheduling can proceed.',
   installation_scheduled: 'Keep the installation area accessible on the scheduled date.',
   in_progress: 'Our team is installing and commissioning your solar system.',
   completed: 'Your installation is complete. Contact us for service or warranty support.',
@@ -133,19 +137,14 @@ export default {
   methods: {
     numberValue(value) { const number = Number(value); return Number.isFinite(number) ? number : 0; },
     toDate(value) { if (!value) return null; if (typeof value.toDate === 'function') return value.toDate(); if (value._seconds) return new Date(value._seconds * 1000); const date = new Date(value); return Number.isNaN(date.getTime()) ? null : date; },
-    async loadProjects() {
-      if (!this.currentUser) return;
-      this.loading = true; this.error = '';
-      try { const result = await getCustomerProjects(); if (!result.success) throw new Error(result.error || 'Failed to load projects'); this.projects = result.projects; }
-      catch (error) { this.error = error.message || 'Unable to load your projects.'; }
-      finally { this.loading = false; }
-    },
+    async loadProjects() { if (!this.currentUser) return; this.loading = true; this.error = ''; try { const result = await getCustomerProjects(); if (!result.success) throw new Error(result.error || 'Failed to load projects'); this.projects = result.projects; } catch (error) { this.error = error.message || 'Unable to load your projects.'; } finally { this.loading = false; } },
     shortId(value) { return String(value || 'unknown').slice(0, 18); },
     amountPaid(project) { const explicit = this.numberValue(project.amountPaid); return explicit || (project.paymentHistory || []).reduce((sum, payment) => sum + this.numberValue(payment.amount), 0); },
     amountDue(project) { return Math.max(0, this.numberValue(project.quotedPrice) - this.amountPaid(project)); },
     paymentProgress(project) { return this.numberValue(project.quotedPrice) > 0 ? Math.min(100, this.amountPaid(project) / this.numberValue(project.quotedPrice) * 100) : 0; },
     orderedStatusHistory(project) { return [...(project.statusHistory || [])].sort((a, b) => (this.toDate(b.changedAt)?.getTime() || 0) - (this.toDate(a.changedAt)?.getTime() || 0)); },
-    nextStep(status) { return NEXT_STEPS[status] || 'Our team will contact you with the next update.'; },
+    surveyLabel(status) { return { not_scheduled: 'Not yet scheduled', scheduled: 'Scheduled', completed: 'Completed' }[status] || 'Not yet scheduled'; },
+    nextStepForProject(project) { if (project.status === 'quote_sent' && project.siteSurveyStatus !== 'completed') return project.siteSurveyStatus === 'scheduled' ? 'Complete the scheduled site survey before quotation approval.' : 'Our team will schedule the required site survey before quotation approval.'; return NEXT_STEPS[project.status] || 'Our team will contact you with the next update.'; },
     getStatusLabel(status) { return PROJECT_STATUS_LABELS[status] || status || 'Unknown'; },
     getStatusColor(status) { return PROJECT_STATUS_COLORS[status] || '#667085'; },
     formatCurrency(value) { return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(this.numberValue(value)); },
@@ -158,7 +157,8 @@ export default {
 <style scoped>
 .project-card { overflow:hidden; }.status-badge { padding:.45rem .75rem; border-radius:999px; font-size:.78rem; font-weight:800; }
 .next-step { display:flex; align-items:center; gap:.8rem; padding:1rem; border:1px solid #bfdbfe; border-radius:12px; background:#eff6ff; }.next-step__icon { display:grid; place-items:center; width:42px; height:42px; border-radius:11px; background:#dbeafe; color:#1d4ed8; }.next-step small,.next-step strong { display:block; }.next-step small { color:#64748b; }
-.project-fact { height:100%; padding:1rem; border:1px solid var(--ant-slate-200); border-radius:12px; background:var(--ant-slate-50); }.project-fact small,.project-fact strong { display:block; }.project-fact small { color:var(--ant-slate-500); }.project-fact strong { margin-top:.3rem; }
+.project-fact { height:100%; padding:1rem; border:1px solid var(--ant-slate-200); border-radius:12px; background:var(--ant-slate-50); }.project-fact small,.project-fact strong,.project-fact span { display:block; }.project-fact small { color:var(--ant-slate-500); }.project-fact strong { margin-top:.3rem; }
+.survey-banner { display:flex; align-items:center; gap:.8rem; padding:1rem; border-radius:12px; border:1px solid var(--ant-slate-200); }.survey-banner__icon { display:grid; place-items:center; width:42px; height:42px; border-radius:11px; }.survey-banner small,.survey-banner strong,.survey-banner span { display:block; }.survey-banner.is-not_scheduled { background:#f8fafc; }.survey-banner.is-scheduled { background:#fffbeb; border-color:#fde68a; }.survey-banner.is-completed { background:#f0fdf4; border-color:#bbf7d0; }.survey-banner.is-completed .survey-banner__icon { background:#dcfce7; color:#166534; }.survey-banner.is-scheduled .survey-banner__icon { background:#fef3c7; color:#92400e; }
 .customer-panel { padding:1rem; border:1px solid var(--ant-slate-200); border-radius:12px; }.payment-row { display:flex; justify-content:space-between; gap:1rem; padding:.5rem 0; border-bottom:1px solid var(--ant-slate-100); }.payment-row span { color:var(--ant-slate-500); }
 .receipt-row { display:flex; justify-content:space-between; gap:1rem; padding:.65rem 0; border-top:1px solid var(--ant-slate-100); }.receipt-row strong,.receipt-row small { display:block; }.receipt-row small,.receipt-row > span { color:var(--ant-slate-500); font-size:.8rem; }
 .update-timeline { display:grid; gap:1rem; }.update-entry { display:grid; grid-template-columns:30px 1fr; gap:.75rem; }.update-dot { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:#dcfce7; color:#166534; font-size:.7rem; }

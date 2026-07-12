@@ -97,7 +97,9 @@ const requiredVisibilityChecks = {
   'src/components/ProjectApproval.vue': [
     'v-if="canUpdateProject"',
     'v-if="canManagePayments"',
-    'v-if="canGenerateDocuments || canSendNotifications"'
+    'v-if="canGenerateDocuments"',
+    'v-if="canSendNotifications',
+    'v-if="canDeleteProject"'
   ],
   'src/components/UserManagement.vue': [
     'v-if="canManageRoles"',

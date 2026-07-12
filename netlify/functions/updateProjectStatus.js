@@ -41,6 +41,13 @@ exports.handler = async event => {
     if (!allowed.includes(newStatus)) {
       throw workflowError(409, 'INVALID_STATUS_TRANSITION', `Cannot change project from ${previousStatus} to ${newStatus}.`);
     }
+    if (newStatus === 'approved' && project.siteSurveyStatus !== 'completed') {
+      throw workflowError(
+        409,
+        'SITE_SURVEY_REQUIRED',
+        'Complete and record the site survey before approving the quotation.'
+      );
+    }
 
     const now = new Date();
     const scheduledDate = payload.installationScheduledDate ? new Date(payload.installationScheduledDate) : null;
@@ -91,6 +98,9 @@ exports.handler = async event => {
       if (liveRevision !== expectedRevision || liveStatus !== previousStatus) {
         throw workflowError(409, 'PROJECT_CHANGED', 'The project changed while this page was open. Refresh and try again.');
       }
+      if (newStatus === 'approved' && freshProject.data().siteSurveyStatus !== 'completed') {
+        throw workflowError(409, 'SITE_SURVEY_REQUIRED', 'Complete the site survey before approving the quotation.');
+      }
 
       transaction.set(projectRef, {
         ...publicUpdates,
@@ -138,9 +148,14 @@ exports.handler = async event => {
         sentAt: new Date(),
         lastAttemptAt: new Date(),
         messageId: delivery.messageId,
+        attachmentName: delivery.attachmentName || '',
         error: ''
       });
-      email = { sent: true, notificationId: notification.notificationId };
+      email = {
+        sent: true,
+        notificationId: notification.notificationId,
+        attachmentName: delivery.attachmentName || ''
+      };
     } catch (mailError) {
       console.error('Automatic status email failed:', mailError);
       await updateDelivery(db, notification.notificationId, {
@@ -152,7 +167,7 @@ exports.handler = async event => {
       email = {
         sent: false,
         notificationId: notification.notificationId,
-        error: 'Status updated, but the customer email failed. Retry it from the notification history.'
+        error: 'Status updated, but the customer email or document attachment failed. Retry it from the notification history.'
       };
     }
 
