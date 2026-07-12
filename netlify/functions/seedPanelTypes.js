@@ -5,15 +5,15 @@ const STARTER_PANELS = [
     itemId: 'PANEL-BIFACIAL-STARTER',
     sku: 'PNL-BIFACIAL-STARTER',
     name: 'Bifacial Solar Panel',
-    description: 'Starter inventory model. Update brand, wattage, price, supplier and stock before enabling calculator recommendations.',
-    technology: 'Bifacial'
+    description: 'Starter inventory model. Update brand, technology, wattage, price, supplier and stock before enabling calculator recommendations.',
+    panelType: 'bifacial'
   },
   {
     itemId: 'PANEL-NON-BIFACIAL-STARTER',
     sku: 'PNL-NON-BIFACIAL-STARTER',
     name: 'Non-bifacial Solar Panel',
-    description: 'Starter inventory model. Update brand, wattage, price, supplier and stock before enabling calculator recommendations.',
-    technology: 'Non-bifacial'
+    description: 'Starter inventory model. Update brand, technology, wattage, price, supplier and stock before enabling calculator recommendations.',
+    panelType: 'non_bifacial'
   }
 ];
 
@@ -46,7 +46,8 @@ exports.handler = async event => {
         description: starter.description,
         specs: {
           wattage: 550,
-          technology: starter.technology
+          technology: '',
+          panelType: starter.panelType
         },
         costPrice: 0,
         sellingPrice: 0,
@@ -75,7 +76,7 @@ exports.handler = async event => {
       created,
       skipped,
       message: created.length
-        ? 'Bifacial and non-bifacial starter panel models were added. Update their real specifications and stock before calculator use.'
+        ? 'Bifacial and non-bifacial starter panel models were added. Update their actual brand, technology, wattage, prices and stock before calculator use.'
         : 'Both starter panel models already exist.'
     });
   } catch (error) {
