@@ -74,7 +74,7 @@ exports.handler = async event => {
         status: 'out_of_stock',
         discontinued: false,
         activeForCalculator: true,
-        legacySource: true,
+        legacySource: false,
         legacySourceId: itemDoc.id,
         createdAt: now,
         updatedAt: now
@@ -115,7 +115,7 @@ exports.handler = async event => {
         status: 'out_of_stock',
         discontinued: false,
         activeForCalculator: true,
-        legacySource: true,
+        legacySource: false,
         legacySourceId: itemDoc.id,
         createdAt: now,
         updatedAt: now
