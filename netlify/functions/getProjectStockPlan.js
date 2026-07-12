@@ -5,6 +5,7 @@ const {
   legacyEquipmentItems,
   projectStockPlan
 } = require('./_inventoryPlanning');
+const { mergeProjectOperations } = require('./_projectPrivacy');
 
 exports.handler = async event => {
   if (event.httpMethod !== 'GET') {
@@ -19,10 +20,20 @@ exports.handler = async event => {
 
   try {
     const { db } = authorization;
-    const [projectSnapshot, inventorySnapshot, projectsSnapshot, inverterSnapshot, batterySnapshot] = await Promise.all([
+    const [
+      projectSnapshot,
+      projectOperationsSnapshot,
+      inventorySnapshot,
+      projectsSnapshot,
+      operationsSnapshot,
+      inverterSnapshot,
+      batterySnapshot
+    ] = await Promise.all([
       db.collection('projects').doc(projectId).get(),
+      db.collection('projectOperations').doc(projectId).get(),
       db.collection('inventory').get(),
       db.collection('projects').get(),
+      db.collection('projectOperations').get(),
       db.collection('inverters').get(),
       db.collection('batteries').get()
     ]);
@@ -36,9 +47,18 @@ exports.handler = async event => {
       unifiedInventory
     );
     const inventory = [...unifiedInventory, ...legacyFallback];
-    const projects = projectsSnapshot.docs.map(projectDoc => ({ id: projectDoc.id, ...projectDoc.data() }));
+    const operationsById = new Map(
+      operationsSnapshot.docs.map(operationDoc => [operationDoc.id, operationDoc.data()])
+    );
+    const projects = projectsSnapshot.docs.map(projectDoc => mergeProjectOperations(
+      { id: projectDoc.id, ...projectDoc.data() },
+      operationsById.get(projectDoc.id)
+    ));
     const plan = buildInventoryPlan(inventory, projects);
-    const project = { id: projectSnapshot.id, ...projectSnapshot.data() };
+    const project = mergeProjectOperations(
+      { id: projectSnapshot.id, ...projectSnapshot.data() },
+      projectOperationsSnapshot.exists ? projectOperationsSnapshot.data() : null
+    );
 
     return jsonResponse(200, {
       plan: projectStockPlan(project, plan),
@@ -46,6 +66,6 @@ exports.handler = async event => {
     });
   } catch (error) {
     console.error('Unable to build project stock plan:', error);
-    return jsonResponse(500, { error: 'Unable to calculate quotation stock requirements' });
+    return jsonResponse(500, { error: 'Unable to calculate quotation supply requirements' });
   }
 };
