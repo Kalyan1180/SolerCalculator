@@ -15,7 +15,8 @@ function publicEquipment(item, type) {
       type,
       name: text(item.name, 150) || 'Solar panel',
       wattage: numberValue(item.wattage ?? specs.wattage),
-      technology: text(item.technology ?? specs.technology, 100)
+      technology: text(item.technology ?? specs.technology, 100),
+      panelType: text(item.panelType ?? specs.panelType, 40)
     };
   }
   if (type === 'inverter') {
@@ -69,6 +70,17 @@ function sanitizeStatusHistory(history) {
   }));
 }
 
+function sanitizeSurveyHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history.slice(-50).map(entry => ({
+    action: text(entry?.action, 40),
+    scheduledDate: entry?.scheduledDate || null,
+    completedDate: entry?.completedDate || null,
+    message: text(entry?.message, 1000),
+    changedAt: entry?.changedAt || null
+  }));
+}
+
 function sanitizeCustomerProject(project, id = '') {
   const publicPanel = publicEquipment(project.panel, 'panel');
   const publicInverter = publicEquipment(project.inverter, 'inverter');
@@ -84,6 +96,11 @@ function sanitizeCustomerProject(project, id = '') {
     address: text(project.address, 500),
     status: text(project.status, 50),
     statusHistory: sanitizeStatusHistory(project.statusHistory),
+    siteSurveyStatus: text(project.siteSurveyStatus, 40) || 'not_scheduled',
+    siteSurveyScheduledDate: project.siteSurveyScheduledDate || null,
+    siteSurveyCompletedDate: project.siteSurveyCompletedDate || null,
+    siteSurveySummary: text(project.siteSurveySummary, 1000),
+    siteSurveyHistory: sanitizeSurveyHistory(project.siteSurveyHistory),
     panelCount: Math.max(0, Math.ceil(numberValue(project.panelCount))),
     panel: publicPanel,
     inverter: publicInverter,
