@@ -21,15 +21,42 @@ function requireText(relativePath, snippets) {
 
 const contactPage = requireText('src/components/ContactPage.vue', [
   '/.netlify/functions/sendEnquiry',
-  'Send an enquiry',
+  'Submit enquiry',
+  'team inbox',
   'enquiryId'
 ]);
 if (contactPage.includes("fetch('/',")) fail('contact page still depends on the unreliable SPA root form post');
-requireText('netlify/functions/sendEnquiry.js', [
+
+const enquiryFunction = requireText('netlify/functions/sendEnquiry.js', [
   "db.collection('enquiries')",
-  'replyTo: enquiry.email',
-  'emailDelivery',
-  'CONTACT_TO'
+  "status: 'new'",
+  "priority: 'normal'",
+  'activityHistory',
+  'serverTimestamp()'
+]);
+['nodemailer', 'sendMail(', 'EMAIL_HOST', 'CONTACT_TO', 'emailDelivery'].forEach(term => {
+  if (enquiryFunction.includes(term)) fail(`contact enquiry submission still attempts automatic email through ${term}`);
+});
+
+requireText('netlify/functions/listEnquiries.js', [
+  "requirePermission(event, 'messages.read')",
+  "collection('enquiries')",
+  'summary',
+  'urgent'
+]);
+requireText('netlify/functions/updateEnquiry.js', [
+  "requirePermission(event, 'messages.manage')",
+  'internalNotes',
+  'activityHistory',
+  "action: 'contact.message.updated'"
+]);
+requireText('src/components/MessageInbox.vue', [
+  'Message Inbox',
+  'filteredMessages',
+  'canManageMessages',
+  '/.netlify/functions/listEnquiries',
+  '/.netlify/functions/updateEnquiry',
+  'No automatic customer email is sent'
 ]);
 
 const inventoryModel = requireText('src/models/inventoryModel.js', [
@@ -65,6 +92,9 @@ const workspace = requireText('src/components/ProjectApproval.vue', [
   'Send quotation with PDF',
   'Approve and email invoice',
   'PDF receipt',
+  'minimumCompletionPayment',
+  'completionBlocked',
+  '50% payment required',
   '/.netlify/functions/updateProjectDetails',
   '/.netlify/functions/updateProjectStatus',
   '/.netlify/functions/recordProjectPayment',
@@ -113,9 +143,15 @@ const statusFunction = requireText('netlify/functions/updateProjectStatus.js', [
   "type: 'status_changed'",
   'SITE_SURVEY_REQUIRED',
   "project.siteSurveyStatus !== 'completed'",
+  'MINIMUM_PAYMENT_REQUIRED',
+  'minimumCompletionPayment',
+  "newStatus === 'completed'",
   'attachmentName'
 ]);
 if (!statusFunction.includes("newStatus === 'approved'")) fail('approval does not enforce the survey gate');
+if ((statusFunction.match(/assertCompletionPayment\(/g) || []).length < 3) {
+  fail('completion payment gate is not checked before and inside the status transaction');
+}
 
 requireText('netlify/functions/recordProjectPayment.js', [
   "requirePermission(event, 'projects.payments')",
@@ -186,6 +222,7 @@ const rules = requireText('firestore.rules', [
   'match /projectOperations/{projectId}',
   'match /projectNotifications/{notificationId}',
   'match /deletedProjects/{projectId}',
+  'match /enquiries/{enquiryId}',
   'allow create: if false;',
   'allow update: if false;',
   'allow delete: if false;'
@@ -206,4 +243,4 @@ const customerWorkspace = requireText('src/components/CustomerProjects.vue', [
   }
 });
 
-console.log('Project operations are valid: enquiry intake, panel categories, mandatory survey, selective summaries and event-specific PDF emails are enforced.');
+console.log('Project operations are valid: internal enquiry inbox, panel categories, survey gate, 50% completion payment gate, selective summaries and event-specific PDF emails are enforced.');
