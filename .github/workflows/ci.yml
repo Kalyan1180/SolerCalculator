@@ -44,6 +44,9 @@ jobs:
       - name: Validate project operations
         run: npm run validate:operations
 
+      - name: Validate message workflow
+        run: npm run validate:messages
+
       - name: Lint
         run: npm run lint
 
