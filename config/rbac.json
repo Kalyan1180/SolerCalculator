@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "permissions": {
     "dashboard.access": "Open the administration dashboard",
     "projects.read": "View all customer projects and quotations",
@@ -9,6 +9,8 @@
     "projects.documents": "Generate quotations and invoices",
     "projects.delete": "Delete project records",
     "notifications.send": "Send project email or SMS notifications",
+    "messages.read": "View customer contact messages",
+    "messages.manage": "Prioritise, assign, update and resolve customer contact messages",
     "inventory.read": "View stock inventory",
     "inventory.write": "Create, update and delete stock inventory",
     "equipment.read": "View calculator equipment catalog",
@@ -38,7 +40,7 @@
     },
     "inventory_manager": {
       "label": "Inventory Manager",
-      "description": "Manages stock inventory and calculator equipment without project, analytics or user administration access.",
+      "description": "Manages stock inventory and calculator equipment without project, message, analytics or user administration access.",
       "permissions": [
         "dashboard.access",
         "inventory.read",
@@ -49,9 +51,11 @@
     },
     "project_manager": {
       "label": "Project Manager",
-      "description": "Manages quotations, projects, project payments, documents and customer notifications.",
+      "description": "Manages enquiries, quotations, projects, payments, documents and customer communication.",
       "permissions": [
         "dashboard.access",
+        "messages.read",
+        "messages.manage",
         "projects.read",
         "projects.create",
         "projects.update",
