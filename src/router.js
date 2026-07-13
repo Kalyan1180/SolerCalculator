@@ -10,6 +10,7 @@ import LoginPage from '@/components/LoginPage.vue';
 import SignUpPage from '@/components/SignUpPage.vue';
 import AccessDenied from '@/components/AccessDenied.vue';
 import AuditLog from '@/components/AuditLog.vue';
+import MessageInbox from '@/components/MessageInbox.vue';
 import { auth } from '@/firebase';
 import { getUserAccess, hasEveryPermission, hasPermission } from '@/utils/accessControl';
 import { ensureActiveSession } from '@/utils/sessionManager';
@@ -56,6 +57,16 @@ const routes = [
       PERMISSIONS.DASHBOARD_ACCESS,
       'Overview',
       'Your permitted administration modules and operational shortcuts.'
+    )
+  },
+  {
+    path: '/admin/messages',
+    name: 'MessageInbox',
+    component: MessageInbox,
+    meta: protectedMeta(
+      PERMISSIONS.MESSAGES_READ,
+      'Message Inbox',
+      'Review, prioritise, assign and resolve customer enquiries.'
     )
   },
   {
