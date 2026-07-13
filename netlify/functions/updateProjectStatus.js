@@ -9,10 +9,43 @@ const {
   calculateTerms,
   loadProjectBundle,
   notificationRecord,
+  numberValue,
+  paymentTotal,
   statusDateUpdates,
   text,
   workflowError
 } = require('./_projectWorkflow');
+
+function amountPaid(project) {
+  const ledgerTotal = paymentTotal(project);
+  const recordedTotal = numberValue(project?.amountPaid);
+  const statusFallback = project?.paymentStatus === 'balance_paid'
+    ? numberValue(project?.quotedPrice)
+    : project?.paymentStatus === 'advance_paid'
+      ? numberValue(project?.advanceAmount)
+      : 0;
+  return Math.max(0, ledgerTotal, recordedTotal, statusFallback);
+}
+
+function minimumCompletionPayment(project) {
+  return Math.round(numberValue(project?.quotedPrice) * 0.5 * 100) / 100;
+}
+
+function assertCompletionPayment(project) {
+  const minimum = minimumCompletionPayment(project);
+  const paid = amountPaid(project);
+  if (minimum <= 0) {
+    throw workflowError(409, 'PROJECT_PRICE_REQUIRED', 'Set a valid quoted price before completing the installation.');
+  }
+  if (paid + 0.01 < minimum) {
+    const remaining = Math.max(0, minimum - paid);
+    throw workflowError(
+      409,
+      'MINIMUM_PAYMENT_REQUIRED',
+      `At least 50% of the quoted amount must be recorded before completion. Received Rs. ${paid.toFixed(2)}; minimum required Rs. ${minimum.toFixed(2)}; remaining Rs. ${remaining.toFixed(2)}.`
+    );
+  }
+}
 
 async function updateDelivery(db, notificationId, values) {
   await db.collection('projectNotifications').doc(notificationId).set(values, { merge: true });
@@ -35,7 +68,7 @@ exports.handler = async event => {
     if (!projectId) throw workflowError(400, 'PROJECT_ID_REQUIRED', 'Project ID is required.');
 
     const { db, fieldValue } = getAdminServices();
-    const { project, operations, merged } = await loadProjectBundle(db, projectId);
+    const { project, merged } = await loadProjectBundle(db, projectId);
     const previousStatus = project.status;
     const allowed = STATUS_TRANSITIONS[previousStatus] || [];
     if (!allowed.includes(newStatus)) {
@@ -48,6 +81,7 @@ exports.handler = async event => {
         'Complete and record the site survey before approving the quotation.'
       );
     }
+    if (newStatus === 'completed') assertCompletionPayment(project);
 
     const now = new Date();
     const scheduledDate = payload.installationScheduledDate ? new Date(payload.installationScheduledDate) : null;
@@ -91,16 +125,18 @@ exports.handler = async event => {
         transaction.get(operationsRef)
       ]);
       if (!freshProject.exists) throw workflowError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
-      const liveStatus = freshProject.data().status;
+      const liveProject = freshProject.data();
+      const liveStatus = liveProject.status;
       const liveRevision = Number(freshOperations.exists
-        ? freshOperations.data().revision || freshProject.data().revision || 0
-        : freshProject.data().revision || 0);
+        ? freshOperations.data().revision || liveProject.revision || 0
+        : liveProject.revision || 0);
       if (liveRevision !== expectedRevision || liveStatus !== previousStatus) {
         throw workflowError(409, 'PROJECT_CHANGED', 'The project changed while this page was open. Refresh and try again.');
       }
-      if (newStatus === 'approved' && freshProject.data().siteSurveyStatus !== 'completed') {
+      if (newStatus === 'approved' && liveProject.siteSurveyStatus !== 'completed') {
         throw workflowError(409, 'SITE_SURVEY_REQUIRED', 'Complete the site survey before approving the quotation.');
       }
+      if (newStatus === 'completed') assertCompletionPayment(liveProject);
 
       transaction.set(projectRef, {
         ...publicUpdates,
@@ -135,6 +171,7 @@ exports.handler = async event => {
         actorUid: authorization.user.uid,
         actorEmail: authorization.user.email || '',
         notificationId: notification.notificationId,
+        minimumPaymentChecked: newStatus === 'completed',
         createdAt: now
       });
     });

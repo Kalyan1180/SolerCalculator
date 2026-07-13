@@ -15,6 +15,16 @@ export const ADMIN_NAVIGATION_GROUPS = Object.freeze([
         description: 'Your permitted administration modules and shortcuts.'
       },
       {
+        routeName: 'MessageInbox',
+        path: '/admin/messages',
+        permission: PERMISSIONS.MESSAGES_READ,
+        icon: 'fas fa-inbox',
+        fallbackIcon: 'fas fa-envelope',
+        title: 'Message Inbox',
+        shortTitle: 'Messages',
+        description: 'Customer enquiries, assignment, priority and follow-up status.'
+      },
+      {
         routeName: 'ProjectManagement',
         path: '/admin/projects',
         permission: PERMISSIONS.PROJECTS_READ,

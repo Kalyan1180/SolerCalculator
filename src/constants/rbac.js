@@ -11,6 +11,8 @@ export const PERMISSIONS = Object.freeze({
   PROJECTS_DOCUMENTS: 'projects.documents',
   PROJECTS_DELETE: 'projects.delete',
   NOTIFICATIONS_SEND: 'notifications.send',
+  MESSAGES_READ: 'messages.read',
+  MESSAGES_MANAGE: 'messages.manage',
   INVENTORY_READ: 'inventory.read',
   INVENTORY_WRITE: 'inventory.write',
   EQUIPMENT_READ: 'equipment.read',
