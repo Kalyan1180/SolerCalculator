@@ -172,17 +172,51 @@
         </div>
 
         <div class="col-xl-4">
-          <section class="card mb-4 sticky-card"><div class="card-header"><h2 class="h5 mb-1">Commercial position</h2></div><div class="card-body"><div class="commercial-row"><span>Quoted price</span><strong>Rs {{ formatCurrency(project.quotedPrice) }}</strong></div><div class="commercial-row"><span>Advance target</span><strong>Rs {{ formatCurrency(project.advanceAmount) }} <small>({{ numberValue(project.advancePercentage) }}%)</small></strong></div><div class="commercial-row"><span>Contract balance</span><strong>Rs {{ formatCurrency(project.balanceAmount) }}</strong></div><hr /><div class="commercial-row"><span>Amount received</span><strong class="text-success">Rs {{ formatCurrency(amountPaid) }}</strong></div><div class="commercial-row"><span>Amount due</span><strong :class="amountDue > 0 ? 'text-danger' : 'text-success'">Rs {{ formatCurrency(amountDue) }}</strong></div><div class="progress mt-3" style="height:9px"><div class="progress-bar bg-success" :style="{ width: `${paymentProgress}%` }"></div></div><small class="text-muted">{{ paymentProgress.toFixed(0) }}% collected</small></div></section>
+          <section class="card mb-4 sticky-card">
+            <div class="card-header"><h2 class="h5 mb-1">Commercial position</h2></div>
+            <div class="card-body">
+              <div class="commercial-row"><span>Quoted price</span><strong>Rs {{ formatCurrency(project.quotedPrice) }}</strong></div>
+              <div class="commercial-row"><span>Advance target</span><strong>Rs {{ formatCurrency(project.advanceAmount) }} <small>({{ numberValue(project.advancePercentage) }}%)</small></strong></div>
+              <div class="commercial-row"><span>Contract balance</span><strong>Rs {{ formatCurrency(project.balanceAmount) }}</strong></div>
+              <hr />
+              <div class="commercial-row"><span>Amount received</span><strong class="text-success">Rs {{ formatCurrency(amountPaid) }}</strong></div>
+              <div class="commercial-row"><span>Amount due</span><strong :class="amountDue > 0 ? 'text-danger' : 'text-success'">Rs {{ formatCurrency(amountDue) }}</strong></div>
+              <div class="commercial-row"><span>Completion threshold</span><strong>Rs {{ formatCurrency(minimumCompletionPayment) }} (50%)</strong></div>
+              <div class="progress mt-3" style="height:9px"><div class="progress-bar bg-success" :style="{ width: `${paymentProgress}%` }"></div></div>
+              <small class="text-muted">{{ paymentProgress.toFixed(0) }}% collected</small>
+              <div v-if="project.status === 'in_progress'" class="completion-gate mt-3" :class="completionBlocked ? 'is-blocked' : 'is-ready'">
+                <i :class="completionBlocked ? 'fas fa-lock' : 'fas fa-circle-check'"></i>
+                <div>
+                  <strong>{{ completionBlocked ? 'Completion locked' : 'Completion payment satisfied' }}</strong>
+                  <span v-if="completionBlocked">Record another Rs {{ formatCurrency(completionPaymentRemaining) }} before marking installation completed.</span>
+                  <span v-else>At least 50% of the quotation has been received.</span>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <SiteSurveyPanel :project="project" :can-update="canUpdateProject" @updated="loadWorkspace" @warning="warningMessage = $event" />
 
           <section v-if="canUpdateProject" class="card mb-4">
-            <div class="card-header"><h2 class="h5 mb-1">Move project forward</h2><p class="small text-muted mb-0">Status emails attach documents only when relevant.</p></div>
+            <div class="card-header"><h2 class="h5 mb-1">Move project forward</h2><p class="small text-muted mb-0">Workflow checks protect survey, payment and customer-notification requirements.</p></div>
             <div class="card-body">
+              <div v-if="project.status === 'in_progress'" class="completion-gate mb-3" :class="completionBlocked ? 'is-blocked' : 'is-ready'">
+                <i :class="completionBlocked ? 'fas fa-lock' : 'fas fa-circle-check'"></i>
+                <div>
+                  <strong>{{ completionBlocked ? '50% payment required' : 'Ready for completion' }}</strong>
+                  <span v-if="completionBlocked">Received Rs {{ formatCurrency(amountPaid) }} of the Rs {{ formatCurrency(minimumCompletionPayment) }} minimum.</span>
+                  <span v-else>The payment condition for completion is satisfied.</span>
+                </div>
+              </div>
               <label class="form-label">Customer update message</label>
               <textarea v-model.trim="statusCustomerMessage" class="form-control mb-3" rows="3" maxlength="1000"></textarea>
               <div v-if="availableStatusActions.some(action => action.status === 'installation_scheduled')" class="mb-3"><label class="form-label">Installation date</label><input v-model="statusInstallationDate" type="date" class="form-control" /></div>
-              <div class="d-grid gap-2"><button v-for="action in availableStatusActions" :key="action.status" class="btn" :class="action.className" :disabled="busyAction || action.disabled" @click="updateStatus(action.status)">{{ action.label }}</button><span v-if="approvalBlocked" class="small text-warning">Complete the site survey before approving the quotation.</span><span v-if="!availableStatusActions.length" class="text-muted">This status has no further workflow actions.</span></div>
+              <div class="d-grid gap-2">
+                <button v-for="action in availableStatusActions" :key="action.status" class="btn" :class="action.className" :disabled="busyAction || action.disabled" @click="updateStatus(action.status)">{{ action.label }}</button>
+                <span v-if="approvalBlocked" class="small text-warning">Complete the site survey before approving the quotation.</span>
+                <span v-if="completionBlocked" class="small text-warning">Completion remains unavailable until at least 50% of the quoted price is recorded.</span>
+                <span v-if="!availableStatusActions.length" class="text-muted">This status has no further workflow actions.</span>
+              </div>
             </div>
           </section>
 
@@ -251,6 +285,9 @@ export default {
     paymentReady() { return Boolean(this.project?.approvalDate); },
     commercialsLocked() { return this.amountPaid > 0; },
     minimumAdvance() { return this.numberValue(this.editForm.quotedPrice) * 0.5; },
+    minimumCompletionPayment() { return Math.round(this.numberValue(this.project?.quotedPrice) * 0.5 * 100) / 100; },
+    completionPaymentRemaining() { return Math.max(0, this.minimumCompletionPayment - this.amountPaid); },
+    completionBlocked() { return this.project?.status === 'in_progress' && this.amountPaid + 0.01 < this.minimumCompletionPayment; },
     calculatedAdvancePercentage() { return this.editForm.advanceMode === 'amount' ? (this.numberValue(this.editForm.advanceAmount) / Math.max(1, this.numberValue(this.editForm.quotedPrice))) * 100 : this.numberValue(this.editForm.advancePercentage); },
     calculatedAdvanceAmount() { return this.editForm.advanceMode === 'amount' ? this.numberValue(this.editForm.advanceAmount) : this.numberValue(this.editForm.quotedPrice) * this.numberValue(this.editForm.advancePercentage) / 100; },
     calculatedBalanceAmount() { return Math.max(0, this.numberValue(this.editForm.quotedPrice) - this.calculatedAdvanceAmount); },
@@ -262,7 +299,7 @@ export default {
         quote_sent: [{ status: 'approved', label: 'Approve and email invoice', className: 'btn-success', disabled: this.project?.siteSurveyStatus !== 'completed' }, { status: 'quote_rejected', label: 'Mark quotation rejected', className: 'btn-outline-danger' }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-secondary' }],
         approved: [{ status: 'installation_scheduled', label: 'Schedule installation', className: 'btn-info' }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-danger' }],
         installation_scheduled: [{ status: 'in_progress', label: 'Start installation', className: 'btn-warning' }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-danger' }],
-        in_progress: [{ status: 'completed', label: 'Complete installation', className: 'btn-success' }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-danger' }]
+        in_progress: [{ status: 'completed', label: this.completionBlocked ? 'Complete installation — payment required' : 'Complete installation', className: 'btn-success', disabled: this.completionBlocked }, { status: 'cancelled', label: 'Cancel project', className: 'btn-outline-danger' }]
       };
       return actions[this.project?.status] || [];
     }
@@ -287,7 +324,7 @@ export default {
     showSuccess(message) { this.successMessage = message; window.setTimeout(() => { this.successMessage = ''; }, 4500); },
     async seedPanelModels() { this.busyAction = true; this.error = ''; try { const result = await authenticatedJsonRequest('/.netlify/functions/seedPanelTypes', { method: 'POST' }); this.showSuccess(result.message); await this.loadWorkspace(); } catch (error) { this.error = error.message; } finally { this.busyAction = false; } },
     async saveProject() { this.busyAction = true; this.error = ''; this.warningMessage = ''; try { const result = await authenticatedJsonRequest('/.netlify/functions/updateProjectDetails', { method: 'PUT', body: JSON.stringify({ projectId: this.projectId, expectedRevision: this.numberValue(this.project.revision), ...this.editForm }) }); await this.loadWorkspace(); this.editMode = false; this.showSuccess('Project and quotation details updated.'); if (result.email?.attempted && !result.email.sent) this.warningMessage = result.email.error; } catch (error) { this.error = error.message; } finally { this.busyAction = false; } },
-    async updateStatus(status) { const action = this.availableStatusActions.find(item => item.status === status); if (action?.disabled) { this.error = 'Complete the site survey before approving the quotation.'; return; } if (status === 'installation_scheduled' && !this.statusInstallationDate) { this.error = 'Choose an installation date before scheduling.'; return; } if (['cancelled', 'quote_rejected'].includes(status) && !window.confirm(`Confirm ${this.getStatusLabel(status)}? The customer will receive an email.`)) return; this.busyAction = true; this.error = ''; this.warningMessage = ''; try { const result = await authenticatedJsonRequest('/.netlify/functions/updateProjectStatus', { method: 'POST', body: JSON.stringify({ projectId: this.projectId, status, customerMessage: this.statusCustomerMessage, installationScheduledDate: this.statusInstallationDate || null, expectedRevision: this.numberValue(this.project.revision) }) }); await this.loadWorkspace(); this.statusCustomerMessage = ''; this.showSuccess(`Status updated to ${this.getStatusLabel(status)}.${result.email?.attachmentName ? ` ${result.email.attachmentName} was emailed.` : ''}`); if (!result.email?.sent) this.warningMessage = result.email?.error || 'Customer email delivery is pending.'; } catch (error) { this.error = error.message; } finally { this.busyAction = false; } },
+    async updateStatus(status) { const action = this.availableStatusActions.find(item => item.status === status); if (action?.disabled) { this.error = status === 'completed' && this.completionBlocked ? `Record at least 50% of the quoted price before completion. Another Rs ${this.formatCurrency(this.completionPaymentRemaining)} is required.` : 'Complete the site survey before approving the quotation.'; return; } if (status === 'installation_scheduled' && !this.statusInstallationDate) { this.error = 'Choose an installation date before scheduling.'; return; } if (['cancelled', 'quote_rejected'].includes(status) && !window.confirm(`Confirm ${this.getStatusLabel(status)}? The customer will receive an email.`)) return; this.busyAction = true; this.error = ''; this.warningMessage = ''; try { const result = await authenticatedJsonRequest('/.netlify/functions/updateProjectStatus', { method: 'POST', body: JSON.stringify({ projectId: this.projectId, status, customerMessage: this.statusCustomerMessage, installationScheduledDate: this.statusInstallationDate || null, expectedRevision: this.numberValue(this.project.revision) }) }); await this.loadWorkspace(); this.statusCustomerMessage = ''; this.showSuccess(`Status updated to ${this.getStatusLabel(status)}.${result.email?.attachmentName ? ` ${result.email.attachmentName} was emailed.` : ''}`); if (!result.email?.sent) this.warningMessage = result.email?.error || 'Customer email delivery is pending.'; } catch (error) { this.error = error.message; } finally { this.busyAction = false; } },
     preparePaymentAmount() { if (!this.project) return; const remainingAdvance = Math.max(0, this.numberValue(this.project.advanceAmount) - this.amountPaid); this.paymentForm.amount = remainingAdvance > 0 ? remainingAdvance : this.amountDue; },
     async recordPayment() { this.busyAction = true; this.error = ''; this.warningMessage = ''; try { const result = await authenticatedJsonRequest('/.netlify/functions/recordProjectPayment', { method: 'POST', body: JSON.stringify({ projectId: this.projectId, expectedRevision: this.numberValue(this.project.revision), ...this.paymentForm }) }); await this.loadWorkspace(); this.paymentForm.reference = ''; this.paymentForm.note = ''; this.showSuccess('Payment recorded and PDF receipt email processed.'); if (!result.email?.sent) this.warningMessage = result.email?.error; } catch (error) { this.error = error.message; } finally { this.busyAction = false; } },
     async retryNotification(notificationId) { this.busyAction = true; this.error = ''; try { const result = await authenticatedJsonRequest('/.netlify/functions/retryProjectNotification', { method: 'POST', body: JSON.stringify({ notificationId }) }); await this.loadWorkspace(); this.showSuccess(result.message || 'Customer email sent.'); } catch (error) { this.error = error.message; } finally { this.busyAction = false; } },
@@ -316,6 +353,7 @@ export default {
 .detail-list { margin:0; }.detail-list div { display:grid; grid-template-columns:130px 1fr; gap:1rem; padding:.55rem 0; border-bottom:1px solid var(--ant-slate-100); }.detail-list dt { color:var(--ant-slate-500); font-weight:600; }.detail-list dd { margin:0; font-weight:600; }
 .spec-card { display:flex; flex-direction:column; gap:.25rem; padding:1rem; border:1px solid var(--ant-slate-200); border-left:4px solid var(--ant-blue-700); border-radius:12px; background:var(--ant-slate-50); }.spec-card small,.spec-card span { color:var(--ant-slate-500); }.spec-card strong { color:var(--ant-slate-900); }
 .commercial-preview { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; margin-top:1rem; }.commercial-preview div { display:flex; justify-content:space-between; gap:1rem; padding:.85rem 1rem; border-radius:10px; background:var(--ant-slate-50); }.commercial-row { display:flex; justify-content:space-between; gap:1rem; padding:.55rem 0; }.commercial-row span { color:var(--ant-slate-500); }
+.completion-gate { display:flex; align-items:flex-start; gap:.75rem; padding:.85rem; border:1px solid; border-radius:12px; }.completion-gate i { margin-top:.2rem; }.completion-gate div { display:flex; flex-direction:column; }.completion-gate span { font-size:.8rem; }.completion-gate.is-blocked { border-color:#fed7aa; color:#9a3412; background:#fff7ed; }.completion-gate.is-ready { border-color:#bbf7d0; color:#166534; background:#f0fdf4; }
 .stock-readiness { display:inline-flex; padding:.45rem .7rem; border-radius:999px; font-size:.8rem; font-weight:800; }.stock-readiness.is-ready { background:#dcfce7;color:#166534; }.stock-readiness.is-short { background:#fef3c7;color:#92400e; }
 .priority-chip { display:inline-flex; padding:.25rem .5rem; border-radius:999px; font-size:.7rem; font-weight:800; text-transform:uppercase; }.priority-chip.is-critical{background:#fee2e2;color:#991b1b}.priority-chip.is-high{background:#ffedd5;color:#9a3412}.priority-chip.is-medium{background:#fef3c7;color:#92400e}.priority-chip.is-low{background:#e2e8f0;color:#475569}
 .notification-list { display:grid; gap:.8rem; }.notification-item { display:flex; align-items:flex-start; gap:.8rem; padding:.85rem; border:1px solid var(--ant-slate-200); border-radius:12px; }.notification-icon { display:grid; place-items:center; width:38px; height:38px; flex:0 0 38px; border-radius:10px; background:var(--ant-slate-100); color:var(--ant-slate-600); }.notification-icon.is-sent{background:#dcfce7;color:#166534}.notification-icon.is-failed{background:#fee2e2;color:#991b1b}.notification-icon.is-pending{background:#fef3c7;color:#92400e}
