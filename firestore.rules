@@ -74,6 +74,8 @@ service cloud.firestore {
           currentRole() == 'project_manager'
           && permission in [
             'dashboard.access',
+            'messages.read',
+            'messages.manage',
             'projects.read',
             'projects.create',
             'projects.update',
@@ -150,6 +152,12 @@ service cloud.firestore {
     }
 
     match /deletedProjects/{projectId} {
+      allow read, write: if false;
+    }
+
+    match /enquiries/{enquiryId} {
+      // Public submission and staff inbox actions are handled only by validated
+      // Netlify functions. No browser receives direct Firestore access.
       allow read, write: if false;
     }
 
