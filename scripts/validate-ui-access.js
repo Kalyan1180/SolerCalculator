@@ -41,6 +41,7 @@ const navigationRouteNames = new Set(
 );
 const requiredNavigationRoutes = [
   'AdminControl',
+  'MessageInbox',
   'ProjectManagement',
   'ManageInventory',
   'AdminInvestigate',
@@ -88,6 +89,10 @@ for (const file of vueFiles(componentsDir)) {
 }
 
 const requiredVisibilityChecks = {
+  'src/components/MessageInbox.vue': [
+    'v-if="canManageMessages"',
+    'PERMISSIONS.MESSAGES_MANAGE'
+  ],
   'src/components/ProjectManagement.vue': [
     'v-if="canCreateProjects"'
   ],
