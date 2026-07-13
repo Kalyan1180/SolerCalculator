@@ -14,7 +14,8 @@
     "validate:ui-access": "node scripts/validate-ui-access.js",
     "validate:inventory": "node scripts/validate-smart-inventory.js",
     "validate:customer-privacy": "node scripts/validate-customer-privacy.js",
-    "validate:operations": "node scripts/validate-project-operations.js"
+    "validate:operations": "node scripts/validate-project-operations.js",
+    "validate:messages": "node scripts/validate-message-workflow.js"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",
