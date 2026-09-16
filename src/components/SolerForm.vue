@@ -202,10 +202,14 @@ export default {
       return Math.ceil(units / 3);
     },
     resultMetrics() {
+      const estimatedPeakLoad = this.computedPeakLoad > 0 ? `${this.computedPeakLoad.toFixed(2)} kW` : '—';
+      const solarCapacity = this.recommendation
+        ? `${((finiteNumber(this.recommendation.panel?.wattage) * this.recommendation.panelCount) / 1000).toFixed(2)} kW`
+        : '—';
       return [
         { label: 'Daily energy', value: `${this.unitPerDay.toFixed(2)} kWh` },
-        { label: 'Exact required kW', value: `${this.computedPeakLoad.toFixed(2)} kW` },
-        { label: 'Solar capacity', value: `${((finiteNumber(this.recommendation.panel?.wattage) * this.recommendation.panelCount) / 1000).toFixed(2)} kW` },
+        { label: 'Estimated peak load', value: estimatedPeakLoad },
+        { label: 'Solar capacity', value: solarCapacity },
         { label: 'Estimated offer', value: `Rs ${this.formatMoney(this.recommendation.offerPrice)}` }
       ];
     },
