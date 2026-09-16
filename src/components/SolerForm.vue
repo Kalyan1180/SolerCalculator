@@ -23,7 +23,7 @@
             </div>
 
             <div class="row g-3 mb-4">
-              <div v-for="metric in resultMetrics" :key="metric.label" class="col-md-4">
+              <div v-for="metric in resultMetrics" :key="metric.label" class="col-md-3">
                 <div class="summary-box h-100"><small>{{ metric.label }}</small><strong>{{ metric.value }}</strong></div>
               </div>
             </div>
@@ -159,16 +159,9 @@ export default {
   name: 'SolerCalculator',
   data() {
     return {
-      showResults: false,
-      loading: false,
-      errorMessage: '',
-      recommendation: null,
-      inputMethodType: 'monthly',
-      monthlyConsumption: null,
-      billType: 'domestic',
-      domesticElectricityBill: null,
-      commercialElectricityBill: null,
-      peakLoad: null,
+      showResults: false, loading: false, errorMessage: '', recommendation: null,
+      inputMethodType: 'monthly', monthlyConsumption: null, billType: 'domestic',
+      domesticElectricityBill: null, commercialElectricityBill: null, peakLoad: null,
       appliances: Object.fromEntries(Object.keys(APPLIANCE_CONFIG).map(key => [key, 0])),
       applianceLabels: Object.fromEntries(Object.entries(APPLIANCE_CONFIG).map(([key, value]) => [key, value.label])),
       inputMethods: [
@@ -180,17 +173,10 @@ export default {
     };
   },
   computed: {
-    maxApplianceCount() {
-      return VALIDATION_CONFIG.MAX_APPLIANCE_COUNT;
-    },
+    maxApplianceCount() { return VALIDATION_CONFIG.MAX_APPLIANCE_COUNT; },
     activeElectricityBill: {
-      get() {
-        return this.billType === 'domestic' ? this.domesticElectricityBill : this.commercialElectricityBill;
-      },
-      set(value) {
-        if (this.billType === 'domestic') this.domesticElectricityBill = value;
-        else this.commercialElectricityBill = value;
-      }
+      get() { return this.billType === 'domestic' ? this.domesticElectricityBill : this.commercialElectricityBill; },
+      set(value) { if (this.billType === 'domestic') this.domesticElectricityBill = value; else this.commercialElectricityBill = value; }
     },
     unitPerDay() {
       if (this.inputMethodType === 'monthly') return finiteNumber(this.monthlyConsumption) / 30;
@@ -198,16 +184,10 @@ export default {
         const rate = this.billType === 'domestic' ? ELECTRICITY_RATES.DOMESTIC_RATE : ELECTRICITY_RATES.COMMERCIAL_RATE;
         return rate > 0 ? ((finiteNumber(this.activeElectricityBill) * 12) / 365) / rate : 0;
       }
-      return Object.entries(APPLIANCE_CONFIG).reduce((total, [key, config]) => {
-        return total + config.watts * config.hours * finiteNumber(this.appliances[key]);
-      }, 0) / 1000;
+      return Object.entries(APPLIANCE_CONFIG).reduce((total, [key, config]) => total + config.watts * config.hours * finiteNumber(this.appliances[key]), 0) / 1000;
     },
     computedPeakLoad() {
-      if (this.inputMethodType === 'appliances') {
-        return Object.entries(APPLIANCE_CONFIG).reduce((total, [key, config]) => {
-          return total + config.peak * finiteNumber(this.appliances[key]);
-        }, 0) / 1000;
-      }
+      if (this.inputMethodType === 'appliances') return Object.entries(APPLIANCE_CONFIG).reduce((total, [key, config]) => total + config.peak * finiteNumber(this.appliances[key]), 0) / 1000;
       return finiteNumber(this.peakLoad) > 0 ? (finiteNumber(this.peakLoad) * 220) / 1000 : 0;
     },
     panelCount() {
@@ -224,48 +204,23 @@ export default {
     resultMetrics() {
       return [
         { label: 'Daily energy', value: `${this.unitPerDay.toFixed(2)} kWh` },
-        { label: 'Peak load', value: `${this.computedPeakLoad.toFixed(2)} kW` },
+        { label: 'Exact required kW', value: `${this.computedPeakLoad.toFixed(2)} kW` },
+        { label: 'Solar capacity', value: `${((finiteNumber(this.recommendation.panel?.wattage) * this.recommendation.panelCount) / 1000).toFixed(2)} kW` },
         { label: 'Estimated offer', value: `Rs ${this.formatMoney(this.recommendation.offerPrice)}` }
       ];
     },
     equipmentSummary() {
       const battery = this.recommendation.battery;
       return [
-        {
-          label: 'Solar panels',
-          icon: 'fas fa-solar-panel',
-          name: this.recommendation.panel.name,
-          detail: `${finiteNumber(this.recommendation.panel.wattage)} W · ${this.recommendation.panelCount} units`
-        },
-        {
-          label: 'Inverter',
-          icon: 'fas fa-bolt',
-          name: this.recommendation.inverter.name,
-          detail: `${finiteNumber(this.recommendation.inverter.peakLoad)} KVA`
-        },
-        {
-          label: 'Battery',
-          icon: 'fas fa-car-battery',
-          name: battery.selectedBattery?.name || 'Not required',
-          detail: battery.selectedBattery ? `${battery.quantity} unit(s)` : 'Grid-tie configuration'
-        }
+        { label: 'Solar panels', icon: 'fas fa-solar-panel', name: this.recommendation.panel.name, detail: `${finiteNumber(this.recommendation.panel.wattage)} W · ${this.recommendation.panelCount} units` },
+        { label: 'Inverter', icon: 'fas fa-bolt', name: this.recommendation.inverter.name, detail: `${finiteNumber(this.recommendation.inverter.peakLoad).toFixed(2)} kW capacity` },
+        { label: 'Battery', icon: 'fas fa-car-battery', name: battery.selectedBattery?.name || 'Not required', detail: battery.selectedBattery ? `${battery.quantity} unit(s) · ${finiteNumber(battery.selectedBattery.capacity || battery.selectedBattery.energy).toFixed(2)} kWh each` : 'Grid-tie configuration' }
       ];
     }
   },
   methods: {
-    formatMoney(value) {
-      return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(finiteNumber(value));
-    },
-    typeLabel(type) {
-      return {
-        panel: 'Solar panel',
-        inverter: 'Solar inverter',
-        battery: 'Battery',
-        wiring: 'Wiring and cable',
-        mounting: 'Mounting structure',
-        other: 'System accessory'
-      }[type] || 'Equipment';
-    },
+    formatMoney(value) { return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(finiteNumber(value)); },
+    typeLabel(type) { return { panel: 'Solar panel', inverter: 'Solar inverter', battery: 'Battery', wiring: 'Wiring and cable', mounting: 'Mounting structure', other: 'System accessory' }[type] || 'Equipment'; },
     validateInputs() {
       if (this.inputMethodType === 'monthly' && finiteNumber(this.monthlyConsumption) <= 0) return 'Monthly consumption must be greater than zero.';
       if (this.inputMethodType === 'bill' && finiteNumber(this.activeElectricityBill) <= 0) return 'Electricity bill must be greater than zero.';
@@ -279,61 +234,27 @@ export default {
     async submitForm() {
       this.errorMessage = '';
       const validationError = this.validateInputs();
-      if (validationError) {
-        this.errorMessage = validationError;
-        return;
-      }
-
+      if (validationError) { this.errorMessage = validationError; return; }
       this.loading = true;
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 12000);
       try {
-        const response = await fetch('/.netlify/functions/recommendSystem', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: 'customer',
-            unitPerDay: this.unitPerDay,
-            peakLoad: this.computedPeakLoad,
-            panelCount: this.panelCount
-          }),
-          signal: controller.signal,
-          cache: 'no-store'
-        });
+        const response = await fetch('/.netlify/functions/recommendSystem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'customer', unitPerDay: this.unitPerDay, peakLoad: this.computedPeakLoad, panelCount: this.panelCount }), signal: controller.signal, cache: 'no-store' });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Unable to calculate a suitable system.');
         if (!payload.recommendation?.recommendationId) throw new Error('The calculation could not be completed. Please try again.');
         this.recommendation = payload.recommendation;
         this.showResults = true;
       } catch (error) {
-        this.errorMessage = error.name === 'AbortError'
-          ? 'The calculation took too long. Please try again.'
-          : error.message || 'Unable to calculate the system.';
-      } finally {
-        window.clearTimeout(timeoutId);
-        this.loading = false;
-      }
+        this.errorMessage = error.name === 'AbortError' ? 'The calculation took too long. Please try again.' : error.message || 'Unable to calculate the system.';
+      } finally { window.clearTimeout(timeoutId); this.loading = false; }
     },
     openQuotation() {
       if (!this.recommendation) return;
-      this.$store.dispatch('updateSolerResults', {
-        recommendationId: this.recommendation.recommendationId,
-        costWith: this.recommendation.estimatedInstalledPrice,
-        special: this.recommendation.offerPrice,
-        panelCount: this.recommendation.panelCount,
-        panel: this.recommendation.panel,
-        inverter: this.recommendation.inverter,
-        battery: this.recommendation.battery,
-        requirements: this.recommendation.requirements,
-        calculationInput: this.recommendation.calculationInput
-      });
+      this.$store.dispatch('updateSolerResults', { recommendationId: this.recommendation.recommendationId, costWith: this.recommendation.estimatedInstalledPrice, special: this.recommendation.offerPrice, panelCount: this.recommendation.panelCount, panel: this.recommendation.panel, inverter: this.recommendation.inverter, battery: this.recommendation.battery, requirements: this.recommendation.requirements, calculationInput: this.recommendation.calculationInput });
       this.$router.push({ name: 'SubmitQuotation' });
     },
-    resetResults() {
-      this.showResults = false;
-      this.errorMessage = '';
-      this.recommendation = null;
-    }
+    resetResults() { this.showResults = false; this.errorMessage = ''; this.recommendation = null; }
   }
 };
 </script>
@@ -351,15 +272,12 @@ export default {
 .method-option.active { border-color: var(--ant-blue-600); background: rgba(37, 99, 235, 0.06); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08); }
 .summary-box, .equipment-result, .price-panel, .requirement-section { border: 1px solid var(--ant-slate-200); border-radius: 12px; background: var(--ant-slate-50); }
 .summary-box, .equipment-result { padding: 1rem; }
-.summary-box strong { color: var(--ant-blue-700); font-size: 1.45rem; }
+.summary-box strong { color: var(--ant-blue-700); font-size: 1.25rem; }
 .equipment-result { gap: 0.25rem; }
 .equipment-result__icon { color: var(--ant-blue-700); margin-bottom: 0.4rem; }
 .price-panel { padding: 1rem 1.25rem; display: grid; gap: 0.7rem; }
 .price-panel > div { display: flex; justify-content: space-between; gap: 1rem; }
 .requirement-section { padding: 1rem 1.25rem; }
 .requirement-table th { white-space: nowrap; }
-@media (max-width: 767.98px) {
-  .method-grid { grid-template-columns: 1fr; }
-  .price-panel > div { align-items: flex-start; flex-direction: column; gap: 0.1rem; }
-}
+@media (max-width: 767.98px) { .method-grid { grid-template-columns: 1fr; } .price-panel > div { align-items: flex-start; flex-direction: column; gap: 0.1rem; } }
 </style>
